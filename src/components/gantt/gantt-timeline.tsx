@@ -22,6 +22,7 @@ interface GanttTimelineProps {
   headerCells: { primary: HeaderCell[]; secondary: HeaderCell[] };
   dayWidth: number;
   rowHeight: number;
+  headerHeight: number;
   timelineWidth: number;
   contentHeight: number;
   onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
@@ -41,6 +42,7 @@ export const GanttTimeline = forwardRef<HTMLDivElement, GanttTimelineProps>(
       headerCells,
       dayWidth,
       rowHeight,
+      headerHeight,
       timelineWidth,
       contentHeight,
       onScroll,
@@ -83,6 +85,7 @@ export const GanttTimeline = forwardRef<HTMLDivElement, GanttTimelineProps>(
           <GanttHeader
             primaryCells={headerCells.primary}
             secondaryCells={headerCells.secondary}
+            headerHeight={headerHeight}
           />
 
           {/* Content */}

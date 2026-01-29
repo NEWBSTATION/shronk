@@ -6,12 +6,14 @@ import { GanttSidebar } from "./gantt-sidebar";
 import { GanttTimeline } from "./gantt-timeline";
 import { GanttToolbar } from "./gantt-toolbar";
 import { GanttDependencies } from "./gantt-dependencies";
+import { Button } from "@/components/ui/button";
 import {
   calculateTimelineRange,
   getDayWidth,
   generateHeaderCells,
 } from "./utils/date-calculations";
 import type { Milestone, Team, MilestoneDependency } from "@/db/schema";
+import { Plus, Minus } from "lucide-react";
 
 interface GanttViewProps {
   milestones: Milestone[];
@@ -33,6 +35,7 @@ interface GanttViewProps {
 
 const ROW_HEIGHT = 52;
 const SIDEBAR_WIDTH = 260;
+const HEADER_HEIGHT = 56;
 
 export function GanttView({
   milestones,
@@ -50,6 +53,8 @@ export function GanttView({
   const {
     timePeriod,
     zoomLevel,
+    zoomIn,
+    zoomOut,
     showDependencies,
     sidebarCollapsed,
   } = useGanttStore();
@@ -93,6 +98,21 @@ export function GanttView({
     }
   }, []);
 
+  // Scroll to today
+  const scrollToToday = useCallback(() => {
+    if (timelineRef.current) {
+      const today = new Date();
+      const daysFromStart = Math.floor(
+        (today.getTime() - timelineRange.start.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      const scrollPosition = daysFromStart * dayWidth - timelineRef.current.clientWidth / 2;
+      timelineRef.current.scrollTo({
+        left: Math.max(0, scrollPosition),
+        behavior: "smooth",
+      });
+    }
+  }, [timelineRange.start, dayWidth]);
+
   // Scroll to today on mount
   useEffect(() => {
     if (timelineRef.current && milestones.length > 0) {
@@ -107,15 +127,16 @@ export function GanttView({
 
   return (
     <div className="flex flex-col h-full">
-      <GanttToolbar teams={teams} />
+      <GanttToolbar teams={teams} onScrollToToday={scrollToToday} />
 
-      <div className="flex flex-1 overflow-hidden border rounded-lg">
+      <div className="flex flex-1 overflow-hidden border rounded-lg relative">
         {/* Sidebar */}
         {!sidebarCollapsed && (
           <GanttSidebar
             ref={sidebarRef}
             milestones={milestones}
             rowHeight={ROW_HEIGHT}
+            headerHeight={HEADER_HEIGHT}
             width={SIDEBAR_WIDTH}
             onScroll={handleSidebarScroll}
             onEdit={onEdit}
@@ -132,6 +153,7 @@ export function GanttView({
             headerCells={headerCells}
             dayWidth={dayWidth}
             rowHeight={ROW_HEIGHT}
+            headerHeight={HEADER_HEIGHT}
             timelineWidth={timelineWidth}
             contentHeight={contentHeight}
             onScroll={handleTimelineScroll}
@@ -156,6 +178,29 @@ export function GanttView({
               onDeleteDependency={onDeleteDependency}
             />
           )}
+
+          {/* Floating Zoom Controls */}
+          <div className="absolute right-3 top-[68px] z-30 flex flex-col bg-background border rounded-md shadow-lg">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded-b-none"
+              onClick={zoomIn}
+              disabled={zoomLevel >= 10}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+            <div className="h-px bg-border" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded-t-none"
+              onClick={zoomOut}
+              disabled={zoomLevel <= 1}
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

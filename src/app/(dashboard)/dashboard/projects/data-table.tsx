@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   ColumnDef,
   ColumnFiltersState,
+  ColumnPinningState,
   SortingState,
   VisibilityState,
   flexRender,
@@ -44,6 +45,9 @@ export function DataTable<TData, TValue>({
     []
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnPinning, setColumnPinning] = React.useState<ColumnPinningState>({
+    left: ["select", "name"],
+  });
 
   const table = useReactTable({
     data,
@@ -53,12 +57,14 @@ export function DataTable<TData, TValue>({
       columnVisibility,
       rowSelection,
       columnFilters,
+      columnPinning,
     },
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    onColumnPinningChange: setColumnPinning,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -70,14 +76,28 @@ export function DataTable<TData, TValue>({
   return (
     <div className="space-y-4">
       <DataTableToolbar table={table} />
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  const isPinned = header.column.getIsPinned();
                   return (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
+                    <TableHead
+                      key={header.id}
+                      colSpan={header.colSpan}
+                      className={
+                        isPinned
+                          ? "sticky left-0 bg-background z-10"
+                          : undefined
+                      }
+                      style={{
+                        left: isPinned
+                          ? `${header.column.getStart("left")}px`
+                          : undefined,
+                      }}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -97,14 +117,29 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const isPinned = cell.column.getIsPinned();
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={
+                          isPinned
+                            ? "sticky left-0 bg-background z-10"
+                            : undefined
+                        }
+                        style={{
+                          left: isPinned
+                            ? `${cell.column.getStart("left")}px`
+                            : undefined,
+                        }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             ) : (

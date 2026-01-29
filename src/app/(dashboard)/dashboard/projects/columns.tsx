@@ -30,6 +30,7 @@ export const columns: ColumnDef<Project>[] = [
         className="translate-y-[2px]"
       />
     ),
+    size: 40,
     enableSorting: false,
     enableHiding: false,
   },
@@ -43,6 +44,7 @@ export const columns: ColumnDef<Project>[] = [
         {row.getValue("name")}
       </div>
     ),
+    size: 200,
   },
   {
     accessorKey: "description",

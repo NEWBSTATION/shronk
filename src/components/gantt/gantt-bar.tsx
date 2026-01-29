@@ -4,8 +4,9 @@ import { useState, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { getStatusColor } from "@/components/shared/status-badge";
 import { ItemContextMenu } from "@/components/shared/item-context-menu";
-import { dateFromPosition, toLocalMidnight } from "./utils/date-calculations";
+import { toLocalMidnight } from "./utils/date-calculations";
 import { format, addDays, differenceInDays } from "date-fns";
+import { useGanttStore } from "@/store/gantt-store";
 import type { Milestone, Team, MilestoneStatus, MilestonePriority } from "@/db/schema";
 import type { BarPosition } from "./utils/date-calculations";
 
@@ -36,9 +37,9 @@ interface DragState {
 }
 
 const CLICK_THRESHOLD = 5;
-const BAR_PADDING = 6;
-const BAR_HEIGHT = 32;
+const BAR_HEIGHT = 36;
 const RESIZE_HANDLE_WIDTH = 8;
+const CONNECTION_HANDLE_SIZE = 12;
 
 export function GanttBar({
   milestone,
@@ -54,6 +55,7 @@ export function GanttBar({
   onPriorityChange,
   onDelete,
 }: GanttBarProps) {
+  const { showDependencies } = useGanttStore();
   const [isDragging, setIsDragging] = useState(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [previewDates, setPreviewDates] = useState<{
@@ -97,7 +99,6 @@ export function GanttBar({
           const daysDelta = Math.round(deltaX / dayWidth);
           const originalStart = toLocalMidnight(milestone.startDate);
           const originalEnd = toLocalMidnight(milestone.endDate);
-          const duration = differenceInDays(originalEnd, originalStart);
 
           let newStart: Date;
           let newEnd: Date;
@@ -165,6 +166,14 @@ export function GanttBar({
     ? (differenceInDays(previewDates.end, previewDates.start) + 1) * dayWidth
     : position.width;
 
+  // Calculate duration for tooltip
+  const duration = previewDates
+    ? differenceInDays(previewDates.end, previewDates.start) + 1
+    : differenceInDays(
+        toLocalMidnight(milestone.endDate),
+        toLocalMidnight(milestone.startDate)
+      ) + 1;
+
   // Diamond for single-day items
   if (position.isSingleDay && !previewDates) {
     return (
@@ -178,7 +187,7 @@ export function GanttBar({
       >
         <div
           className={cn(
-            "absolute cursor-pointer transition-transform hover:scale-110",
+            "absolute cursor-pointer transition-transform hover:scale-110 group",
             isDragging && "opacity-70"
           )}
           style={{
@@ -195,6 +204,38 @@ export function GanttBar({
               strokeWidth="2"
             />
           </svg>
+
+          {/* Label outside */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 text-xs font-medium truncate pointer-events-none whitespace-nowrap"
+            style={{ left: 28, maxWidth: 200 }}
+          >
+            {milestone.title}
+          </div>
+
+          {/* Connection handles */}
+          {showDependencies && (
+            <>
+              <div
+                className="absolute w-3 h-3 rounded-full border-2 bg-background opacity-0 group-hover:opacity-100 cursor-crosshair transition-opacity"
+                style={{
+                  left: -16,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  borderColor: statusColor,
+                }}
+              />
+              <div
+                className="absolute w-3 h-3 rounded-full border-2 bg-background opacity-0 group-hover:opacity-100 cursor-crosshair transition-opacity"
+                style={{
+                  right: -16,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  borderColor: statusColor,
+                }}
+              />
+            </>
+          )}
         </div>
       </ItemContextMenu>
     );
@@ -211,62 +252,111 @@ export function GanttBar({
     >
       <div
         className={cn(
-          "absolute rounded-md shadow-sm border overflow-hidden transition-shadow hover:shadow-md",
-          isDragging && "opacity-70 shadow-lg"
+          "absolute group cursor-pointer",
+          isDragging && "z-20"
         )}
         style={{
           left: displayLeft,
-          top,
+          top: top,
           width: displayWidth,
           height: BAR_HEIGHT,
-          backgroundColor: "hsl(var(--card))",
         }}
       >
-        {/* Status stripe */}
+        {/* Bar background with tinted color */}
         <div
-          className="absolute left-0 top-0 bottom-0 w-1"
-          style={{ backgroundColor: statusColor }}
-        />
-
-        {/* Content */}
-        <div
-          className="flex items-center h-full pl-3 pr-2 cursor-move"
+          className={cn(
+            "absolute inset-0 rounded-[3px] overflow-hidden transition-shadow hover:shadow-md",
+            isDragging && "ring-2 ring-primary shadow-lg"
+          )}
+          style={{
+            backgroundColor: `color-mix(in srgb, ${statusColor} 20%, transparent)`,
+          }}
           onMouseDown={(e) => handleMouseDown(e, "move")}
         >
-          <span className="text-sm font-medium truncate flex-1">
-            {milestone.title}
-          </span>
+          {/* Left status indicator stripe */}
+          <div
+            className="absolute inset-y-0 left-0 w-[3px]"
+            style={{ backgroundColor: statusColor }}
+          />
 
-          {/* Progress */}
-          {milestone.progress > 0 && (
-            <div className="ml-2 w-12 h-1.5 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full bg-primary"
-                style={{ width: `${milestone.progress}%` }}
-              />
-            </div>
-          )}
+          {/* Left resize handle */}
+          <div
+            className="absolute inset-y-0 left-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              handleMouseDown(e, "resize-start");
+            }}
+          >
+            <div
+              className="w-0.5 h-3 rounded-full"
+              style={{ backgroundColor: statusColor }}
+            />
+          </div>
+
+          {/* Right resize handle */}
+          <div
+            className="absolute inset-y-0 right-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              handleMouseDown(e, "resize-end");
+            }}
+          >
+            <div
+              className="w-0.5 h-3 rounded-full"
+              style={{ backgroundColor: statusColor }}
+            />
+          </div>
         </div>
 
-        {/* Resize handles */}
-        <div
-          className="absolute left-0 top-0 bottom-0 cursor-ew-resize hover:bg-primary/20"
-          style={{ width: RESIZE_HANDLE_WIDTH }}
-          onMouseDown={(e) => handleMouseDown(e, "resize-start")}
-        />
-        <div
-          className="absolute right-0 top-0 bottom-0 cursor-ew-resize hover:bg-primary/20"
-          style={{ width: RESIZE_HANDLE_WIDTH }}
-          onMouseDown={(e) => handleMouseDown(e, "resize-end")}
-        />
-
-        {/* Preview tooltip */}
-        {isDragging && previewDates && (
-          <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-popover text-popover-foreground px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border">
-            {format(previewDates.start, "MMM d")} -{" "}
-            {format(previewDates.end, "MMM d")}
-          </div>
+        {/* Connection handles */}
+        {showDependencies && (
+          <>
+            <div
+              className="absolute w-3 h-3 rounded-full border-2 bg-background opacity-0 group-hover:opacity-100 cursor-crosshair transition-opacity"
+              style={{
+                left: -6,
+                top: "50%",
+                transform: "translateY(-50%)",
+                borderColor: statusColor,
+              }}
+            />
+            <div
+              className="absolute w-3 h-3 rounded-full border-2 bg-background opacity-0 group-hover:opacity-100 cursor-crosshair transition-opacity"
+              style={{
+                right: -6,
+                top: "50%",
+                transform: "translateY(-50%)",
+                borderColor: statusColor,
+              }}
+            />
+          </>
         )}
+
+        {/* Label outside bar to the right */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 text-xs font-medium truncate pointer-events-none whitespace-nowrap"
+          style={{ left: displayWidth + 8, maxWidth: 200 }}
+        >
+          {milestone.title}
+        </div>
+
+        {/* Hover tooltip */}
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 px-2.5 py-1.5 bg-popover border rounded-md text-xs opacity-0 group-hover:opacity-100 pointer-events-none shadow-md whitespace-nowrap transition-opacity">
+          <span className="font-medium">
+            {format(
+              previewDates?.start || toLocalMidnight(milestone.startDate),
+              "MMM d"
+            )}{" "}
+            -{" "}
+            {format(
+              previewDates?.end || toLocalMidnight(milestone.endDate),
+              "MMM d"
+            )}
+          </span>
+          <span className="text-muted-foreground ml-1.5">
+            ({duration} {duration === 1 ? "day" : "days"})
+          </span>
+        </div>
       </div>
     </ItemContextMenu>
   );

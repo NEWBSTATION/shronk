@@ -2,13 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -80,43 +73,25 @@ export function ProjectsView({ initialProjects }: ProjectsViewProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Your Features</CardTitle>
-              <CardDescription>
-                All your features and their progress
-              </CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" onClick={() => setDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Feature
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {projects.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Box className="h-16 w-16 text-muted-foreground/50" />
-              <h3 className="mt-4 text-lg font-semibold">No features yet</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Create your first feature to start tracking milestones.
-              </p>
-              <Button
-                size="sm"
-                className="mt-4 h-7 text-xs"
-                onClick={() => setDialogOpen(true)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Create Feature
-              </Button>
-            </div>
-          ) : (
-            <DataTable columns={columns} data={projects} />
-          )}
-        </CardContent>
-      </Card>
+      {projects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Box className="h-16 w-16 text-muted-foreground/50" />
+          <h3 className="mt-4 text-lg font-semibold">No features yet</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Create your first feature to start tracking milestones.
+          </p>
+          <Button
+            size="sm"
+            className="mt-4 h-7 text-xs"
+            onClick={() => setDialogOpen(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Create Feature
+          </Button>
+        </div>
+      ) : (
+        <DataTable columns={columns} data={projects} />
+      )}
 
       {/* Create Feature Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

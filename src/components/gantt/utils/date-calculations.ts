@@ -165,6 +165,7 @@ export interface HeaderCell {
   subLabel?: string;
   width: number;
   isToday?: boolean;
+  isWeekend?: boolean;
 }
 
 export function generateHeaderCells(
@@ -205,11 +206,13 @@ export function generateHeaderCells(
 
   intervals.forEach((date) => {
     const isToday = isSameDay(date, today);
+    const cellIsWeekend = period === "day" && isWeekend(date);
     primaryCells.push({
       date,
       label: format(date, config.format),
       width: columnWidth,
       isToday,
+      isWeekend: cellIsWeekend,
     });
   });
 
