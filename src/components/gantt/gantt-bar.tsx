@@ -1,363 +1,210 @@
-"use client";
+import { format, differenceInDays } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { STATUS_CONFIG, RESIZE_HANDLE_WIDTH, CONNECTION_HANDLE_SIZE } from './constants';
+import type { GanttBarProps, DragType, ConnectionSide } from './types';
 
-import { useState, useCallback, useRef } from "react";
-import { cn } from "@/lib/utils";
-import { getStatusColor } from "@/components/shared/status-badge";
-import { ItemContextMenu } from "@/components/shared/item-context-menu";
-import { toLocalMidnight } from "./utils/date-calculations";
-import { format, addDays, differenceInDays } from "date-fns";
-import { useGanttStore } from "@/store/gantt-store";
-import type { Milestone, Team, MilestoneStatus, MilestonePriority } from "@/db/schema";
-import type { BarPosition } from "./utils/date-calculations";
-
-interface GanttBarProps {
-  milestone: Milestone;
-  team?: Team;
-  position: BarPosition;
-  rowIndex: number;
-  rowHeight: number;
-  dayWidth: number;
-  timelineStart: Date;
-  onEdit: () => void;
-  onUpdateDates: (startDate: Date, endDate: Date) => void;
-  onStatusChange: (status: MilestoneStatus) => void;
-  onPriorityChange: (priority: MilestonePriority) => void;
-  onDelete: () => void;
+// Helper to parse a date and get midnight in local time
+// This handles both ISO strings (which may be UTC midnight) and Date objects
+// by extracting the date portion and creating a local midnight Date
+function toLocalMidnight(date: Date | string): Date {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  // Extract UTC date components to avoid timezone shifting
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth();
+  const day = d.getUTCDate();
+  // Create a new date at local midnight with those components
+  return new Date(year, month, day);
 }
 
-type DragMode = "move" | "resize-start" | "resize-end" | null;
-
-interface DragState {
-  mode: DragMode;
-  startX: number;
-  originalLeft: number;
-  originalWidth: number;
-  originalStartDate: Date;
-  originalEndDate: Date;
+function formatDuration(days: number): string {
+  if (days < 7) return `${days}d`;
+  if (days < 30) {
+    const weeks = Math.floor(days / 7);
+    const remainingDays = days % 7;
+    return remainingDays > 0 ? `${weeks}w ${remainingDays}d` : `${weeks}w`;
+  }
+  const months = Math.floor(days / 30);
+  const remainingDays = days % 30;
+  return remainingDays > 0 ? `${months}mo ${remainingDays}d` : `${months}mo`;
 }
-
-const CLICK_THRESHOLD = 5;
-const BAR_HEIGHT = 36;
-const RESIZE_HANDLE_WIDTH = 8;
-const CONNECTION_HANDLE_SIZE = 12;
 
 export function GanttBar({
   milestone,
-  team,
-  position,
-  rowIndex,
-  rowHeight,
-  dayWidth,
-  timelineStart,
-  onEdit,
-  onUpdateDates,
-  onStatusChange,
-  onPriorityChange,
-  onDelete,
+  left,
+  width,
+  isDragging,
+  isEditable,
+  onMouseDown,
+  onClick,
+  onDependencyDragStart,
+  showConnectionHandles = false,
 }: GanttBarProps) {
-  const { showDependencies } = useGanttStore();
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragState, setDragState] = useState<DragState | null>(null);
-  const [previewDates, setPreviewDates] = useState<{
-    start: Date;
-    end: Date;
-  } | null>(null);
-  const dragStartPos = useRef<{ x: number; y: number } | null>(null);
+  const config = STATUS_CONFIG[milestone.status] || STATUS_CONFIG.not_started;
 
-  const statusColor = getStatusColor(milestone.status);
-  const top = rowIndex * rowHeight + (rowHeight - BAR_HEIGHT) / 2;
+  // Calculate date range and duration for tooltip
+  const startDate = toLocalMidnight(milestone.startDate);
+  const endDate = toLocalMidnight(milestone.endDate);
+  const days = differenceInDays(endDate, startDate) + 1;
+  const dateRangeText = `${format(startDate, 'MMM d')} - ${format(endDate, 'MMM d')}`;
+  const durationText = formatDuration(days);
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent, mode: DragMode) => {
-      e.preventDefault();
+  const handleMouseDown = (e: React.MouseEvent, type: DragType) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onMouseDown(e, type);
+  };
+
+  const handleConnectionDragStart = (e: React.MouseEvent, side: ConnectionSide) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDependencyDragStart?.(e, side);
+  };
+
+  // For editable users: click handling is done in the parent GanttChart via handleMouseUp
+  // For non-editable users: we handle click directly since they can't drag
+  const handleClick = (e: React.MouseEvent) => {
+    if (!isEditable && !isDragging) {
       e.stopPropagation();
+      onClick();
+    }
+  };
 
-      dragStartPos.current = { x: e.clientX, y: e.clientY };
-
-      setDragState({
-        mode,
-        startX: e.clientX,
-        originalLeft: position.left,
-        originalWidth: position.width,
-        originalStartDate: toLocalMidnight(milestone.startDate),
-        originalEndDate: toLocalMidnight(milestone.endDate),
-      });
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!dragStartPos.current) return;
-
-        const deltaX = moveEvent.clientX - dragStartPos.current.x;
-        const totalMovement = Math.sqrt(
-          Math.pow(moveEvent.clientX - dragStartPos.current.x, 2) +
-            Math.pow(moveEvent.clientY - dragStartPos.current.y, 2)
-        );
-
-        // Only start dragging after threshold
-        if (totalMovement > CLICK_THRESHOLD) {
-          setIsDragging(true);
-
-          const daysDelta = Math.round(deltaX / dayWidth);
-          const originalStart = toLocalMidnight(milestone.startDate);
-          const originalEnd = toLocalMidnight(milestone.endDate);
-
-          let newStart: Date;
-          let newEnd: Date;
-
-          if (mode === "move") {
-            newStart = addDays(originalStart, daysDelta);
-            newEnd = addDays(originalEnd, daysDelta);
-          } else if (mode === "resize-start") {
-            newStart = addDays(originalStart, daysDelta);
-            newEnd = originalEnd;
-            // Don't allow start to go past end
-            if (newStart > newEnd) {
-              newStart = newEnd;
-            }
-          } else {
-            // resize-end
-            newStart = originalStart;
-            newEnd = addDays(originalEnd, daysDelta);
-            // Don't allow end to go before start
-            if (newEnd < newStart) {
-              newEnd = newStart;
-            }
-          }
-
-          setPreviewDates({ start: newStart, end: newEnd });
-        }
-      };
-
-      const handleMouseUp = (upEvent: MouseEvent) => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-
-        if (!dragStartPos.current) return;
-
-        const totalMovement = Math.sqrt(
-          Math.pow(upEvent.clientX - dragStartPos.current.x, 2) +
-            Math.pow(upEvent.clientY - dragStartPos.current.y, 2)
-        );
-
-        // If it was a click, open edit
-        if (totalMovement <= CLICK_THRESHOLD) {
-          onEdit();
-        } else if (previewDates) {
-          // Commit the drag
-          onUpdateDates(previewDates.start, previewDates.end);
-        }
-
-        setIsDragging(false);
-        setDragState(null);
-        setPreviewDates(null);
-        dragStartPos.current = null;
-      };
-
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    },
-    [position, milestone, dayWidth, onEdit, onUpdateDates, previewDates]
-  );
-
-  // Calculate display position
-  const displayLeft = previewDates
-    ? differenceInDays(previewDates.start, timelineStart) * dayWidth
-    : position.left;
-  const displayWidth = previewDates
-    ? (differenceInDays(previewDates.end, previewDates.start) + 1) * dayWidth
-    : position.width;
-
-  // Calculate duration for tooltip
-  const duration = previewDates
-    ? differenceInDays(previewDates.end, previewDates.start) + 1
-    : differenceInDays(
-        toLocalMidnight(milestone.endDate),
-        toLocalMidnight(milestone.startDate)
-      ) + 1;
-
-  // Diamond for single-day items
-  if (position.isSingleDay && !previewDates) {
-    return (
-      <ItemContextMenu
-        onEdit={onEdit}
-        onDelete={onDelete}
-        onStatusChange={onStatusChange}
-        onPriorityChange={onPriorityChange}
-        currentStatus={milestone.status}
-        currentPriority={milestone.priority}
-      >
-        <div
-          className={cn(
-            "absolute cursor-pointer transition-transform hover:scale-110 group",
-            isDragging && "opacity-70"
-          )}
-          style={{
-            left: displayLeft + dayWidth / 2 - 10,
-            top: top + BAR_HEIGHT / 2 - 10,
-          }}
-          onMouseDown={(e) => handleMouseDown(e, "move")}
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20">
-            <polygon
-              points="10,0 20,10 10,20 0,10"
-              fill={statusColor}
-              stroke="white"
-              strokeWidth="2"
-            />
-          </svg>
-
-          {/* Label outside */}
-          <div
-            className="absolute top-1/2 -translate-y-1/2 text-xs font-medium truncate pointer-events-none whitespace-nowrap"
-            style={{ left: 28, maxWidth: 200 }}
-          >
-            {milestone.title}
-          </div>
-
-          {/* Connection handles */}
-          {showDependencies && (
-            <>
-              <div
-                className="absolute w-3 h-3 rounded-full border-2 bg-background opacity-0 group-hover:opacity-100 cursor-crosshair transition-opacity"
-                style={{
-                  left: -16,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  borderColor: statusColor,
-                }}
-              />
-              <div
-                className="absolute w-3 h-3 rounded-full border-2 bg-background opacity-0 group-hover:opacity-100 cursor-crosshair transition-opacity"
-                style={{
-                  right: -16,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  borderColor: statusColor,
-                }}
-              />
-            </>
-          )}
-        </div>
-      </ItemContextMenu>
-    );
-  }
+  // Calculate label offset - account for connection handle if showing
+  const labelOffset = showConnectionHandles && isEditable
+    ? width + CONNECTION_HANDLE_SIZE / 2 + 8
+    : width + 8;
 
   return (
-    <ItemContextMenu
-      onEdit={onEdit}
-      onDelete={onDelete}
-      onStatusChange={onStatusChange}
-      onPriorityChange={onPriorityChange}
-      currentStatus={milestone.status}
-      currentPriority={milestone.priority}
+    <div
+      className={cn(
+        'absolute top-1 bottom-1 group cursor-pointer',
+        isDragging && 'z-10'
+      )}
+      style={{
+        left,
+        width,
+      }}
+      onClick={handleClick}
+      onMouseDown={(e) => isEditable && handleMouseDown(e, 'move')}
     >
+      {/* Bar background with visual styling */}
       <div
         className={cn(
-          "absolute group cursor-pointer",
-          isDragging && "z-20"
+          'absolute inset-0 rounded-[3px] overflow-hidden',
+          isDragging && 'shadow-lg ring-2 ring-primary ring-offset-1',
+          !isDragging && 'hover:shadow-md hover:brightness-105'
         )}
         style={{
-          left: displayLeft,
-          top: top,
-          width: displayWidth,
-          height: BAR_HEIGHT,
+          backgroundColor: `color-mix(in srgb, ${config.bgColor} 20%, transparent)`,
+          transition: 'box-shadow 150ms',
         }}
       >
-        {/* Bar background with tinted color */}
+        {/* Left colored indicator - inside the bar for perfect alignment */}
         <div
-          className={cn(
-            "absolute inset-0 rounded-[3px] overflow-hidden transition-shadow hover:shadow-md",
-            isDragging && "ring-2 ring-primary shadow-lg"
-          )}
-          style={{
-            backgroundColor: `color-mix(in srgb, ${statusColor} 20%, transparent)`,
-          }}
-          onMouseDown={(e) => handleMouseDown(e, "move")}
-        >
-          {/* Left status indicator stripe */}
-          <div
-            className="absolute inset-y-0 left-0 w-[3px]"
-            style={{ backgroundColor: statusColor }}
-          />
+          className="absolute inset-y-0 left-0 w-[3px] pointer-events-none"
+          style={{ backgroundColor: config.bgColor }}
+        />
 
-          {/* Left resize handle */}
+        {/* Left resize handle */}
+        {isEditable && (
           <div
-            className="absolute inset-y-0 left-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              handleMouseDown(e, "resize-start");
-            }}
+            className={cn(
+              'absolute inset-y-0 left-0 cursor-ew-resize z-10 flex items-center justify-center',
+              'opacity-0 group-hover:opacity-100 transition-opacity'
+            )}
+            style={{ width: RESIZE_HANDLE_WIDTH }}
+            onMouseDown={(e) => handleMouseDown(e, 'resize-start')}
           >
             <div
               className="w-0.5 h-3 rounded-full"
-              style={{ backgroundColor: statusColor }}
+              style={{ backgroundColor: config.bgColor }}
             />
           </div>
-
-          {/* Right resize handle */}
-          <div
-            className="absolute inset-y-0 right-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              handleMouseDown(e, "resize-end");
-            }}
-          >
-            <div
-              className="w-0.5 h-3 rounded-full"
-              style={{ backgroundColor: statusColor }}
-            />
-          </div>
-        </div>
-
-        {/* Connection handles */}
-        {showDependencies && (
-          <>
-            <div
-              className="absolute w-3 h-3 rounded-full border-2 bg-background opacity-0 group-hover:opacity-100 cursor-crosshair transition-opacity"
-              style={{
-                left: -6,
-                top: "50%",
-                transform: "translateY(-50%)",
-                borderColor: statusColor,
-              }}
-            />
-            <div
-              className="absolute w-3 h-3 rounded-full border-2 bg-background opacity-0 group-hover:opacity-100 cursor-crosshair transition-opacity"
-              style={{
-                right: -6,
-                top: "50%",
-                transform: "translateY(-50%)",
-                borderColor: statusColor,
-              }}
-            />
-          </>
         )}
 
-        {/* Label outside bar to the right */}
+        {/* Right resize handle */}
+        {isEditable && (
+          <div
+            className={cn(
+              'absolute inset-y-0 right-0 cursor-ew-resize z-10 flex items-center justify-center',
+              'opacity-0 group-hover:opacity-100 transition-opacity'
+            )}
+            style={{ width: RESIZE_HANDLE_WIDTH }}
+            onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
+          >
+            <div
+              className="w-0.5 h-3 rounded-full"
+              style={{ backgroundColor: config.bgColor }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Connection handle (left side - start date) - outside the bar */}
+      {showConnectionHandles && isEditable && (
         <div
-          className="absolute top-1/2 -translate-y-1/2 text-xs font-medium truncate pointer-events-none whitespace-nowrap"
-          style={{ left: displayWidth + 8, maxWidth: 200 }}
+          className={cn(
+            'absolute top-1/2 -translate-y-1/2 rounded-full cursor-crosshair',
+            'opacity-0 group-hover:opacity-100 transition-all duration-150 z-20',
+            'hover:scale-125'
+          )}
+          style={{
+            left: -CONNECTION_HANDLE_SIZE / 2,
+            width: CONNECTION_HANDLE_SIZE,
+            height: CONNECTION_HANDLE_SIZE,
+            backgroundColor: 'var(--background)',
+            border: `2px solid ${config.bgColor}`,
+            boxShadow: 'var(--shadow-sm)',
+          }}
+          onMouseDown={(e) => handleConnectionDragStart(e, 'start')}
+          title="Drag to create dependency from start"
+        />
+      )}
+
+      {/* Connection handle (right side - end date) - outside the bar */}
+      {showConnectionHandles && isEditable && (
+        <div
+          className={cn(
+            'absolute top-1/2 -translate-y-1/2 rounded-full cursor-crosshair',
+            'opacity-0 group-hover:opacity-100 transition-all duration-150 z-20',
+            'hover:scale-125'
+          )}
+          style={{
+            right: -CONNECTION_HANDLE_SIZE / 2,
+            width: CONNECTION_HANDLE_SIZE,
+            height: CONNECTION_HANDLE_SIZE,
+            backgroundColor: 'var(--background)',
+            border: `2px solid ${config.bgColor}`,
+            boxShadow: 'var(--shadow-sm)',
+          }}
+          onMouseDown={(e) => handleConnectionDragStart(e, 'end')}
+          title="Drag to create dependency from end"
+        />
+      )}
+
+      {/* Label - positioned outside to the right, accounting for connection handle */}
+      <div
+        className="absolute top-1/2 -translate-y-1/2 flex items-center pointer-events-none"
+        style={{ left: labelOffset }}
+      >
+        <span
+          className="text-xs font-medium truncate whitespace-nowrap"
+          style={{
+            color: 'var(--foreground)',
+            maxWidth: 200,
+          }}
         >
           {milestone.title}
-        </div>
-
-        {/* Hover tooltip */}
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 px-2.5 py-1.5 bg-popover border rounded-md text-xs opacity-0 group-hover:opacity-100 pointer-events-none shadow-md whitespace-nowrap transition-opacity">
-          <span className="font-medium">
-            {format(
-              previewDates?.start || toLocalMidnight(milestone.startDate),
-              "MMM d"
-            )}{" "}
-            -{" "}
-            {format(
-              previewDates?.end || toLocalMidnight(milestone.endDate),
-              "MMM d"
-            )}
-          </span>
-          <span className="text-muted-foreground ml-1.5">
-            ({duration} {duration === 1 ? "day" : "days"})
-          </span>
-        </div>
+        </span>
       </div>
-    </ItemContextMenu>
+
+      {/* Hover tooltip with date range and duration */}
+      {!isDragging && (
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 px-2.5 py-1.5 bg-popover border border-border/50 rounded-[var(--radius)] text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 shadow-md">
+          <span className="text-foreground font-medium">{dateRangeText}</span>
+          <span className="text-muted-foreground ml-1.5">({durationText})</span>
+        </div>
+      )}
+    </div>
   );
 }

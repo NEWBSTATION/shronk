@@ -412,6 +412,26 @@ export function useDeleteDependency() {
   });
 }
 
+// Milestone stats hook (for overview)
+export interface MilestoneStats {
+  milestoneId: string;
+  featureCount: number;
+  completedFeatureCount: number;
+}
+
+export function useMilestoneStats() {
+  return useQuery({
+    queryKey: ["milestoneStats"],
+    queryFn: async () => {
+      const response = await fetch("/api/projects/stats");
+      if (!response.ok) {
+        throw new Error("Failed to fetch milestone stats");
+      }
+      return response.json() as Promise<{ stats: MilestoneStats[] }>;
+    },
+  });
+}
+
 // Teams hooks
 export function useTeams(projectId: string) {
   return useQuery({

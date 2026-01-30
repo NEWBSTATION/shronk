@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import { eq, and, inArray, asc, desc, sql, ilike, or } from "drizzle-orm";
 import { z } from "zod";
+import { capitalizeWords } from "@/lib/capitalize";
 
 const createMilestoneSchema = z.object({
   projectId: z.string().uuid(),
@@ -171,6 +172,7 @@ export async function POST(request: NextRequest) {
       .insert(milestones)
       .values({
         ...data,
+        title: capitalizeWords(data.title),
         startDate: new Date(data.startDate),
         endDate: new Date(data.endDate),
         sortOrder: data.sortOrder || (maxSortOrder[0]?.max || 0) + 1,

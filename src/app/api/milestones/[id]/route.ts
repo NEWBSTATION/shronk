@@ -9,6 +9,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { addDays, differenceInDays, isBefore } from "date-fns";
+import { capitalizeWords } from "@/lib/capitalize";
 
 const updateMilestoneSchema = z.object({
   title: z.string().min(1).max(255).optional(),
@@ -115,7 +116,7 @@ export async function PATCH(
       updatedAt: new Date(),
     };
 
-    if (data.title !== undefined) updateData.title = data.title;
+    if (data.title !== undefined) updateData.title = capitalizeWords(data.title);
     if (data.description !== undefined) updateData.description = data.description;
     if (data.status !== undefined) {
       updateData.status = data.status;

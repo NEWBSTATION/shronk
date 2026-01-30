@@ -6,7 +6,7 @@ import {
   IconHelp,
   IconTarget,
 } from "@tabler/icons-react";
-import { Box, ChartLine, Gem } from "lucide-react";
+import { ChartLine, Gem, Box } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
 import { NavSecondary } from "@/components/nav-secondary";
@@ -30,7 +30,7 @@ const data = {
     },
     {
       title: "Features",
-      url: "/dashboard/projects",
+      url: "/dashboard/features",
       icon: Box,
     },
     {

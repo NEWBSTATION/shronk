@@ -1,357 +1,297 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { toast } from "sonner";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
-import { useGanttStore } from "@/store/gantt-store";
-import { ViewSwitcher } from "@/components/shared/view-switcher";
-import { ItemDialog } from "@/components/shared/item-dialog";
-import { GanttView } from "@/components/gantt";
-import { ListView } from "@/components/list-view";
+  MilestoneOverview,
+  FeatureDialog,
+  FeatureTimeline,
+} from "@/components/milestone";
+import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
 import {
   useMilestones,
+  useMilestoneStats,
   useCreateMilestone,
   useUpdateMilestone,
   useDeleteMilestone,
-  useBulkUpdateMilestones,
-  useBulkDeleteMilestones,
   useTeams,
-  useCreateDependency,
-  useDeleteDependency,
 } from "@/hooks/use-milestones";
-import type { Project, Milestone, MilestoneStatus, MilestonePriority } from "@/db/schema";
-import { Plus, FolderOpen } from "lucide-react";
+import { useHeader } from "@/components/header-context";
+import type {
+  Project,
+  Milestone,
+  MilestoneStatus,
+} from "@/db/schema";
 
 interface MilestonesViewProps {
   projects: Project[];
 }
 
+type ViewLevel = "overview" | "detail";
+
 export function MilestonesView({ projects }: MilestonesViewProps) {
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    projects[0]?.id || ""
-  );
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(
+  const { clearBreadcrumbs, setHeaderAction, clearHeaderAction } = useHeader();
+
+  // Navigation state
+  const [viewLevel, setViewLevel] = useState<ViewLevel>("overview");
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(
     null
   );
 
-  const { viewType, filters, sortField, sortDirection, deselectAll } =
-    useGanttStore();
+  // Dialog states
+  const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
 
-  // Fetch data
-  const { data, isLoading, error } = useMilestones({
-    projectId: selectedProjectId,
-    status: filters.status,
-    priority: filters.priority,
-    teamId: filters.teamId,
-    search: filters.search,
-    sortField,
-    sortDirection,
+  // Set header action for New Milestone button when in overview
+  useEffect(() => {
+    if (viewLevel === "overview") {
+      clearBreadcrumbs();
+      setHeaderAction(
+        <Button
+          onClick={() => setMilestoneDialogOpen(true)}
+          className="h-7 text-xs"
+        >
+          <Plus className="h-3.5 w-3.5 mr-1.5" />
+          New Milestone
+        </Button>
+      );
+    } else {
+      clearHeaderAction();
+    }
+
+    return () => clearHeaderAction();
+  }, [viewLevel, clearBreadcrumbs, setHeaderAction, clearHeaderAction]);
+
+  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
+  const [editingFeature, setEditingFeature] = useState<Milestone | null>(null);
+
+  // Get selected milestone
+  const selectedMilestone = projects.find((p) => p.id === selectedMilestoneId);
+
+  // Fetch milestone stats for overview
+  const { data: statsData } = useMilestoneStats();
+  const stats = statsData?.stats || [];
+
+  // Fetch features for selected milestone
+  const { data: featuresData, isLoading: featuresLoading } = useMilestones({
+    projectId: selectedMilestoneId || "",
+    sortField: "sortOrder",
+    sortDirection: "asc",
   });
 
-  const { data: teamsData } = useTeams(selectedProjectId);
+  const features = featuresData?.milestones || [];
 
-  // Mutations
-  const createMutation = useCreateMilestone();
-  const updateMutation = useUpdateMilestone();
-  const deleteMutation = useDeleteMilestone();
-  const bulkUpdateMutation = useBulkUpdateMilestones();
-  const bulkDeleteMutation = useBulkDeleteMilestones();
-  const createDependencyMutation = useCreateDependency();
-  const deleteDependencyMutation = useDeleteDependency();
-
-  const milestones = data?.milestones || [];
-  const dependencies = data?.dependencies || [];
+  // Fetch teams for selected milestone
+  const { data: teamsData } = useTeams(selectedMilestoneId || "");
   const teams = teamsData?.teams || [];
 
-  // Handlers
-  const handleCreateOrUpdate = useCallback(
+  // Mutations
+  const createFeatureMutation = useCreateMilestone();
+  const updateFeatureMutation = useUpdateMilestone();
+  const deleteFeatureMutation = useDeleteMilestone();
+
+  // Handlers: Navigation
+  const handleSelectMilestone = useCallback((milestoneId: string) => {
+    setSelectedMilestoneId(milestoneId);
+    setViewLevel("detail");
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setViewLevel("overview");
+    setSelectedMilestoneId(null);
+  }, []);
+
+  // Handlers: Feature CRUD
+  const handleAddFeature = useCallback(() => {
+    setEditingFeature(null);
+    setFeatureDialogOpen(true);
+  }, []);
+
+  const handleEditFeature = useCallback((feature: Milestone) => {
+    setEditingFeature(feature);
+    setFeatureDialogOpen(true);
+  }, []);
+
+  const handleSaveFeature = useCallback(
     async (formData: {
       title: string;
       description?: string;
       startDate: Date;
       endDate: Date;
       status: MilestoneStatus;
-      priority: MilestonePriority;
-      progress: number;
       teamId?: string | null;
     }) => {
+      if (!selectedMilestoneId) return;
+
       try {
-        if (editingMilestone) {
-          await updateMutation.mutateAsync({
-            id: editingMilestone.id,
+        if (editingFeature) {
+          await updateFeatureMutation.mutateAsync({
+            id: editingFeature.id,
             ...formData,
           });
-          toast.success("Milestone updated");
+          toast.success("Feature updated");
         } else {
-          await createMutation.mutateAsync({
-            projectId: selectedProjectId,
+          await createFeatureMutation.mutateAsync({
+            projectId: selectedMilestoneId,
             ...formData,
           });
-          toast.success("Milestone created");
+          toast.success("Feature added");
         }
-        setDialogOpen(false);
-        setEditingMilestone(null);
+        setFeatureDialogOpen(false);
+        setEditingFeature(null);
       } catch (error) {
         toast.error(
-          editingMilestone
-            ? "Failed to update milestone"
-            : "Failed to create milestone"
+          editingFeature ? "Failed to update feature" : "Failed to add feature"
         );
       }
     },
-    [editingMilestone, selectedProjectId, createMutation, updateMutation]
+    [
+      selectedMilestoneId,
+      editingFeature,
+      createFeatureMutation,
+      updateFeatureMutation,
+    ]
   );
 
-  const handleEdit = useCallback((milestone: Milestone) => {
-    setEditingMilestone(milestone);
-    setDialogOpen(true);
-  }, []);
-
-  const handleDelete = useCallback(
+  const handleDeleteFeature = useCallback(
     async (id: string) => {
       try {
-        await deleteMutation.mutateAsync(id);
-        toast.success("Milestone deleted");
+        await deleteFeatureMutation.mutateAsync(id);
+        toast.success("Feature deleted");
       } catch (error) {
-        toast.error("Failed to delete milestone");
+        toast.error("Failed to delete feature");
       }
     },
-    [deleteMutation]
+    [deleteFeatureMutation]
   );
 
-  const handleUpdateDates = useCallback(
-    async (id: string, startDate: Date, endDate: Date) => {
+  const handleUpdateFeatureDates = useCallback(
+    async (
+      id: string,
+      startDate: Date,
+      endDate: Date,
+      cascadeAfter?: boolean
+    ) => {
       try {
-        await updateMutation.mutateAsync({
+        // For cascade shifting, we'd need to update the API to support this
+        // For now, just update the single feature
+        await updateFeatureMutation.mutateAsync({
           id,
           startDate,
           endDate,
-          cascadeDependencies: true,
         });
+
+        // If cascade is requested, shift features that come after
+        if (cascadeAfter) {
+          const feature = features.find((f) => f.id === id);
+          if (feature) {
+            const featureIndex = features
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .findIndex((f) => f.id === id);
+
+            const followingFeatures = features
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .slice(featureIndex + 1);
+
+            // Check if any following features need to be shifted
+            const originalEndDate = new Date(feature.endDate);
+            const daysDiff = Math.ceil(
+              (endDate.getTime() - originalEndDate.getTime()) /
+                (1000 * 60 * 60 * 24)
+            );
+
+            if (daysDiff > 0) {
+              // Shift following features
+              for (const f of followingFeatures) {
+                const newStart = new Date(f.startDate);
+                const newEnd = new Date(f.endDate);
+                newStart.setDate(newStart.getDate() + daysDiff);
+                newEnd.setDate(newEnd.getDate() + daysDiff);
+
+                await updateFeatureMutation.mutateAsync({
+                  id: f.id,
+                  startDate: newStart,
+                  endDate: newEnd,
+                });
+              }
+            }
+          }
+        }
       } catch (error) {
         toast.error("Failed to update dates");
       }
     },
-    [updateMutation]
+    [updateFeatureMutation, features]
   );
 
   const handleStatusChange = useCallback(
     async (id: string, status: MilestoneStatus) => {
       try {
-        await updateMutation.mutateAsync({ id, status });
+        await updateFeatureMutation.mutateAsync({ id, status });
         toast.success("Status updated");
       } catch (error) {
         toast.error("Failed to update status");
       }
     },
-    [updateMutation]
+    [updateFeatureMutation]
   );
 
-  const handlePriorityChange = useCallback(
-    async (id: string, priority: MilestonePriority) => {
-      try {
-        await updateMutation.mutateAsync({ id, priority });
-        toast.success("Priority updated");
-      } catch (error) {
-        toast.error("Failed to update priority");
-      }
+  const handleReorderFeature = useCallback(
+    async (featureId: string, newIndex: number) => {
+      // TODO: Implement reordering
+      console.log("Reorder feature", featureId, "to index", newIndex);
     },
-    [updateMutation]
+    []
   );
 
-  const handleBulkStatusChange = useCallback(
-    async (ids: string[], status: MilestoneStatus) => {
-      try {
-        await bulkUpdateMutation.mutateAsync({ ids, updates: { status } });
-        toast.success(`Updated ${ids.length} milestones`);
-        deselectAll();
-      } catch (error) {
-        toast.error("Failed to update milestones");
-      }
-    },
-    [bulkUpdateMutation, deselectAll]
-  );
-
-  const handleBulkPriorityChange = useCallback(
-    async (ids: string[], priority: MilestonePriority) => {
-      try {
-        await bulkUpdateMutation.mutateAsync({ ids, updates: { priority } });
-        toast.success(`Updated ${ids.length} milestones`);
-        deselectAll();
-      } catch (error) {
-        toast.error("Failed to update milestones");
-      }
-    },
-    [bulkUpdateMutation, deselectAll]
-  );
-
-  const handleBulkTeamChange = useCallback(
-    async (ids: string[], teamId: string | null) => {
-      try {
-        await bulkUpdateMutation.mutateAsync({ ids, updates: { teamId } });
-        toast.success(`Updated ${ids.length} milestones`);
-        deselectAll();
-      } catch (error) {
-        toast.error("Failed to update milestones");
-      }
-    },
-    [bulkUpdateMutation, deselectAll]
-  );
-
-  const handleBulkDelete = useCallback(
-    async (ids: string[]) => {
-      try {
-        await bulkDeleteMutation.mutateAsync(ids);
-        toast.success(`Deleted ${ids.length} milestones`);
-        deselectAll();
-      } catch (error) {
-        toast.error("Failed to delete milestones");
-      }
-    },
-    [bulkDeleteMutation, deselectAll]
-  );
-
-  const handleCreateDependency = useCallback(
-    async (predecessorId: string, successorId: string) => {
-      try {
-        await createDependencyMutation.mutateAsync({
-          predecessorId,
-          successorId,
-        });
-        toast.success("Dependency created");
-      } catch (error: any) {
-        toast.error(error.message || "Failed to create dependency");
-      }
-    },
-    [createDependencyMutation]
-  );
-
-  const handleDeleteDependency = useCallback(
-    async (id: string) => {
-      try {
-        await deleteDependencyMutation.mutateAsync(id);
-        toast.success("Dependency removed");
-      } catch (error) {
-        toast.error("Failed to remove dependency");
-      }
-    },
-    [deleteDependencyMutation]
-  );
-
-  // Empty state - no projects
-  if (projects.length === 0) {
+  // Render based on view level
+  if (viewLevel === "detail" && selectedMilestone) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <FolderOpen className="h-16 w-16 text-muted-foreground/50" />
-        <h3 className="mt-4 text-lg font-semibold">No projects yet</h3>
-        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-          Create a project first to start adding milestones and tracking
-          progress with the Gantt chart.
-        </p>
-        <Button className="mt-4" asChild>
-          <a href="/dashboard/projects">Go to Projects</a>
-        </Button>
+      <div className="flex-1 flex flex-col min-h-0 h-full">
+        <FeatureTimeline
+          milestone={selectedMilestone}
+          features={features}
+          teams={teams}
+          onBack={handleBack}
+          onEdit={handleEditFeature}
+          onDelete={handleDeleteFeature}
+          onUpdateDates={handleUpdateFeatureDates}
+          onStatusChange={handleStatusChange}
+          onReorder={handleReorderFeature}
+          onAddFeature={handleAddFeature}
+        />
+
+        <FeatureDialog
+          open={featureDialogOpen}
+          onOpenChange={(open) => {
+            setFeatureDialogOpen(open);
+            if (!open) setEditingFeature(null);
+          }}
+          feature={editingFeature}
+          teams={teams}
+          onSave={handleSaveFeature}
+          isLoading={
+            createFeatureMutation.isPending || updateFeatureMutation.isPending
+          }
+        />
       </div>
     );
   }
 
+  // Default: Overview
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)]">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-        <div className="flex items-center gap-4">
-          <Select
-            value={selectedProjectId}
-            onValueChange={setSelectedProjectId}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select project" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="flex-1 min-h-0">
+      <MilestoneOverview
+        milestones={projects}
+        stats={stats}
+        onSelectMilestone={handleSelectMilestone}
+        onCreateMilestone={() => setMilestoneDialogOpen(true)}
+      />
 
-          <ViewSwitcher />
-        </div>
-
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setEditingMilestone(null);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Milestone
-        </Button>
-      </div>
-
-      {/* Content */}
-      {isLoading ? (
-        <div className="flex-1 space-y-4">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-96 w-full" />
-        </div>
-      ) : error ? (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-destructive">Failed to load milestones</p>
-        </div>
-      ) : viewType === "gantt" ? (
-        <GanttView
-          milestones={milestones}
-          dependencies={dependencies}
-          teams={teams}
-          projectId={selectedProjectId}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onUpdateDates={handleUpdateDates}
-          onStatusChange={handleStatusChange}
-          onPriorityChange={handlePriorityChange}
-          onCreateDependency={handleCreateDependency}
-          onDeleteDependency={handleDeleteDependency}
-        />
-      ) : (
-        <ListView
-          milestones={milestones}
-          dependencies={dependencies}
-          teams={teams}
-          projectId={selectedProjectId}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onStatusChange={handleStatusChange}
-          onPriorityChange={handlePriorityChange}
-          onBulkStatusChange={handleBulkStatusChange}
-          onBulkPriorityChange={handleBulkPriorityChange}
-          onBulkDelete={handleBulkDelete}
-          onBulkTeamChange={handleBulkTeamChange}
-        />
-      )}
-
-      {/* Create/Edit Dialog */}
-      <ItemDialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) setEditingMilestone(null);
-        }}
-        item={editingMilestone}
-        teams={teams}
-        onSave={handleCreateOrUpdate}
-        isLoading={createMutation.isPending || updateMutation.isPending}
+      <MilestoneDialog
+        open={milestoneDialogOpen}
+        onOpenChange={setMilestoneDialogOpen}
       />
     </div>
   );

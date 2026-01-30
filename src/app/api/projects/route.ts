@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { capitalizeWords } from "@/lib/capitalize";
 
 const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       .insert(projects)
       .values({
         userId,
-        name: data.name,
+        name: capitalizeWords(data.name),
         description: data.description,
         startDate: data.startDate ? new Date(data.startDate) : null,
         endDate: data.endDate ? new Date(data.endDate) : null,
@@ -97,7 +98,7 @@ export async function PUT(request: NextRequest) {
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
-    if (data.name !== undefined) updateData.name = data.name;
+    if (data.name !== undefined) updateData.name = capitalizeWords(data.name);
     if (data.description !== undefined) updateData.description = data.description;
     if (data.startDate !== undefined) updateData.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) updateData.endDate = data.endDate ? new Date(data.endDate) : null;
