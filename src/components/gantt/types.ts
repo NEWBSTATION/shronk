@@ -2,6 +2,61 @@ import type { Milestone, MilestoneStatus, MilestonePriority, MilestoneDependency
 
 // Time period types (matches ClickUp: Week, Month, Quarter, Year)
 export type TimePeriod = 'week' | 'month' | 'quarter' | 'year';
+
+// ================================================
+// SVAR React Gantt Types
+// ================================================
+
+/**
+ * SVAR Task type - the format expected by @svar-ui/react-gantt
+ */
+export interface SVARTask {
+  id: string;
+  text: string;
+  start: Date;
+  end: Date;
+  duration: number;
+  durationText: string;
+  progress: number;
+  type: 'task' | 'summary' | 'milestone';
+  parent?: string;
+  open?: boolean;
+  $custom?: {
+    status: MilestoneStatus;
+    priority: MilestonePriority;
+    teamId: string | null;
+    projectId: string;
+    sortOrder: number;
+    description: string | null;
+  };
+}
+
+/**
+ * SVAR Link type - for dependencies
+ */
+export interface SVARLink {
+  id: string;
+  source: string;
+  target: string;
+  type: 'e2s' | 's2s' | 'e2e' | 's2e'; // end-to-start, start-to-start, end-to-end, start-to-end
+}
+
+/**
+ * SVAR Scale configuration
+ */
+export interface SVARScale {
+  unit: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+  step: number;
+  format: string | ((date: Date) => string);
+}
+
+/**
+ * SVAR Action event data
+ */
+export interface SVARActionEvent {
+  action: string;
+  data: SVARTask | SVARLink | { id: string } | Record<string, unknown>;
+}
 export type ZoomLevel = number; // 1-10
 export type DragType = 'move' | 'resize-start' | 'resize-end' | null;
 

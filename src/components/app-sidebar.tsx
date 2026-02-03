@@ -20,6 +20,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 
 const data = {
   navMain: [
@@ -55,7 +56,12 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar collapsible="offcanvas" className="overflow-x-hidden" {...props}>
+    <Sidebar
+      collapsible="offcanvas"
+      className="overflow-x-hidden"
+      resizeHandle={<SidebarResizeHandle />}
+      {...props}
+    >
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import {
   MilestoneOverview,
   FeatureDialog,
-  FeatureTimeline,
 } from "@/components/milestone";
+import { SVARGanttView } from "@/components/gantt";
 import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
 import {
   useMilestones,
@@ -249,8 +249,8 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
   if (viewLevel === "detail" && selectedMilestone) {
     return (
       <div className="flex-1 flex flex-col min-h-0 h-full">
-        <FeatureTimeline
-          milestone={selectedMilestone}
+        <SVARGanttView
+          project={selectedMilestone}
           features={features}
           teams={teams}
           onBack={handleBack}
@@ -258,7 +258,6 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
           onDelete={handleDeleteFeature}
           onUpdateDates={handleUpdateFeatureDates}
           onStatusChange={handleStatusChange}
-          onReorder={handleReorderFeature}
           onAddFeature={handleAddFeature}
         />
 

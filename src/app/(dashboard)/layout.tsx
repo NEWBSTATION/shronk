@@ -2,8 +2,9 @@
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset } from "@/components/ui/sidebar";
 import { HeaderProvider } from "@/components/header-context";
+import { DashboardSidebarProvider } from "@/components/dashboard-sidebar-provider";
 
 export default function DashboardLayout({
   children,
@@ -12,14 +13,7 @@ export default function DashboardLayout({
 }) {
   return (
     <HeaderProvider>
-      <SidebarProvider
-        style={
-          {
-            "--sidebar-width": "calc(var(--spacing) * 72)",
-            "--header-height": "calc(var(--spacing) * 12)",
-          } as React.CSSProperties
-        }
-      >
+      <DashboardSidebarProvider>
         <AppSidebar variant="inset" />
         <SidebarInset>
           <SiteHeader />
@@ -31,7 +25,7 @@ export default function DashboardLayout({
             </div>
           </div>
         </SidebarInset>
-      </SidebarProvider>
+      </DashboardSidebarProvider>
     </HeaderProvider>
   );
 }
