@@ -3,10 +3,11 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { Gantt } from '@svar-ui/react-gantt';
 import type { IApi } from '@svar-ui/react-gantt';
-import { GripVertical, Circle, Clock, PauseCircle, CheckCircle2, XCircle, ChevronRight } from 'lucide-react';
+import { GripVertical, Circle, Clock, PauseCircle, CheckCircle2, XCircle, ChevronRight, Plus, Minus } from 'lucide-react';
 import { GanttToolbar } from './gantt-toolbar';
 import { MilestoneContextMenu } from './milestone-context-menu';
 import { SVARThemeWrapper } from './svar-theme-wrapper';
+import { TodayMarker } from './today-marker';
 import { milestoneToSVARTask, dependencyToSVARLink, toLocalMidnight } from './transformers';
 import { SCALE_CONFIGS, calculateCellWidth, ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import {
@@ -188,20 +189,6 @@ export function GanttView({
     return map;
   }, [milestones]);
 
-  // Today marker configuration
-  const markers = useMemo(() => {
-    const today = new Date();
-    if (today >= TIMELINE_START_DATE && today <= TIMELINE_END_DATE) {
-      return [
-        {
-          start: today,
-          text: 'Today',
-        },
-      ];
-    }
-    return [];
-  }, []);
-
   // Initialize SVAR API and set up event listeners
   const initGantt = useCallback((api: IApi) => {
     ganttApiRef.current = api;
@@ -275,9 +262,6 @@ export function GanttView({
       <GanttToolbar
         timePeriod={timePeriod}
         onTimePeriodChange={setTimePeriod}
-        zoomLevel={zoomLevel}
-        onZoomIn={() => setZoomLevel((prev) => Math.min(ZOOM_MAX, prev + 1))}
-        onZoomOut={() => setZoomLevel((prev) => Math.max(ZOOM_MIN, prev - 1))}
         showDependencies={showDependencies}
         onToggleDependencies={() => setShowDependencies(!showDependencies)}
         onScrollToToday={scrollToToday}
@@ -361,7 +345,13 @@ export function GanttView({
         )}
 
         {/* SVAR Gantt Chart */}
-        <div className="flex-1 overflow-hidden">
+        <div
+          className="flex-1 overflow-hidden relative svar-gantt-container"
+          style={{
+            '--gantt-cell-width': `${cellWidth}px`,
+            '--gantt-row-height': `${ROW_HEIGHT}px`,
+          } as React.CSSProperties}
+        >
           <SVARThemeWrapper>
             <Gantt
               tasks={tasks}
@@ -372,12 +362,47 @@ export function GanttView({
               scaleHeight={SCALE_HEIGHT}
               start={TIMELINE_START_DATE}
               end={TIMELINE_END_DATE}
-              markers={markers}
               init={initGantt}
               // Disable built-in grid since we have custom sidebar
               columns={[]}
             />
           </SVARThemeWrapper>
+
+          {/* Custom Today Marker (SVAR markers are paywalled) */}
+          <TodayMarker
+            timelineStart={TIMELINE_START_DATE}
+            timelineEnd={TIMELINE_END_DATE}
+            timePeriod={timePeriod}
+            cellWidth={cellWidth}
+            scaleHeight={SCALE_HEIGHT}
+          />
+
+          {/* Zoom controls overlay */}
+          <div
+            className="absolute flex flex-col rounded-md border border-border bg-background/95 backdrop-blur-sm shadow-sm overflow-hidden"
+            style={{
+              top: `${SCALE_HEIGHT * 2 + 8}px`,
+              right: '12px',
+            }}
+          >
+            <button
+              className="flex items-center justify-center w-6 h-6 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              onClick={() => setZoomLevel((prev) => Math.min(ZOOM_MAX, prev + 1))}
+              disabled={zoomLevel >= ZOOM_MAX}
+              title="Zoom in"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+            <div className="h-px bg-border" />
+            <button
+              className="flex items-center justify-center w-6 h-6 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              onClick={() => setZoomLevel((prev) => Math.max(ZOOM_MIN, prev - 1))}
+              disabled={zoomLevel <= ZOOM_MIN}
+              title="Zoom out"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

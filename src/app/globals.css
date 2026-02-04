@@ -326,18 +326,17 @@ pre {
 /* ================================================
    SVAR React Gantt - Theme Integration
    Maps tweakcn theme variables to SVAR's --wx- variables
+   Let SVAR handle all layout natively
    ================================================ */
 
 .gantt-theme-wrapper {
-  /* Base theme variables mapped from tweakcn */
+  /* Base theme variables */
   --wx-background: var(--background);
   --wx-background-alt: var(--muted);
   --wx-color-font: var(--foreground);
   --wx-color-secondary-font: var(--muted-foreground);
   --wx-color-primary: var(--primary);
-  --wx-color-link: var(--primary);
   --wx-color-danger: var(--destructive);
-  --wx-color-font-disabled: var(--muted-foreground);
 
   /* Border */
   --wx-border: 1px solid var(--border);
@@ -347,571 +346,62 @@ pre {
   --wx-font-family: var(--font-sans);
   --wx-font-size: 14px;
   --wx-font-size-sm: 12px;
-  --wx-font-weight: 400;
-  --wx-font-weight-md: 500;
-  --wx-icon-size: 16px;
 
-  /* Gantt specific */
+  /* Gantt borders */
   --wx-gantt-border: 1px solid var(--border);
   --wx-gantt-border-color: var(--border);
-  --wx-gantt-icon-color: var(--muted-foreground);
-  --wx-gantt-select-color: var(--accent);
 
-  /* Task colors - using status colors */
-  --wx-gantt-task-color: var(--status-in-progress);
-  --wx-gantt-task-font-color: var(--status-in-progress-foreground);
-  --wx-gantt-task-fill-color: var(--status-in-progress);
-  --wx-gantt-task-border-color: var(--status-in-progress);
-  --wx-gantt-task-border: 1px solid var(--status-in-progress);
-
-  /* Summary colors */
-  --wx-gantt-summary-color: var(--status-completed);
-  --wx-gantt-summary-font-color: var(--status-completed-foreground);
-  --wx-gantt-summary-fill-color: var(--status-completed);
-  --wx-gantt-summary-border-color: var(--status-completed);
-  --wx-gantt-summary-border: 1px solid var(--status-completed);
-
-  /* Milestone colors */
-  --wx-gantt-milestone-color: var(--primary);
-
-  /* Link colors */
-  --wx-gantt-link-color: var(--muted-foreground);
-  --wx-gantt-link-color-hovered: var(--foreground);
-  --wx-gantt-link-marker-background: var(--background);
-  --wx-gantt-link-marker-color: var(--muted-foreground);
-
-  /* Critical path */
-  --wx-gantt-critical-color: var(--destructive);
-  --wx-gantt-link-critical-color: var(--destructive);
-
-  /* Bar styling */
-  --wx-gantt-bar-font: var(--font-sans);
-  --wx-gantt-bar-border-radius: calc(var(--radius) - 4px);
-  --wx-gantt-bar-shadow: 0px 1px 2px rgba(0, 0, 0, 0.06), 0px 3px 10px rgba(0, 0, 0, 0.12);
-  --wx-gantt-milestone-border-radius: 3px;
-  --wx-gantt-baseline-border-radius: 4px;
-
-  /* Progress marker */
-  --wx-gantt-progress-marker-height: 22px;
-  --wx-gantt-progress-border-color: var(--border);
+  /* Task colors */
+  --wx-gantt-task-color: var(--chart-2);
+  --wx-gantt-task-font-color: #fff;
 
   /* Grid styling */
-  --wx-grid-header-font: 500 14px var(--font-sans);
-  --wx-grid-header-font-color: var(--muted-foreground);
-  --wx-grid-header-text-transform: none;
-  --wx-grid-header-shadow: none;
-  --wx-grid-body-font: 400 14px var(--font-sans);
-  --wx-grid-body-font-color: var(--foreground);
   --wx-grid-body-row-border: 1px solid var(--border);
   --wx-grid-body-cell-border: 1px solid var(--border);
 
-  /* Timescale styling */
-  --wx-timescale-font: 500 12px var(--font-sans);
-  --wx-timescale-font-color: var(--muted-foreground);
-  --wx-timescale-shadow: none;
+  /* Timescale */
   --wx-timescale-border: 1px solid var(--border);
 
-  /* Holiday/weekend styling */
-  --wx-gantt-holiday-background: var(--muted);
-  --wx-gantt-holiday-color: var(--muted-foreground);
-
-  /* Marker styling */
-  --wx-gantt-marker-font: 500 12px var(--font-sans);
-  --wx-gantt-marker-font-color: var(--primary-foreground);
-  --wx-gantt-marker-color: var(--primary);
-
-  /* Tooltip styling */
-  --wx-tooltip-font: 400 14px var(--font-sans);
-  --wx-tooltip-font-color: var(--popover-foreground);
-  --wx-tooltip-background: var(--popover);
-
-  /* Box shadow */
-  --wx-box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-}
-
-/* Dark mode overrides for Gantt */
-.dark .gantt-theme-wrapper {
-  --wx-gantt-holiday-background: var(--secondary);
-}
-
-/* Ensure the gantt takes full height */
-.gantt-theme-wrapper .wx-gantt {
-  height: 100% !important;
-}
-
-/* ================================================
-   Today Marker Line - Prominent styled indicator
-   ================================================ */
-
-/* Marker container - position the line */
-.gantt-theme-wrapper .wx-marker {
-  position: absolute !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  z-index: 20 !important;
-  pointer-events: none !important;
-}
-
-/* The vertical line itself */
-.gantt-theme-wrapper .wx-marker::before {
-  content: "" !important;
-  position: absolute !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  width: 2px !important;
-  background: var(--primary) !important;
-  box-shadow: 0 0 8px var(--primary) !important;
-}
-
-/* Today marker label */
-.gantt-theme-wrapper .wx-marker .wx-content {
-  position: relative !important;
-  background-color: var(--primary) !important;
-  color: var(--primary-foreground) !important;
-  font-weight: 600 !important;
-  font-size: 11px !important;
-  padding: 3px 10px !important;
-  border-radius: var(--radius) !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2) !important;
-  white-space: nowrap !important;
-  z-index: 21 !important;
-}
-
-/* Alternative line styling if ::before doesn't work */
-.gantt-theme-wrapper .wx-marker .wx-line {
-  background: var(--primary) !important;
-  width: 2px !important;
-  box-shadow: 0 0 6px var(--primary) !important;
-}
-
-/* ================================================
-   Task Bar Styling - Using tweakcn theme colors
-   ================================================ */
-
-/* Base task bar styling */
-.gantt-theme-wrapper .wx-bar.wx-task {
-  background-color: var(--chart-2) !important;
-  border: 1px solid var(--chart-3) !important;
-  border-radius: var(--radius) !important;
-  color: var(--primary-foreground) !important;
-  font-weight: 500 !important;
-  transition: box-shadow 0.15s ease, transform 0.1s ease !important;
-}
-
-.gantt-theme-wrapper .wx-bar.wx-task:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-  transform: translateY(-1px);
-}
-
-.gantt-theme-wrapper .wx-bar.wx-task.wx-selected {
-  border: 2px solid var(--ring) !important;
-  box-shadow: 0 0 0 2px var(--ring), 0 4px 12px rgba(0, 0, 0, 0.2) !important;
-}
-
-/* Task progress fill */
-.gantt-theme-wrapper .wx-bar.wx-task .wx-progress-percent {
-  background-color: var(--chart-4) !important;
-  border-radius: var(--radius) !important;
-}
-
-/* Summary bar styling (parent tasks) */
-.gantt-theme-wrapper .wx-bar.wx-summary {
-  background-color: var(--status-completed) !important;
-  border: 1px solid var(--status-completed) !important;
-  border-radius: var(--radius) !important;
-  color: var(--status-completed-foreground) !important;
-}
-
-.gantt-theme-wrapper .wx-bar.wx-summary .wx-progress-percent {
-  background-color: color-mix(in srgb, var(--status-completed), black 20%) !important;
-}
-
-/* Milestone marker styling */
-.gantt-theme-wrapper .wx-bar.wx-milestone .wx-content {
-  background-color: var(--primary) !important;
-  border-color: var(--primary) !important;
-}
-
-/* ================================================
-   Grid and Table Styling
-   ================================================ */
-
-/* Grid rows */
-.gantt-theme-wrapper .wx-grid .wx-row {
-  border-bottom: 1px solid var(--border) !important;
-}
-
-.gantt-theme-wrapper .wx-grid .wx-row:hover {
-  background-color: var(--accent) !important;
-}
-
-.gantt-theme-wrapper .wx-grid .wx-row.wx-selected {
-  background-color: var(--accent) !important;
-}
-
-/* Grid cells */
-.gantt-theme-wrapper .wx-grid .wx-cell {
-  color: var(--foreground) !important;
-  font-family: var(--font-sans) !important;
-}
-
-/* Grid header */
-.gantt-theme-wrapper .wx-grid .wx-header {
-  background-color: var(--muted) !important;
-  border-bottom: 1px solid var(--border) !important;
-}
-
-.gantt-theme-wrapper .wx-grid .wx-header .wx-cell {
-  color: var(--muted-foreground) !important;
-  font-weight: 500 !important;
-}
-
-/* ================================================
-   Timescale Header Styling
-   ================================================ */
-
-.gantt-theme-wrapper .wx-scale {
-  background-color: var(--muted) !important;
-  border-bottom: 1px solid var(--border) !important;
-}
-
-.gantt-theme-wrapper .wx-scale .wx-row {
-  border-bottom: 1px solid var(--border) !important;
-}
-
-.gantt-theme-wrapper .wx-scale .wx-cell {
-  color: var(--muted-foreground) !important;
-  font-family: var(--font-sans) !important;
-  border-right: 1px solid var(--border) !important;
-}
-
-/* Weekend/holiday cells in scale */
-.gantt-theme-wrapper .wx-scale .wx-cell.wx-weekend {
-  background-color: var(--muted) !important;
-  color: var(--muted-foreground) !important;
-}
-
-/* ================================================
-   Chart Area Styling
-   ================================================ */
-
-/* Weekend columns in chart */
-.gantt-theme-wrapper .wx-chart .wx-weekend {
-  background-color: color-mix(in srgb, var(--muted), transparent 50%) !important;
-}
-
-/* Selected row highlight in chart */
-.gantt-theme-wrapper .wx-chart .wx-selected {
-  background-color: var(--accent) !important;
-}
-
-/* ================================================
-   Link/Dependency Line Styling
-   ================================================ */
-
-.gantt-theme-wrapper .wx-links .wx-line {
-  stroke: var(--muted-foreground) !important;
-}
-
-.gantt-theme-wrapper .wx-links .wx-line:hover {
-  stroke: var(--primary) !important;
-}
-
-.gantt-theme-wrapper .wx-links .wx-line.wx-line-selected {
-  stroke: var(--destructive) !important;
-}
-
-/* Link connection markers */
-.gantt-theme-wrapper .wx-bar .wx-link {
-  border-color: var(--muted-foreground) !important;
-  background-color: var(--background) !important;
-}
-
-.gantt-theme-wrapper .wx-bar .wx-link .wx-inner {
-  border-color: var(--muted-foreground) !important;
-}
-
-.gantt-theme-wrapper .wx-bar .wx-link:hover,
-.gantt-theme-wrapper .wx-bar .wx-link.wx-selected {
-  border-color: var(--primary) !important;
-}
-
-.gantt-theme-wrapper .wx-bar .wx-link:hover .wx-inner,
-.gantt-theme-wrapper .wx-bar .wx-link.wx-selected .wx-inner {
-  border-color: var(--primary) !important;
-}
-
-/* ================================================
-   Resize Handle Styling
-   ================================================ */
-
-.gantt-theme-wrapper .wx-resizer {
-  background-color: var(--border) !important;
-}
-
-.gantt-theme-wrapper .wx-resizer:hover {
-  background-color: var(--primary) !important;
-}
-
-/* ================================================
-   Tooltip Styling
-   ================================================ */
-
-.gantt-theme-wrapper .wx-gantt-tooltip {
-  background-color: var(--popover) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-}
-
-.gantt-theme-wrapper .wx-gantt-tooltip-text {
-  color: var(--popover-foreground) !important;
-  font-family: var(--font-sans) !important;
-}
-
-/* ================================================
-   Status-Based Task Bar Styling
-   Colors based on milestone status for visual identification
-   ================================================ */
-
-/* Not Started - Gray */
-.gantt-theme-wrapper .wx-bar[data-status="not_started"],
-.gantt-theme-wrapper .status-not_started .wx-bar {
-  background-color: var(--status-not-started) !important;
-  border-color: var(--status-not-started) !important;
-}
-
-.gantt-theme-wrapper .wx-bar[data-status="not_started"] .wx-progress-percent,
-.gantt-theme-wrapper .status-not_started .wx-bar .wx-progress-percent {
-  background-color: color-mix(in srgb, var(--status-not-started), black 20%) !important;
-}
-
-/* In Progress - Blue */
-.gantt-theme-wrapper .wx-bar[data-status="in_progress"],
-.gantt-theme-wrapper .status-in_progress .wx-bar {
-  background-color: var(--status-in-progress) !important;
-  border-color: var(--status-in-progress) !important;
-}
-
-.gantt-theme-wrapper .wx-bar[data-status="in_progress"] .wx-progress-percent,
-.gantt-theme-wrapper .status-in_progress .wx-bar .wx-progress-percent {
-  background-color: color-mix(in srgb, var(--status-in-progress), black 20%) !important;
-}
-
-/* On Hold - Amber */
-.gantt-theme-wrapper .wx-bar[data-status="on_hold"],
-.gantt-theme-wrapper .status-on_hold .wx-bar {
-  background-color: var(--status-on-hold) !important;
-  border-color: var(--status-on-hold) !important;
-}
-
-.gantt-theme-wrapper .wx-bar[data-status="on_hold"] .wx-progress-percent,
-.gantt-theme-wrapper .status-on_hold .wx-bar .wx-progress-percent {
-  background-color: color-mix(in srgb, var(--status-on-hold), black 20%) !important;
-}
-
-/* Completed - Green */
-.gantt-theme-wrapper .wx-bar[data-status="completed"],
-.gantt-theme-wrapper .status-completed .wx-bar {
-  background-color: var(--status-completed) !important;
-  border-color: var(--status-completed) !important;
-}
-
-.gantt-theme-wrapper .wx-bar[data-status="completed"] .wx-progress-percent,
-.gantt-theme-wrapper .status-completed .wx-bar .wx-progress-percent {
-  background-color: color-mix(in srgb, var(--status-completed), black 20%) !important;
-}
-
-/* Cancelled - Red */
-.gantt-theme-wrapper .wx-bar[data-status="cancelled"],
-.gantt-theme-wrapper .status-cancelled .wx-bar {
-  background-color: var(--status-cancelled) !important;
-  border-color: var(--status-cancelled) !important;
-}
-
-.gantt-theme-wrapper .wx-bar[data-status="cancelled"] .wx-progress-percent,
-.gantt-theme-wrapper .status-cancelled .wx-bar .wx-progress-percent {
-  background-color: color-mix(in srgb, var(--status-cancelled), black 20%) !important;
-}
-
-/* ================================================
-   Additional SVAR Variable Mappings
-   ================================================ */
-
-.gantt-theme-wrapper {
-  /* Critical path (if using SVAR PRO) */
-  --wx-gantt-task-critical-color: var(--destructive);
-  --wx-gantt-link-critical-color-hovered: var(--destructive);
-
-  /* Input/editor styling */
-  --wx-input-font-family: var(--font-sans);
-  --wx-input-font-color: var(--foreground);
-  --wx-input-background: var(--background);
-  --wx-input-border: 1px solid var(--border);
-  --wx-input-border-focus: 1px solid var(--ring);
-
-  /* Context menu styling */
-  --wx-popup-background: var(--popover);
-  --wx-popup-border: 1px solid var(--border);
-  --wx-popup-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-
-  /* Selection highlight */
+  /* Selection */
   --wx-gantt-selected-row-background: var(--accent);
   --wx-gantt-hover-row-background: var(--muted);
+
+  /* Tooltip */
+  --wx-tooltip-background: var(--popover);
+  --wx-tooltip-font-color: var(--popover-foreground);
 }
 
-/* ================================================
-   Scrollbar Sync and Layout Fixes
-   ================================================ */
-
-/* Ensure gantt chart fills container */
+/* Ensure full height */
 .gantt-theme-wrapper {
-  display: flex;
-  flex-direction: column;
   height: 100%;
   width: 100%;
-  background-color: var(--background) !important;
 }
 
-/* Hide SVAR's built-in grid when using custom sidebar */
-.gantt-theme-wrapper .wx-grid:empty {
-  display: none;
-}
-
-/* Ensure proper overflow handling */
 .gantt-theme-wrapper .wx-gantt {
-  min-height: 0;
-  flex: 1;
   height: 100% !important;
-  background-color: var(--background) !important;
 }
 
 /* ================================================
-   Force Background Colors - Override Willow Theme
+   Custom Today Marker Styling
+   (SVAR's built-in markers feature is paywalled)
    ================================================ */
 
-/* Main container backgrounds */
-.gantt-theme-wrapper,
-.gantt-theme-wrapper > div,
-.gantt-theme-wrapper .wx-willow,
-.gantt-theme-wrapper .wx-willow-dark {
-  background-color: var(--background) !important;
+.today-marker-container {
+  pointer-events: none;
 }
 
-/* Grid area backgrounds */
-.gantt-theme-wrapper .wx-grid {
-  background-color: var(--background) !important;
-}
-
-.gantt-theme-wrapper .wx-grid .wx-body {
-  background-color: var(--background) !important;
-}
-
-.gantt-theme-wrapper .wx-grid .wx-row {
-  background-color: var(--background) !important;
-}
-
-.gantt-theme-wrapper .wx-grid .wx-row:nth-child(even) {
-  background-color: var(--background) !important;
-}
-
-.gantt-theme-wrapper .wx-grid .wx-row:hover {
-  background-color: var(--muted) !important;
-}
-
-.gantt-theme-wrapper .wx-grid .wx-row.wx-selected {
-  background-color: var(--accent) !important;
-}
-
-/* Chart area background */
-.gantt-theme-wrapper .wx-chart {
-  background-color: var(--background) !important;
-}
-
-.gantt-theme-wrapper .wx-chart .wx-body {
-  background-color: var(--background) !important;
-}
-
-.gantt-theme-wrapper .wx-chart .wx-row {
-  background-color: transparent !important;
-}
-
-.gantt-theme-wrapper .wx-chart .wx-row:hover {
-  background-color: var(--muted) !important;
-}
-
-.gantt-theme-wrapper .wx-chart .wx-row.wx-selected {
-  background-color: var(--accent) !important;
-}
-
-/* Scale/header backgrounds */
-.gantt-theme-wrapper .wx-scale {
-  background-color: var(--muted) !important;
-}
-
-.gantt-theme-wrapper .wx-grid .wx-header {
-  background-color: var(--muted) !important;
-}
-
-/* Splitter/resizer between grid and chart */
-.gantt-theme-wrapper .wx-splitter {
-  background-color: var(--border) !important;
-}
-
-.gantt-theme-wrapper .wx-splitter:hover {
-  background-color: var(--primary) !important;
-}
-
-/* Full height for nested containers */
-.gantt-theme-wrapper > *,
-.gantt-theme-wrapper .wx-willow,
-.gantt-theme-wrapper .wx-willow-dark,
-.gantt-theme-wrapper .wx-willow > div,
-.gantt-theme-wrapper .wx-willow-dark > div {
-  height: 100% !important;
-}
-
-/* Grid column cells */
-.gantt-theme-wrapper .wx-grid .wx-cell {
-  background-color: transparent !important;
-  color: var(--foreground) !important;
-  border-right: 1px solid var(--border) !important;
+.today-marker-label {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
 }
 
 /* ================================================
-   Chart Area Grid Lines
-   Uses repeating gradients synced with cellWidth and rowHeight
+   SVAR Container for TodayMarker positioning
    ================================================ */
 
 .svar-gantt-container {
-  --gantt-cell-width: 60px; /* Default, overridden via inline style */
-  --gantt-row-height: 52px; /* Default, overridden via inline style */
-}
-
-/* Apply vertical and horizontal grid lines to the chart area (timeline) */
-.svar-gantt-container .wx-chart .wx-area {
-  background-color: var(--background) !important;
-  background-image:
-    /* Horizontal lines (row separators - matches left grid) */
-    repeating-linear-gradient(
-      to bottom,
-      transparent,
-      transparent calc(var(--gantt-row-height) - 1px),
-      var(--border) calc(var(--gantt-row-height) - 1px),
-      var(--border) var(--gantt-row-height)
-    ),
-    /* Vertical lines (column separators - matches scale header) */
-    repeating-linear-gradient(
-      to right,
-      transparent,
-      transparent calc(var(--gantt-cell-width) - 1px),
-      var(--border) calc(var(--gantt-cell-width) - 1px),
-      var(--border) var(--gantt-cell-width)
-    ) !important;
-  background-size: 100% var(--gantt-row-height), var(--gantt-cell-width) 100% !important;
-  background-position: left top, left top !important;
-  background-repeat: repeat !important;
+  --gantt-cell-width: 60px;
+  --gantt-row-height: 52px;
 }
 
