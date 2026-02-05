@@ -2,14 +2,11 @@
 
 import * as React from "react";
 import {
-  IconSettings,
-  IconHelp,
   IconTarget,
 } from "@tabler/icons-react";
 import { ChartLine, Gem, Box } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
-import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
 import {
   Sidebar,
@@ -40,18 +37,6 @@ const data = {
       icon: Gem,
     },
   ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "/dashboard/settings",
-      icon: IconSettings,
-    },
-    {
-      title: "Help",
-      url: "/dashboard/help",
-      icon: IconHelp,
-    },
-  ],
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -79,7 +64,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent className="overflow-x-hidden scrollbar-none">
         <NavMain items={data.navMain} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser />
