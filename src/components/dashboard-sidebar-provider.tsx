@@ -15,6 +15,7 @@ export function DashboardSidebarProvider({
 
   return (
     <SidebarProvider
+      className="h-svh max-h-svh overflow-hidden"
       style={
         {
           "--sidebar-width": `${sidebarWidth}px`,

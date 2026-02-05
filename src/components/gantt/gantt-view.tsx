@@ -9,8 +9,9 @@ import { GanttToolbar } from './gantt-toolbar';
 import { MilestoneContextMenu } from './milestone-context-menu';
 import { SVARThemeWrapper } from './svar-theme-wrapper';
 import { TodayMarker } from './today-marker';
+import { CursorMarker } from './cursor-marker';
 import { milestoneToSVARTask, dependencyToSVARLink, toLocalMidnight } from './transformers';
-import { SCALE_CONFIGS, calculateCellWidth, ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
+import { getScaleConfig, calculateCellWidth, ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import {
   SIDEBAR_WIDTH,
   STATUS_CONFIG,
@@ -91,6 +92,14 @@ export function GanttView({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const ganttApiRef = useRef<IApi | null>(null);
   const ganttContainerRef = useRef<HTMLDivElement>(null);
+
+  // Zoom anchoring: track cursor position so zooming keeps the date under cursor in place
+  const cursorInfoRef = useRef<{ absoluteX: number; viewportX: number } | null>(null);
+  const zoomAnchorRef = useRef<{ fractionalUnits: number; viewportX: number } | null>(null);
+
+  const handleCursorMove = useCallback((info: { absoluteX: number; viewportX: number } | null) => {
+    cursorInfoRef.current = info;
+  }, []);
 
   // Convert milestones to include dependencies array
   const milestonesWithDeps: MilestoneWithDeps[] = useMemo(() => {
@@ -178,11 +187,20 @@ export function GanttView({
       .map(dependencyToSVARLink);
   }, [dependencies, showDependencies, filteredMilestones]);
 
-  // Get scale configuration for current time period
-  const scales = useMemo(() => SCALE_CONFIGS[timePeriod], [timePeriod]);
-
-  // Calculate cell width based on zoom level
+  // Calculate cell width based on zoom level (must come before scales)
   const cellWidth = useMemo(() => calculateCellWidth(zoomLevel, timePeriod), [zoomLevel, timePeriod]);
+
+  // Scale config — adapts labels when cells are too narrow (e.g. drops day letter in week view)
+  const scales = useMemo(() => getScaleConfig(timePeriod, cellWidth), [timePeriod, cellWidth]);
+
+  // Weekend highlighting — returns "wx-weekend" for Sat/Sun so SVAR renders overlay elements
+  const highlightTime = useCallback((date: Date, unit: 'day' | 'hour') => {
+    if (unit === 'day') {
+      const day = date.getDay();
+      if (day === 0 || day === 6) return 'wx-weekend';
+    }
+    return '';
+  }, []);
 
   // Create a milestone lookup map for event handlers
   const milestoneMap = useMemo(() => {
@@ -268,6 +286,77 @@ export function GanttView({
     const timeout = setTimeout(scrollToToday, 300);
     return () => clearTimeout(timeout);
   }, [scrollToToday]);
+
+  // Ctrl+wheel / trackpad pinch to zoom (with cursor anchoring)
+  useEffect(() => {
+    const container = ganttContainerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+
+      // Compute zoom anchor directly from the wheel event's cursor position.
+      // Reading scrollLeft here (synchronously in the event) guarantees the
+      // value is current, unlike cursorInfoRef which may be stale.
+      const api = ganttApiRef.current;
+      if (api) {
+        const wxArea = container.querySelector('.wx-area') as HTMLElement;
+        const scrollContainer = wxArea?.parentElement;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const state = api.getState() as any;
+        if (scrollContainer && state?.cellWidth) {
+          const rect = scrollContainer.getBoundingClientRect();
+          const viewportX = e.clientX - rect.left;
+          if (viewportX >= 0 && viewportX <= rect.width) {
+            const absoluteX = viewportX + scrollContainer.scrollLeft;
+            const fractionalUnits = absoluteX / state.cellWidth;
+            zoomAnchorRef.current = { fractionalUnits, viewportX };
+          }
+        }
+      }
+
+      if (e.deltaY < 0) {
+        setZoomLevel((prev) => Math.min(ZOOM_MAX, prev + 1));
+      } else if (e.deltaY > 0) {
+        setZoomLevel((prev) => Math.max(ZOOM_MIN, prev - 1));
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  // After cellWidth changes, scroll to keep the anchored point at the same viewport position.
+  // Uses React's cellWidth (guaranteed correct) rather than SVAR's internal state (may lag).
+  useEffect(() => {
+    const anchor = zoomAnchorRef.current;
+    if (!anchor) return;
+    zoomAnchorRef.current = null;
+
+    const container = ganttContainerRef.current;
+    const api = ganttApiRef.current;
+    if (!container || !api) return;
+
+    // Recompute pixel position: same fractional units * new cellWidth
+    const newPixelX = Math.round(anchor.fractionalUnits * cellWidth);
+    const scrollTarget = Math.max(0, newPixelX - anchor.viewportX);
+
+    const applyScroll = () => {
+      const wxArea = container.querySelector('.wx-area') as HTMLElement;
+      const sc = wxArea?.parentElement;
+      if (!sc) return;
+      sc.scrollLeft = scrollTarget;
+      api.exec('scroll-chart', { left: scrollTarget });
+    };
+
+    // Apply immediately (before SVAR re-renders)
+    applyScroll();
+    // Re-apply after SVAR processes the new cellWidth prop
+    const raf = requestAnimationFrame(applyScroll);
+
+    return () => cancelAnimationFrame(raf);
+  }, [cellWidth]);
 
   // Handle sidebar scroll sync
   const handleSidebarScroll = useCallback(() => {
@@ -384,6 +473,7 @@ export function GanttView({
               scaleHeight={SCALE_HEIGHT}
               start={TIMELINE_START_DATE}
               end={TIMELINE_END_DATE}
+              highlightTime={highlightTime}
               init={initGantt}
               // Disable built-in grid since we have custom sidebar
               columns={[]}
@@ -397,6 +487,13 @@ export function GanttView({
             timePeriod={timePeriod}
             cellWidth={cellWidth}
             scaleHeight={SCALE_HEIGHT}
+          />
+
+          {/* Cursor Marker - follows mouse with date label */}
+          <CursorMarker
+            ganttApiRef={ganttApiRef}
+            scaleHeight={SCALE_HEIGHT}
+            onCursorMove={handleCursorMove}
           />
 
           {/* Zoom controls overlay */}

@@ -326,52 +326,322 @@ pre {
 /* ================================================
    SVAR React Gantt - Theme Integration
    Maps tweakcn theme variables to SVAR's --wx- variables
-   Let SVAR handle all layout natively
+
+   IMPORTANT: We must override the .wx-willow-theme and
+   .wx-willow-dark-theme classes directly because SVAR's
+   theme components apply these classes which set their
+   own --wx-* variable values.
    ================================================ */
 
-.gantt-theme-wrapper {
-  /* Base theme variables */
+/* Override SVAR Willow theme variables with tweakcn values
+   Target both the theme wrapper and any element with willow class */
+.gantt-theme-wrapper,
+.gantt-theme-wrapper .wx-willow-theme,
+.gantt-theme-wrapper .wx-willow-dark-theme,
+.gantt-theme-wrapper [class*="wx-willow"],
+[class*="wx-willow-theme"],
+[class*="wx-willow-dark-theme"] {
+  /* ============================================
+     Core Colors - Base theme mapping
+     ============================================ */
   --wx-background: var(--background);
   --wx-background-alt: var(--muted);
   --wx-color-font: var(--foreground);
   --wx-color-secondary-font: var(--muted-foreground);
   --wx-color-primary: var(--primary);
   --wx-color-danger: var(--destructive);
+  --wx-color-link: var(--primary);
+  --wx-color-font-disabled: var(--muted-foreground);
+  --wx-icon-color: var(--muted-foreground);
 
-  /* Border */
-  --wx-border: 1px solid var(--border);
-  --wx-border-color: var(--border);
-
-  /* Font settings */
+  /* ============================================
+     Typography - Font settings
+     ============================================ */
   --wx-font-family: var(--font-sans);
   --wx-font-size: 14px;
   --wx-font-size-sm: 12px;
+  --wx-font-weight: 400;
+  --wx-font-weight-md: 500;
+  --wx-icon-size: 16px;
 
-  /* Gantt borders */
+  /* ============================================
+     Borders - Global border settings
+     ============================================ */
+  --wx-border: 1px solid var(--border);
+  --wx-border-color: var(--border);
   --wx-gantt-border: 1px solid var(--border);
   --wx-gantt-border-color: var(--border);
 
-  /* Task colors */
+  /* ============================================
+     Radius - Rounded corners using theme radius
+     ============================================ */
+  --wx-gantt-bar-border-radius: calc(var(--radius) - 4px);
+  --wx-gantt-milestone-border-radius: calc(var(--radius) - 6px);
+  --wx-gantt-baseline-border-radius: calc(var(--radius) - 6px);
+
+  /* ============================================
+     Shadows - Using theme shadow values
+     ============================================ */
+  --wx-box-shadow: var(--shadow-offset-x) var(--shadow-offset-y) var(--shadow-blur) var(--shadow-spread) color-mix(in srgb, var(--shadow-color) calc(var(--shadow-opacity) * 100%), transparent);
+  --wx-gantt-bar-shadow: 0px 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent), 0px 3px 10px color-mix(in srgb, var(--foreground) 12%, transparent);
+
+  /* ============================================
+     Task Bars - Primary task styling using chart colors
+     Note: Font colors are fixed white/light since chart colors
+     maintain their hue across light/dark themes
+     ============================================ */
   --wx-gantt-task-color: var(--chart-2);
   --wx-gantt-task-font-color: #fff;
+  --wx-gantt-task-fill-color: var(--chart-4);
+  --wx-gantt-task-border-color: var(--chart-4);
+  --wx-gantt-task-border: 1px solid transparent;
 
-  /* Grid styling */
-  --wx-grid-body-row-border: 1px solid var(--border);
-  --wx-grid-body-cell-border: 1px solid var(--border);
+  /* Critical path tasks */
+  --wx-gantt-critical-color: var(--destructive);
+  --wx-gantt-task-critical-color: var(--destructive);
+  --wx-gantt-task-critical-fill-color: color-mix(in srgb, var(--destructive) 80%, black);
 
-  /* Timescale */
-  --wx-timescale-border: 1px solid var(--border);
+  /* ============================================
+     Summary Bars - Parent/group task styling
+     ============================================ */
+  --wx-gantt-summary-color: var(--chart-1);
+  --wx-gantt-summary-font-color: #fff;
+  --wx-gantt-summary-fill-color: var(--chart-3);
+  --wx-gantt-summary-border-color: var(--chart-3);
+  --wx-gantt-summary-border: 1px solid transparent;
+  --wx-gantt-summary-critical-color: var(--destructive);
+  --wx-gantt-summary-critical-fill-color: color-mix(in srgb, var(--destructive) 80%, black);
 
-  /* Selection */
+  /* ============================================
+     Milestones - Diamond marker styling
+     ============================================ */
+  --wx-gantt-milestone-color: var(--chart-5);
+
+  /* ============================================
+     Selection & Hover States
+     ============================================ */
+  --wx-gantt-select-color: var(--accent);
   --wx-gantt-selected-row-background: var(--accent);
   --wx-gantt-hover-row-background: var(--muted);
 
-  /* Tooltip */
-  --wx-tooltip-background: var(--popover);
+  /* ============================================
+     Links - Dependency line styling
+     ============================================ */
+  --wx-gantt-link-color: var(--muted-foreground);
+  --wx-gantt-link-color-hovered: var(--foreground);
+  --wx-gantt-link-critical-color: var(--destructive);
+  --wx-gantt-link-critical-color-hovered: color-mix(in srgb, var(--destructive) 80%, black);
+  --wx-gantt-link-marker-background: var(--muted);
+  --wx-gantt-link-marker-color: var(--muted-foreground);
+
+  /* ============================================
+     Progress Marker - Drag handle styling
+     ============================================ */
+  --wx-gantt-progress-marker-height: 26px;
+  --wx-gantt-progress-border-color: var(--border);
+
+  /* ============================================
+     Icons - UI icon styling
+     ============================================ */
+  --wx-gantt-icon-color: var(--muted-foreground);
+
+  /* ============================================
+     Grid Header - Column header styling
+     ============================================ */
+  --wx-grid-header-font: var(--wx-font-weight-md) var(--wx-font-size) var(--wx-font-family);
+  --wx-grid-header-font-color: var(--foreground);
+  --wx-grid-header-text-transform: capitalize;
+  --wx-grid-header-shadow: none;
+
+  /* ============================================
+     Grid Body - Row and cell styling
+     ============================================ */
+  --wx-grid-body-font: var(--wx-font-weight) var(--wx-font-size) var(--wx-font-family);
+  --wx-grid-body-font-color: var(--foreground);
+  --wx-grid-body-row-border: 1px solid var(--border);
+  --wx-grid-body-cell-border: 1px solid transparent;
+
+  /* ============================================
+     Timescale - Header timeline styling
+     ============================================ */
+  --wx-timescale-font: var(--wx-font-weight-md) var(--wx-font-size-sm) var(--wx-font-family);
+  --wx-timescale-font-color: var(--foreground);
+  --wx-timescale-shadow: none;
+  --wx-timescale-border: 1px solid var(--border);
+
+  /* ============================================
+     Holidays/Weekends - Non-working day styling
+     ============================================ */
+  --wx-gantt-holiday-background: transparent;
+  --wx-gantt-holiday-color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+
+  /* ============================================
+     Markers - Today line and custom markers
+     ============================================ */
+  --wx-gantt-marker-font: var(--wx-font-weight-md) var(--wx-font-size-sm) var(--wx-font-family);
+  --wx-gantt-marker-font-color: #fff;
+  --wx-gantt-marker-color: var(--chart-2);
+
+  /* ============================================
+     Tooltip - Hover information popup
+     ============================================ */
+  --wx-tooltip-font: var(--wx-font-weight) var(--wx-font-size) var(--wx-font-family);
   --wx-tooltip-font-color: var(--popover-foreground);
+  --wx-tooltip-background: var(--popover);
+
+  /* ============================================
+     Sidebar/Editor - Side panel styling
+     ============================================ */
+  --wx-sidebar-close-icon: var(--muted-foreground);
+
+  /* ============================================
+     Input Fields - Form element styling
+     ============================================ */
+  --wx-input-font-family: var(--font-sans);
+  --wx-input-font-size: var(--wx-font-size);
+  --wx-input-font-weigth: var(--wx-font-weight);
+  --wx-input-font-color: var(--foreground);
 }
 
-/* Ensure full height - SVAR Gantt fills container */
+/* ================================================
+   SVAR Theme Border Overrides
+   The Willow theme sets border vars on its own class
+   (e.g. --wx-gantt-border: 1px solid #1d1e261a) which
+   overrides our parent-level vars. Force them here.
+   ================================================ */
+
+.gantt-theme-wrapper .wx-willow-theme,
+.gantt-theme-wrapper .wx-willow-dark-theme {
+  --wx-gantt-border: 1px solid var(--border) !important;
+  --wx-gantt-border-color: var(--border) !important;
+  --wx-border: 1px solid var(--border) !important;
+  --wx-border-color: var(--border) !important;
+  --wx-timescale-border: 1px solid var(--border) !important;
+  --wx-grid-body-row-border: 1px solid var(--border) !important;
+}
+
+/* ================================================
+   Direct Style Overrides for SVAR Elements
+   Apply theme colors directly where CSS variables
+   don't cascade through SVAR's component boundaries
+   ================================================ */
+
+/* Main layout container - set background once at top level */
+.gantt-theme-wrapper [class*="wx-layout"] {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+/* Timescale/header - background only, not affecting borders */
+.gantt-theme-wrapper [class*="wx-scale"] {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+/* Text colors for cells */
+.gantt-theme-wrapper [class*="wx-cell"] {
+  color: var(--foreground) !important;
+}
+
+/* Task bars - use chart colors */
+.gantt-theme-wrapper [class*="wx-bar"][class*="wx-task"]:not([class*="wx-split"]) {
+  background-color: var(--chart-2) !important;
+  color: #fff !important;
+}
+
+/* Summary bars */
+.gantt-theme-wrapper [class*="wx-bar"][class*="wx-summary"] {
+  background-color: var(--chart-1) !important;
+  color: #fff !important;
+}
+
+/* Milestone diamond */
+.gantt-theme-wrapper [class*="wx-milestone"] [class*="wx-content"] {
+  background-color: var(--chart-5) !important;
+}
+
+/* Selected row highlight */
+.gantt-theme-wrapper [class*="wx-row"][class*="wx-selected"],
+.gantt-theme-wrapper [class*="wx-selected"]:not([class*="wx-bar"]):not([class*="wx-link"]) {
+  background-color: var(--accent) !important;
+}
+
+/* Resizer/splitter bar between grid and chart */
+.gantt-theme-wrapper [class*="wx-resizer"] {
+  background-color: var(--border) !important;
+}
+
+/* Weekend/holiday columns - subtle dot stipple pattern for chart area */
+.gantt-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px,
+    transparent 1px
+  ) !important;
+  background-size: 5px 5px !important;
+  background-color: transparent !important;
+  transition: none !important;
+}
+/* Weekend scale header cells - subtle label color */
+.gantt-theme-wrapper [class*="wx-cell"][class*="wx-weekend"] {
+  background-color: var(--muted) !important;
+  color: color-mix(in srgb, var(--muted-foreground) 55%, transparent) !important;
+}
+
+/* Tooltip */
+.gantt-theme-wrapper .wx-gantt-tooltip,
+.gantt-theme-wrapper [class*="wx-tooltip"] {
+  background-color: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+}
+
+/* ================================================
+   Grid Lines - Cell borders for the chart grid
+   Use border-right and border-bottom to avoid doubles
+   ================================================ */
+
+/* Grid body cells - right border for vertical lines */
+.gantt-theme-wrapper [class*="wx-body"] [class*="wx-cell"] {
+  border-right: 1px solid var(--border) !important;
+}
+
+/* Grid body rows - bottom border for horizontal lines */
+.gantt-theme-wrapper [class*="wx-body"] [class*="wx-row"] {
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* Header row bottom border */
+.gantt-theme-wrapper [class*="wx-header"] {
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* Header cells - right border */
+.gantt-theme-wrapper [class*="wx-header"] [class*="wx-cell"] {
+  border-right: 1px solid var(--border) !important;
+}
+
+/* Timescale cells - right and bottom borders */
+.gantt-theme-wrapper [class*="wx-scale"] [class*="wx-cell"] {
+  border-right: 1px solid var(--border) !important;
+}
+.gantt-theme-wrapper [class*="wx-scale"] [class*="wx-row"] {
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* Table container right border (divider between grid and chart) */
+.gantt-theme-wrapper [class*="wx-table-container"] {
+  border-right: 1px solid var(--border) !important;
+}
+
+/* Remove last cell right border to avoid double with container edge */
+.gantt-theme-wrapper [class*="wx-row"] [class*="wx-cell"]:last-child {
+  border-right: none !important;
+}
+
+/* ================================================
+   Layout - Ensure full height
+   ================================================ */
+
 .gantt-theme-wrapper {
   height: 100%;
   width: 100%;
@@ -420,25 +690,33 @@ pre {
 /* ================================================
    SVAR Empty Rows - Fill remaining vertical space
    Uses repeating background to simulate empty rows
+   Grid pattern: horizontal lines for rows, vertical for columns
    ================================================ */
 
-/* Grid side (left panel) - fill with empty row lines */
-.gantt-theme-wrapper .wx-body {
+/* Grid side (left panel) - background + horizontal row lines */
+.gantt-theme-wrapper .wx-body,
+.gantt-theme-wrapper [class*="wx-body"] {
+  background-color: var(--background) !important;
   background-image: repeating-linear-gradient(
     to bottom,
     transparent 0px,
     transparent calc(var(--gantt-row-height, 52px) - 1px),
     var(--border) calc(var(--gantt-row-height, 52px) - 1px),
     var(--border) var(--gantt-row-height, 52px)
-  );
-  background-size: 100% var(--gantt-row-height, 52px);
-  background-position: top;
+  ) !important;
+  background-size: 100% var(--gantt-row-height, 52px) !important;
+  background-position: top !important;
 }
 
-/* Chart side (right panel with timeline) - fill with grid pattern */
-.gantt-theme-wrapper .wx-chart .wx-area {
-  background-image:
-    /* Horizontal row lines */
+/* Chart area grid pattern
+   Structure: .wx-chart > .wx-area > (.wx-gantt-holidays, .wx-bars, .wx-links)
+   The overlay children (.wx-bars, .wx-holidays, etc.) are absolutely positioned
+   on top of .wx-area, so they MUST stay transparent to show the grid through */
+
+/* Chart area - grid pattern with theme background */
+.gantt-theme-wrapper [class*="wx-chart"] > [class*="wx-area"],
+.gantt-theme-wrapper [class*="wx-area"]:not([class*="wx-sidearea"]):not([class*="wx-tooltip"]) {
+  background:
     repeating-linear-gradient(
       to bottom,
       transparent 0px,
@@ -446,18 +724,39 @@ pre {
       var(--border) calc(var(--gantt-row-height, 52px) - 1px),
       var(--border) var(--gantt-row-height, 52px)
     ),
-    /* Vertical column lines */
     repeating-linear-gradient(
       to right,
       transparent 0px,
       transparent calc(var(--gantt-cell-width, 60px) - 1px),
       var(--border) calc(var(--gantt-cell-width, 60px) - 1px),
       var(--border) var(--gantt-cell-width, 60px)
-    );
+    ),
+    var(--background) !important;
   background-size:
     100% var(--gantt-row-height, 52px),
-    var(--gantt-cell-width, 60px) 100%;
-  background-position: top left;
+    var(--gantt-cell-width, 60px) 100%,
+    100% 100% !important;
+  background-position: top left !important;
+  background-repeat: repeat !important;
+}
+
+/* Overlays inside .wx-area must be transparent so grid shows through */
+.gantt-theme-wrapper [class*="wx-bars"],
+.gantt-theme-wrapper [class*="wx-gantt-holidays"],
+.gantt-theme-wrapper [class*="wx-links"] {
+  background-color: transparent !important;
+}
+
+/* Weekend columns - subtle dot stipple pattern (overrides earlier rule at higher cascade position) */
+.gantt-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px,
+    transparent 1px
+  ) !important;
+  background-size: 5px 5px !important;
+  background-color: transparent !important;
+  transition: none !important;
 }
 
 /* ================================================
@@ -473,6 +772,20 @@ pre {
   font-family: var(--font-sans);
   text-transform: uppercase;
   letter-spacing: 0.025em;
+}
+
+/* ================================================
+   Cursor Marker - Hover line + date label
+   ================================================ */
+
+.cursor-marker-line {
+  pointer-events: none;
+  background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+}
+
+.cursor-marker-label {
+  font-family: var(--font-sans);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 

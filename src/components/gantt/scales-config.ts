@@ -64,6 +64,26 @@ export const SCALE_CONFIGS: Record<TimePeriod, IScaleConfig[]> = {
 };
 
 /**
+ * Returns scale configs adapted to the current cellWidth.
+ * For the week period, drops the day-of-week letter when cells are too narrow.
+ */
+export function getScaleConfig(timePeriod: TimePeriod, cellWidth: number): IScaleConfig[] {
+  const base = SCALE_CONFIGS[timePeriod];
+
+  if (timePeriod === 'week' && cellWidth < 45) {
+    return [
+      base[0],
+      {
+        ...base[1],
+        format: (date: Date) => format(date, 'd'),
+      },
+    ];
+  }
+
+  return base;
+}
+
+/**
  * Calculate cell width based on zoom level and time period
  * Maps zoom levels 1-9 to appropriate pixel widths
  */

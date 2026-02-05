@@ -37,6 +37,9 @@ interface GanttStore {
   showDependencies: boolean;
   sidebarCollapsed: boolean;
 
+  // Per-milestone view preferences (keyed by project/milestone ID)
+  milestoneTimePeriods: Record<string, TimePeriod>;
+
   // List view preferences
   rowHeight: RowHeight;
   groupBy: GroupBy;
@@ -67,6 +70,8 @@ interface GanttStore {
   // Actions
   setViewType: (viewType: ViewType) => void;
   setTimePeriod: (period: TimePeriod) => void;
+  getMilestoneTimePeriod: (milestoneId: string) => TimePeriod;
+  setMilestoneTimePeriod: (milestoneId: string, period: TimePeriod) => void;
   setZoomLevel: (level: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -119,6 +124,7 @@ export const useGanttStore = create<GanttStore>()(
       zoomLevel: 5,
       showDependencies: true,
       sidebarCollapsed: false,
+      milestoneTimePeriods: {},
       rowHeight: "default",
       groupBy: "none",
       collapsedGroups: [],
@@ -139,6 +145,18 @@ export const useGanttStore = create<GanttStore>()(
       setViewType: (viewType) => set({ viewType }),
 
       setTimePeriod: (timePeriod) => set({ timePeriod }),
+
+      getMilestoneTimePeriod: (milestoneId) => {
+        return get().milestoneTimePeriods[milestoneId] || "month";
+      },
+
+      setMilestoneTimePeriod: (milestoneId, timePeriod) =>
+        set((state) => ({
+          milestoneTimePeriods: {
+            ...state.milestoneTimePeriods,
+            [milestoneId]: timePeriod,
+          },
+        })),
 
       setZoomLevel: (zoomLevel) =>
         set({ zoomLevel: Math.min(10, Math.max(1, zoomLevel)) }),
@@ -260,6 +278,7 @@ export const useGanttStore = create<GanttStore>()(
         groupBy: state.groupBy,
         sortField: state.sortField,
         sortDirection: state.sortDirection,
+        milestoneTimePeriods: state.milestoneTimePeriods,
       }),
     }
   )
