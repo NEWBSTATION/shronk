@@ -371,14 +371,93 @@ pre {
   --wx-tooltip-font-color: var(--popover-foreground);
 }
 
-/* Ensure full height */
+/* Ensure full height - SVAR Gantt fills container */
 .gantt-theme-wrapper {
   height: 100%;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .gantt-theme-wrapper .wx-gantt {
   height: 100% !important;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Force SVAR to fill available height */
+.gantt-theme-wrapper [class*="wx-pseudo-rows"] {
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+.gantt-theme-wrapper [class*="wx-stuck"] {
+  height: 100% !important;
+  max-height: none !important;
+}
+
+.gantt-theme-wrapper [class*="wx-layout"] {
+  height: 100% !important;
+  max-height: none !important;
+}
+
+/* Force SVAR internal containers to fill available space */
+.svar-gantt-container {
+  --gantt-cell-width: 60px;
+  --gantt-row-height: 52px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.svar-gantt-container .gantt-theme-wrapper {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ================================================
+   SVAR Empty Rows - Fill remaining vertical space
+   Uses repeating background to simulate empty rows
+   ================================================ */
+
+/* Grid side (left panel) - fill with empty row lines */
+.gantt-theme-wrapper .wx-body {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent calc(var(--gantt-row-height, 52px) - 1px),
+    var(--border) calc(var(--gantt-row-height, 52px) - 1px),
+    var(--border) var(--gantt-row-height, 52px)
+  );
+  background-size: 100% var(--gantt-row-height, 52px);
+  background-position: top;
+}
+
+/* Chart side (right panel with timeline) - fill with grid pattern */
+.gantt-theme-wrapper .wx-chart .wx-area {
+  background-image:
+    /* Horizontal row lines */
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent calc(var(--gantt-row-height, 52px) - 1px),
+      var(--border) calc(var(--gantt-row-height, 52px) - 1px),
+      var(--border) var(--gantt-row-height, 52px)
+    ),
+    /* Vertical column lines */
+    repeating-linear-gradient(
+      to right,
+      transparent 0px,
+      transparent calc(var(--gantt-cell-width, 60px) - 1px),
+      var(--border) calc(var(--gantt-cell-width, 60px) - 1px),
+      var(--border) var(--gantt-cell-width, 60px)
+    );
+  background-size:
+    100% var(--gantt-row-height, 52px),
+    var(--gantt-cell-width, 60px) 100%;
+  background-position: top left;
 }
 
 /* ================================================
@@ -396,12 +475,4 @@ pre {
   letter-spacing: 0.025em;
 }
 
-/* ================================================
-   SVAR Container for TodayMarker positioning
-   ================================================ */
-
-.svar-gantt-container {
-  --gantt-cell-width: 60px;
-  --gantt-row-height: 52px;
-}
 
