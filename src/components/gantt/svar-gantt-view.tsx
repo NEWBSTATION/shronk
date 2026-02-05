@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { differenceInDays, differenceInWeeks, differenceInMonths, differenceInQuarters, startOfDay, startOfWeek, startOfMonth, startOfQuarter } from 'date-fns';
+import { startOfDay } from 'date-fns';
 import { Gantt } from '@svar-ui/react-gantt';
 import type { IApi } from '@svar-ui/react-gantt';
 import { Plus, Minus, GitBranch } from 'lucide-react';
@@ -128,90 +128,36 @@ export function SVARGanttView({
     });
   }, [featureMap, onEdit, onUpdateDates]);
 
-  // Calculate today's position in pixels
-  const calculateTodayPosition = useCallback((): number => {
-    const today = startOfDay(new Date());
-
-    if (today < TIMELINE_START_DATE || today > TIMELINE_END_DATE) {
-      return -1;
-    }
-
-    switch (timePeriod) {
-      case 'week': {
-        const daysFromStart = differenceInDays(today, TIMELINE_START_DATE);
-        return daysFromStart * cellWidth;
-      }
-      case 'month': {
-        const timelineStartWeek = startOfWeek(TIMELINE_START_DATE, { weekStartsOn: 0 });
-        const todayWeek = startOfWeek(today, { weekStartsOn: 0 });
-        const weeksFromStart = differenceInWeeks(todayWeek, timelineStartWeek);
-        const daysIntoWeek = differenceInDays(today, todayWeek);
-        const fractionOfWeek = daysIntoWeek / 7;
-        return (weeksFromStart + fractionOfWeek) * cellWidth;
-      }
-      case 'quarter': {
-        const timelineStartMonth = startOfMonth(TIMELINE_START_DATE);
-        const todayMonth = startOfMonth(today);
-        const monthsFromStart = differenceInMonths(todayMonth, timelineStartMonth);
-        const daysIntoMonth = differenceInDays(today, todayMonth);
-        const daysInMonth = differenceInDays(
-          new Date(today.getFullYear(), today.getMonth() + 1, 0),
-          todayMonth
-        ) + 1;
-        const fractionOfMonth = daysIntoMonth / daysInMonth;
-        return (monthsFromStart + fractionOfMonth) * cellWidth;
-      }
-      case 'year': {
-        const timelineStartQuarter = startOfQuarter(TIMELINE_START_DATE);
-        const todayQuarter = startOfQuarter(today);
-        const quartersFromStart = differenceInQuarters(todayQuarter, timelineStartQuarter);
-        const quarterStart = startOfQuarter(today);
-        const nextQuarterStart = new Date(quarterStart);
-        nextQuarterStart.setMonth(nextQuarterStart.getMonth() + 3);
-        const daysIntoQuarter = differenceInDays(today, quarterStart);
-        const daysInQuarter = differenceInDays(nextQuarterStart, quarterStart);
-        const fractionOfQuarter = daysIntoQuarter / daysInQuarter;
-        return (quartersFromStart + fractionOfQuarter) * cellWidth;
-      }
-      default:
-        return -1;
-    }
-  }, [timePeriod, cellWidth]);
-
-  // Scroll to today
+  // Scroll to today using SVAR's internal scales for accurate pixel calculation
   const scrollToToday = useCallback(() => {
-    setTimeout(() => {
-      const container = ganttContainerRef.current;
-      if (!container) return;
+    const api = ganttApiRef.current;
+    const container = ganttContainerRef.current;
+    if (!api || !container) return;
 
-      const todayPosition = calculateTodayPosition();
-      if (todayPosition < 0) return;
+    const today = startOfDay(new Date());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const state = api.getState() as any;
+    const scales = state?._scales;
+    if (!scales?.diff || !scales.start || !scales.lengthUnit) return;
 
-      // Find the horizontal scroll container (wx-area) and scroll it
-      const scrollArea = container.querySelector('.wx-area') as HTMLElement;
-      if (scrollArea) {
-        const viewportWidth = scrollArea.clientWidth;
-        const scrollTarget = Math.max(0, todayPosition - viewportWidth / 2);
-        scrollArea.scrollTo({ left: scrollTarget, behavior: 'smooth' });
-        return;
-      }
+    // Use SVAR's own diff function to get today's pixel position
+    const todayX = Math.round(scales.diff(today, scales.start, scales.lengthUnit) * state.cellWidth);
+    if (todayX < 0) return;
 
-      // Fallback: find any horizontally scrollable element
-      const allElements = container.querySelectorAll('*');
-      for (const el of allElements) {
-        const htmlEl = el as HTMLElement;
-        if (htmlEl.scrollWidth > htmlEl.clientWidth + 50) {
-          const viewportWidth = htmlEl.clientWidth;
-          const scrollTarget = Math.max(0, todayPosition - viewportWidth / 2);
-          htmlEl.scrollTo({ left: scrollTarget, behavior: 'smooth' });
-          break;
-        }
-      }
-    }, 100);
-  }, [calculateTodayPosition]);
+    // .wx-area is the full-width content; its scrollable parent is the viewport
+    const wxArea = container.querySelector('.wx-area') as HTMLElement;
+    const scrollContainer = wxArea?.parentElement;
+    if (!scrollContainer) return;
+
+    const viewportWidth = scrollContainer.clientWidth;
+    const scrollTarget = Math.max(0, todayX - viewportWidth / 2);
+
+    api.exec('scroll-chart', { left: scrollTarget });
+    scrollContainer.scrollLeft = scrollTarget;
+  }, []);
 
   useEffect(() => {
-    const timeout = setTimeout(scrollToToday, 200);
+    const timeout = setTimeout(scrollToToday, 300);
     return () => clearTimeout(timeout);
   }, [scrollToToday]);
 

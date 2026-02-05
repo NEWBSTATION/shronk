@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { startOfDay } from 'date-fns';
 import { Gantt } from '@svar-ui/react-gantt';
 import type { IApi } from '@svar-ui/react-gantt';
 import { GripVertical, Circle, Clock, PauseCircle, CheckCircle2, XCircle, ChevronRight, Plus, Minus } from 'lucide-react';
@@ -89,6 +90,7 @@ export function GanttView({
   // Refs
   const sidebarRef = useRef<HTMLDivElement>(null);
   const ganttApiRef = useRef<IApi | null>(null);
+  const ganttContainerRef = useRef<HTMLDivElement>(null);
 
   // Convert milestones to include dependencies array
   const milestonesWithDeps: MilestoneWithDeps[] = useMemo(() => {
@@ -233,21 +235,37 @@ export function GanttView({
     });
   }, [dependencies, milestoneMap, onCreateDependency, onDeleteDependency, onEdit, onUpdateDates]);
 
-  // Scroll to today
+  // Scroll to today using SVAR's internal scales for accurate pixel calculation
   const scrollToToday = useCallback(() => {
-    if (ganttApiRef.current) {
-      const today = new Date();
-      // Use SVAR API to scroll to today
-      ganttApiRef.current.exec('scroll-chart', { date: today });
-    }
+    const api = ganttApiRef.current;
+    const container = ganttContainerRef.current;
+    if (!api || !container) return;
+
+    const today = startOfDay(new Date());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const state = api.getState() as any;
+    const scales = state?._scales;
+    if (!scales?.diff || !scales.start || !scales.lengthUnit) return;
+
+    // Use SVAR's own diff function to get today's pixel position
+    const todayX = Math.round(scales.diff(today, scales.start, scales.lengthUnit) * state.cellWidth);
+    if (todayX < 0) return;
+
+    // .wx-area is the full-width content; its scrollable parent is the viewport
+    const wxArea = container.querySelector('.wx-area') as HTMLElement;
+    const scrollContainer = wxArea?.parentElement;
+    if (!scrollContainer) return;
+
+    const viewportWidth = scrollContainer.clientWidth;
+    const scrollTarget = Math.max(0, todayX - viewportWidth / 2);
+
+    api.exec('scroll-chart', { left: scrollTarget });
+    scrollContainer.scrollLeft = scrollTarget;
   }, []);
 
   // Scroll to today on mount
   useEffect(() => {
-    // Use a small delay to ensure SVAR is fully initialized
-    const timeout = setTimeout(() => {
-      scrollToToday();
-    }, 100);
+    const timeout = setTimeout(scrollToToday, 300);
     return () => clearTimeout(timeout);
   }, [scrollToToday]);
 
@@ -262,6 +280,9 @@ export function GanttView({
       <GanttToolbar
         timePeriod={timePeriod}
         onTimePeriodChange={setTimePeriod}
+        zoomLevel={zoomLevel}
+        onZoomIn={() => setZoomLevel((prev) => Math.min(ZOOM_MAX, prev + 1))}
+        onZoomOut={() => setZoomLevel((prev) => Math.max(ZOOM_MIN, prev - 1))}
         showDependencies={showDependencies}
         onToggleDependencies={() => setShowDependencies(!showDependencies)}
         onScrollToToday={scrollToToday}
@@ -346,6 +367,7 @@ export function GanttView({
 
         {/* SVAR Gantt Chart */}
         <div
+          ref={ganttContainerRef}
           className="flex-1 overflow-hidden relative svar-gantt-container"
           style={{
             '--gantt-cell-width': `${cellWidth}px`,
