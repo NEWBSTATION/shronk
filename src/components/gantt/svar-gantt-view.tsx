@@ -17,12 +17,12 @@ import {
 import { SVARThemeWrapper } from './svar-theme-wrapper';
 import { TodayMarker } from './today-marker';
 import { CursorMarker } from './cursor-marker';
-import { milestoneToSVARTask } from './transformers';
+import { milestoneToSVARTask, dependencyToSVARLink, svarEndDateToInclusive } from './transformers';
 import { getScaleConfig, ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from './constants';
 import { useGanttStore } from '@/store/gantt-store';
 import type { TimePeriod, SVARTask, SVARLink } from './types';
-import type { Milestone, MilestoneStatus, MilestonePriority, Team, Project } from '@/db/schema';
+import type { Milestone, MilestoneDependency, MilestoneStatus, MilestonePriority, Team, Project } from '@/db/schema';
 
 // Zoom level configuration
 const ZOOM_CONFIG: Record<TimePeriod, { min: number; max: number }> = {
@@ -35,6 +35,7 @@ const ZOOM_CONFIG: Record<TimePeriod, { min: number; max: number }> = {
 interface SVARGanttViewProps {
   project: Project;
   features: Milestone[];
+  dependencies: MilestoneDependency[];
   teams: Team[];
   onBack: () => void;
   onEdit: (feature: Milestone) => void;
@@ -43,16 +44,21 @@ interface SVARGanttViewProps {
   onStatusChange: (id: string, status: MilestoneStatus) => Promise<void>;
   onPriorityChange?: (id: string, priority: MilestonePriority) => Promise<void>;
   onAddFeature: () => void;
+  onCreateDependency: (predecessorId: string, successorId: string) => Promise<void>;
+  onDeleteDependency: (id: string) => Promise<void>;
 }
 
 export function SVARGanttView({
   project,
   features,
+  dependencies,
   teams,
   onBack,
   onEdit,
   onUpdateDates,
   onAddFeature,
+  onCreateDependency,
+  onDeleteDependency,
 }: SVARGanttViewProps) {
   const { setBreadcrumbs, clearBreadcrumbs, setHeaderAction, clearHeaderAction } = useHeader();
 
@@ -71,6 +77,10 @@ export function SVARGanttView({
   // Refs
   const ganttApiRef = useRef<IApi | null>(null);
   const ganttContainerRef = useRef<HTMLDivElement>(null);
+
+  // Keep a ref to dependencies so event handlers always see the latest value
+  const dependenciesRef = useRef(dependencies);
+  dependenciesRef.current = dependencies;
 
   // Zoom anchoring: track cursor position so zooming keeps the date under cursor in place
   const cursorInfoRef = useRef<{ absoluteX: number; viewportX: number } | null>(null);
@@ -107,8 +117,12 @@ export function SVARGanttView({
   }, [sortedFeatures]);
 
   const links: SVARLink[] = useMemo(() => {
-    return showDependencies ? [] : [];
-  }, [showDependencies]);
+    if (!showDependencies) return [];
+    const featureIds = new Set(sortedFeatures.map((f) => f.id));
+    return dependencies
+      .filter((d) => featureIds.has(d.predecessorId) && featureIds.has(d.successorId))
+      .map(dependencyToSVARLink);
+  }, [showDependencies, dependencies, sortedFeatures]);
 
   // Feature lookup map
   const featureMap = useMemo(() => {
@@ -142,7 +156,36 @@ export function SVARGanttView({
     api.on('update-task', (ev) => {
       const task = ev.task;
       if (task?.id && task.start && task.end) {
-        onUpdateDates(task.id as string, task.start as Date, task.end as Date);
+        const svarStart = task.start as Date;
+        const svarEnd = task.end as Date;
+        const inclusiveEnd = svarEndDateToInclusive(svarEnd);
+        console.log('[Gantt update-task]', {
+          svarStart: svarStart.toDateString(),
+          svarEnd: svarEnd.toDateString(),
+          svarDuration: task.duration,
+          savedInclusiveEnd: inclusiveEnd.toDateString(),
+        });
+        // SVAR uses exclusive end dates; convert to inclusive for DB storage
+        onUpdateDates(task.id as string, svarStart, inclusiveEnd);
+      }
+    });
+
+    api.on('add-link', (ev) => {
+      const link = ev.link;
+      if (link?.source && link.target) {
+        onCreateDependency(link.source as string, link.target as string);
+      }
+    });
+
+    api.on('delete-link', (ev) => {
+      const link = ev.link;
+      if (link?.source && link.target) {
+        const dep = dependenciesRef.current.find(
+          (d) => d.predecessorId === link.source && d.successorId === link.target
+        );
+        if (dep) {
+          onDeleteDependency(dep.id);
+        }
       }
     });
 
@@ -153,7 +196,7 @@ export function SVARGanttView({
       }
       return false;
     });
-  }, [featureMap, onEdit, onUpdateDates]);
+  }, [featureMap, onEdit, onUpdateDates, onCreateDependency, onDeleteDependency]);
 
   // Scroll to today using SVAR's internal scales for accurate pixel calculation
   const scrollToToday = useCallback(() => {

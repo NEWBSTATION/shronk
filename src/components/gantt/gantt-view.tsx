@@ -10,7 +10,7 @@ import { MilestoneContextMenu } from './milestone-context-menu';
 import { SVARThemeWrapper } from './svar-theme-wrapper';
 import { TodayMarker } from './today-marker';
 import { CursorMarker } from './cursor-marker';
-import { milestoneToSVARTask, dependencyToSVARLink, toLocalMidnight } from './transformers';
+import { milestoneToSVARTask, dependencyToSVARLink, toLocalMidnight, svarEndDateToInclusive } from './transformers';
 import { getScaleConfig, calculateCellWidth, ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import {
   SIDEBAR_WIDTH,
@@ -217,7 +217,8 @@ export function GanttView({
     api.on('update-task', (ev) => {
       const task = ev.task;
       if (task?.id && task.start && task.end) {
-        onUpdateDates(task.id as string, task.start, task.end);
+        // SVAR uses exclusive end dates; convert to inclusive for DB storage
+        onUpdateDates(task.id as string, task.start, svarEndDateToInclusive(task.end));
       }
     });
 

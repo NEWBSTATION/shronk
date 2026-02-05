@@ -17,6 +17,9 @@ import {
   useUpdateMilestone,
   useDeleteMilestone,
   useTeams,
+  useDependencies,
+  useCreateDependency,
+  useDeleteDependency,
 } from "@/hooks/use-milestones";
 import { useHeader } from "@/components/header-context";
 import type {
@@ -86,10 +89,16 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
   const { data: teamsData } = useTeams(selectedMilestoneId || "");
   const teams = teamsData?.teams || [];
 
+  // Fetch dependencies for selected milestone
+  const { data: dependenciesData } = useDependencies(selectedMilestoneId || "");
+  const dependencies = dependenciesData?.dependencies || [];
+
   // Mutations
   const createFeatureMutation = useCreateMilestone();
   const updateFeatureMutation = useUpdateMilestone();
   const deleteFeatureMutation = useDeleteMilestone();
+  const createDependencyMutation = useCreateDependency();
+  const deleteDependencyMutation = useDeleteDependency();
 
   // Handlers: Navigation
   const handleSelectMilestone = useCallback((milestoneId: string) => {
@@ -237,6 +246,28 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
     [updateFeatureMutation]
   );
 
+  const handleCreateDependency = useCallback(
+    async (predecessorId: string, successorId: string) => {
+      try {
+        await createDependencyMutation.mutateAsync({ predecessorId, successorId });
+      } catch (error) {
+        toast.error("Failed to create dependency");
+      }
+    },
+    [createDependencyMutation]
+  );
+
+  const handleDeleteDependency = useCallback(
+    async (id: string) => {
+      try {
+        await deleteDependencyMutation.mutateAsync(id);
+      } catch (error) {
+        toast.error("Failed to delete dependency");
+      }
+    },
+    [deleteDependencyMutation]
+  );
+
   const handleReorderFeature = useCallback(
     async (featureId: string, newIndex: number) => {
       // TODO: Implement reordering
@@ -252,6 +283,7 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
         <SVARGanttView
           project={selectedMilestone}
           features={features}
+          dependencies={dependencies}
           teams={teams}
           onBack={handleBack}
           onEdit={handleEditFeature}
@@ -259,6 +291,8 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
           onUpdateDates={handleUpdateFeatureDates}
           onStatusChange={handleStatusChange}
           onAddFeature={handleAddFeature}
+          onCreateDependency={handleCreateDependency}
+          onDeleteDependency={handleDeleteDependency}
         />
 
         <FeatureDialog

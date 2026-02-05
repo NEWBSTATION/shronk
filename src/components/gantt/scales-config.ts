@@ -1,4 +1,5 @@
 import { format, endOfWeek } from 'date-fns';
+import { createElement } from 'react';
 import type { TimePeriod } from './types';
 import type { IScaleConfig } from '@svar-ui/react-gantt';
 
@@ -11,10 +12,17 @@ export const SCALE_CONFIGS: Record<TimePeriod, IScaleConfig[]> = {
     {
       unit: 'week',
       step: 1,
-      format: (date: Date) => {
+      format: ((date: Date) => {
         const weekEnd = endOfWeek(date, { weekStartsOn: 0 });
-        return `${format(date, 'MMM d')}-${format(weekEnd, 'd')} W${format(date, 'w')}`;
-      },
+        const dateRange = `${format(date, 'MMM d')}-${format(weekEnd, 'd')}`;
+        const weekNum = `W${format(date, 'w')}`;
+        return createElement(
+          'span',
+          { style: { display: 'flex', justifyContent: 'space-between', width: '100%', padding: '0 4px' } },
+          createElement('span', null, dateRange),
+          createElement('span', { style: { opacity: 0.5 } }, weekNum),
+        );
+      }) as unknown as IScaleConfig['format'],
     },
     {
       unit: 'day',
@@ -26,7 +34,14 @@ export const SCALE_CONFIGS: Record<TimePeriod, IScaleConfig[]> = {
     {
       unit: 'month',
       step: 1,
-      format: (date: Date) => `${format(date, 'MMM')} ${format(date, 'yyyy')}`,
+      format: ((date: Date) => {
+        return createElement(
+          'span',
+          { style: { display: 'flex', justifyContent: 'space-between', width: '100%', padding: '0 4px' } },
+          createElement('span', null, format(date, 'MMM')),
+          createElement('span', { style: { opacity: 0.5 } }, format(date, 'yyyy')),
+        );
+      }) as unknown as IScaleConfig['format'],
     },
     {
       unit: 'week',
@@ -41,19 +56,26 @@ export const SCALE_CONFIGS: Record<TimePeriod, IScaleConfig[]> = {
     {
       unit: 'quarter',
       step: 1,
-      format: (date: Date) => `Q${format(date, 'Q')} ${format(date, 'yyyy')}`,
+      format: ((date: Date) => {
+        return createElement(
+          'span',
+          { style: { display: 'flex', justifyContent: 'space-between', width: '100%', padding: '0 4px' } },
+          createElement('span', null, `Q${format(date, 'Q')}`),
+          createElement('span', { style: { opacity: 0.5 } }, format(date, 'yyyy')),
+        );
+      }) as unknown as IScaleConfig['format'],
     },
     {
       unit: 'month',
       step: 1,
-      format: 'MMM',
+      format: (date: Date) => format(date, 'MMM'),
     },
   ],
   year: [
     {
       unit: 'year',
       step: 1,
-      format: 'yyyy',
+      format: (date: Date) => format(date, 'yyyy'),
     },
     {
       unit: 'quarter',

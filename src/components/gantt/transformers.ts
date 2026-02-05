@@ -1,4 +1,4 @@
-import { differenceInDays, format } from 'date-fns';
+import { addDays, subDays, differenceInDays, format } from 'date-fns';
 import type { Milestone, MilestoneDependency } from '@/db/schema';
 import type { SVARTask, SVARLink } from './types';
 
@@ -26,11 +26,17 @@ export function toLocalMidnight(date: Date | string): Date {
 
 /**
  * Convert a Milestone to SVAR Task format
+ *
+ * SVAR uses exclusive end dates (end = day after last visible day).
+ * Our DB stores inclusive end dates. We add 1 day when converting to SVAR
+ * and subtract 1 day when converting back (see svarEndDateToInclusive).
  */
 export function milestoneToSVARTask(milestone: Milestone): SVARTask {
   const start = toLocalMidnight(milestone.startDate);
-  const end = toLocalMidnight(milestone.endDate);
-  const duration = differenceInDays(end, start) + 1;
+  const inclusiveEnd = toLocalMidnight(milestone.endDate);
+  const end = addDays(inclusiveEnd, 1); // inclusive → exclusive for SVAR
+  const duration = differenceInDays(end, start);
+  const displayDays = duration; // exclusive end means differenceInDays gives inclusive count
 
   return {
     id: milestone.id,
@@ -38,7 +44,7 @@ export function milestoneToSVARTask(milestone: Milestone): SVARTask {
     start,
     end,
     duration,
-    durationText: formatDurationText(start, end, duration),
+    durationText: formatDurationText(start, inclusiveEnd, displayDays),
     progress: milestone.progress,
     type: 'task',
     // Store custom data for filtering/styling
@@ -80,6 +86,14 @@ export function dependenciesToSVARLinks(dependencies: MilestoneDependency[]): SV
 }
 
 /**
+ * Convert SVAR's exclusive end date back to our inclusive end date.
+ * SVAR returns end = day after the last visible day of the task.
+ */
+export function svarEndDateToInclusive(end: Date): Date {
+  return subDays(end, 1);
+}
+
+/**
  * Convert SVAR Task back to Milestone update data
  * Used when SVAR fires update events (drag, resize, etc.)
  */
@@ -91,6 +105,6 @@ export function svarTaskToMilestoneUpdate(task: SVARTask): {
   return {
     id: task.id,
     startDate: task.start,
-    endDate: task.end,
+    endDate: svarEndDateToInclusive(task.end),
   };
 }
