@@ -99,6 +99,7 @@ export async function GET(request: NextRequest) {
         priority: milestones.priority,
         progress: milestones.progress,
         teamId: milestones.teamId,
+        duration: milestones.duration,
         sortOrder: milestones.sortOrder,
         completedAt: milestones.completedAt,
         createdAt: milestones.createdAt,

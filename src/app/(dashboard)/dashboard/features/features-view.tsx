@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { FeaturesDataTable } from "./data-table";
-import { columns } from "./columns";
+import { createColumns } from "./columns";
 import { Layers, Plus } from "lucide-react";
 import { FeatureDialog } from "@/components/milestone/feature-dialog";
 import { useHeader } from "@/components/header-context";
@@ -22,6 +22,7 @@ interface Feature {
   status: "not_started" | "in_progress" | "on_hold" | "completed" | "cancelled";
   priority: "low" | "medium" | "high" | "critical";
   progress: number;
+  duration: number;
   teamId: string | null;
   sortOrder: number;
   completedAt: Date | null;
@@ -83,6 +84,95 @@ export function FeaturesView() {
 
     return () => clearHeaderAction();
   }, [milestoneOptions, setHeaderAction, clearHeaderAction]);
+
+  const updateDurationMutation = useMutation({
+    mutationFn: async ({ id, duration }: { id: string; duration: number }) => {
+      const response = await fetch(`/api/milestones/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duration }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update duration");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    },
+    onError: () => {
+      toast.error("Failed to update duration");
+    },
+  });
+
+  const handleDurationChange = useCallback(
+    (id: string, duration: number) => {
+      updateDurationMutation.mutate({ id, duration });
+    },
+    [updateDurationMutation]
+  );
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const response = await fetch(`/api/milestones/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update status");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    },
+    onError: () => {
+      toast.error("Failed to update status");
+    },
+  });
+
+  const handleStatusChange = useCallback(
+    (id: string, status: string) => {
+      updateStatusMutation.mutate({ id, status });
+    },
+    [updateStatusMutation]
+  );
+
+  const updateDateMutation = useMutation({
+    mutationFn: async ({ id, field, date }: { id: string; field: "startDate" | "endDate"; date: Date }) => {
+      const response = await fetch(`/api/milestones/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: date.toISOString() }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update date");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    },
+    onError: () => {
+      toast.error("Failed to update date");
+    },
+  });
+
+  const handleDateChange = useCallback(
+    (id: string, field: "startDate" | "endDate", date: Date) => {
+      updateDateMutation.mutate({ id, field, date });
+    },
+    [updateDateMutation]
+  );
+
+  const columns = useMemo(
+    () => createColumns(handleDurationChange, handleStatusChange, handleDateChange),
+    [handleDurationChange, handleStatusChange, handleDateChange]
+  );
 
   const createFeatureMutation = useMutation({
     mutationFn: async (data: {
@@ -167,7 +257,7 @@ export function FeaturesView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col flex-1 min-h-0">
       <FeaturesDataTable
         columns={columns}
         data={features}

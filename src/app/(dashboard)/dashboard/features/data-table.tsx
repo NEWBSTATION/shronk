@@ -4,6 +4,8 @@ import * as React from "react";
 import {
   ColumnDef,
   ColumnFiltersState,
+  ColumnOrderState,
+  ColumnSizingState,
   SortingState,
   VisibilityState,
   flexRender,
@@ -13,26 +15,20 @@ import {
   getFilteredRowModel,
   getGroupedRowModel,
   getExpandedRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   GroupingState,
+  Row,
 } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight } from "lucide-react";
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
-import { FeaturesDataTablePagination } from "./data-table-pagination";
 import { FeaturesDataTableToolbar } from "./data-table-toolbar";
 import { FeatureSheet } from "./feature-sheet";
+import { useFeaturesTableStore } from "@/store/features-table-store";
 
 interface MilestoneOption {
   id: string;
@@ -49,6 +45,7 @@ interface Feature {
   status: "not_started" | "in_progress" | "on_hold" | "completed" | "cancelled";
   priority: "low" | "medium" | "high" | "critical";
   progress: number;
+  duration: number;
   teamId: string | null;
   sortOrder: number;
   completedAt: Date | null;
@@ -63,22 +60,33 @@ interface DataTableProps<TData, TValue> {
   milestoneOptions: MilestoneOption[];
 }
 
+const ROW_HEIGHT = 40;
+
 export function FeaturesDataTable<TData, TValue>({
   columns,
   data,
   milestoneOptions,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [grouping, setGrouping] = React.useState<GroupingState>([]);
   const [expanded, setExpanded] = React.useState({});
+
+  const columnVisibility = useFeaturesTableStore((s) => s.columnVisibility);
+  const setColumnVisibility = useFeaturesTableStore((s) => s.setColumnVisibility);
+  const columnOrder = useFeaturesTableStore((s) => s.columnOrder);
+  const setColumnOrder = useFeaturesTableStore((s) => s.setColumnOrder);
+  const columnSizing = useFeaturesTableStore((s) => s.columnSizing);
+  const setColumnSizing = useFeaturesTableStore((s) => s.setColumnSizing);
   const [selectedFeature, setSelectedFeature] = React.useState<Feature | null>(null);
   const [sheetOpen, setSheetOpen] = React.useState(false);
+
+  // Drag-and-drop state
+  const [draggedColumnId, setDraggedColumnId] = React.useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = React.useState<string | null>(null);
 
   const table = useReactTable({
     data,
@@ -90,18 +98,27 @@ export function FeaturesDataTable<TData, TValue>({
       columnFilters,
       grouping,
       expanded,
+      columnOrder,
+      columnSizing,
+      columnPinning: {
+        left: ["select", "title"],
+      },
     },
     enableRowSelection: true,
     enableGrouping: true,
+    enableColumnPinning: true,
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onGroupingChange: setGrouping,
     onExpandedChange: setExpanded,
+    onColumnOrderChange: setColumnOrder,
+    onColumnSizingChange: setColumnSizing,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
@@ -109,109 +126,305 @@ export function FeaturesDataTable<TData, TValue>({
     getExpandedRowModel: getExpandedRowModel(),
   });
 
+  const { rows } = table.getRowModel();
+
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const [viewportWidth, setViewportWidth] = React.useState(0);
+  React.useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setViewportWidth(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 20,
+  });
+
+  // Flat list of visible headers and their leaf columns in order
+  const leafColumns = table.getVisibleLeafColumns();
+  const pinnedIds = new Set(["select", "title"]);
+
+  // Calculate left offsets for pinned columns
+  const pinnedMeta = React.useMemo(() => {
+    const meta: { id: string; offset: number; size: number; isLast: boolean }[] = [];
+    let acc = 0;
+    for (const col of leafColumns) {
+      if (!pinnedIds.has(col.id)) break;
+      meta.push({ id: col.id, offset: acc, size: col.getSize(), isLast: false });
+      acc += col.getSize();
+    }
+    if (meta.length > 0) {
+      meta[meta.length - 1].isLast = true;
+    }
+    return meta;
+  }, [leafColumns, table.getState().columnSizing]);
+
+  const getPinMeta = (colId: string) => pinnedMeta.find((m) => m.id === colId);
+
+  // Column reorder handlers
+  const handleDragStart = (e: React.DragEvent, columnId: string) => {
+    if (pinnedIds.has(columnId)) return;
+    setDraggedColumnId(columnId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", columnId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, columnId: string) => {
+    e.preventDefault();
+    if (pinnedIds.has(columnId)) return;
+    if (columnId !== draggedColumnId) {
+      setDropTargetId(columnId);
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (draggedColumnId && dropTargetId && draggedColumnId !== dropTargetId) {
+      const currentOrder = columnOrder.length
+        ? [...columnOrder]
+        : table.getAllLeafColumns().map((c) => c.id);
+
+      const dragIndex = currentOrder.indexOf(draggedColumnId);
+      const dropIndex = currentOrder.indexOf(dropTargetId);
+
+      if (dragIndex >= 0 && dropIndex >= 0) {
+        currentOrder.splice(dragIndex, 1);
+        currentOrder.splice(dropIndex, 0, draggedColumnId);
+        setColumnOrder(currentOrder);
+      }
+    }
+    setDraggedColumnId(null);
+    setDropTargetId(null);
+  };
+
+  const totalWidth = table.getTotalSize();
+
   return (
-    <div className="space-y-4">
+    <div className="relative flex flex-col flex-1 min-h-0 gap-4">
       <FeaturesDataTableToolbar
         table={table}
         milestoneOptions={milestoneOptions}
         grouping={grouping}
         onGroupingChange={setGrouping}
       />
-      <div className="rounded-md border overflow-auto">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} colSpan={header.colSpan}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => {
-                // Check if this is a grouped row
+
+      <div className="flex-1 min-h-0 rounded-md border overflow-hidden">
+        <div
+          ref={scrollContainerRef}
+          className="h-full overflow-auto"
+        >
+          {/* Wrapper to enforce minimum width for horizontal scroll */}
+          <div style={{ minWidth: totalWidth }}>
+            {/* Header */}
+            <div
+              className="sticky top-0 z-20 bg-background border-b"
+              role="row"
+            >
+              <div className="flex" style={{ width: totalWidth }}>
+                {table.getFlatHeaders().map((header) => {
+                  const colId = header.column.id;
+                  const pin = getPinMeta(colId);
+                  const isPinned = !!pin;
+                  const canDrag = !isPinned && colId !== "select";
+                  const isDragTarget = dropTargetId === colId;
+                  const canResize = header.column.getCanResize();
+
+                  return (
+                    <div
+                      key={header.id}
+                      role="columnheader"
+                      draggable={canDrag}
+                      onDragStart={canDrag ? (e) => handleDragStart(e, colId) : undefined}
+                      onDragOver={canDrag ? (e) => handleDragOver(e, colId) : undefined}
+                      onDragEnd={canDrag ? handleDragEnd : undefined}
+                      onDragLeave={canDrag ? () => setDropTargetId(null) : undefined}
+                      className={cn(
+                        "group/header flex items-center gap-1 h-10 pl-3 pr-4 text-left font-medium whitespace-nowrap text-muted-foreground relative select-none shrink-0",
+                        "[&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+                        isPinned && "z-30 bg-background",
+                        canDrag && "cursor-grab active:cursor-grabbing",
+                        isDragTarget && "bg-accent/30",
+                        draggedColumnId === colId && "opacity-50"
+                      )}
+                      style={{
+                        width: header.getSize(),
+                        minWidth: header.getSize(),
+                        flexShrink: 0,
+                        ...(pin ? { position: "sticky", left: pin.offset, zIndex: 30 } : {}),
+                      }}
+                    >
+                      <div className="flex-1 min-w-0">
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </div>
+
+                      {/* Resize handle */}
+                      {canResize && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          onDoubleClick={() => header.column.resetSize()}
+                          className={cn(
+                            "absolute right-0 top-0 bottom-0 w-2 cursor-col-resize select-none touch-none",
+                            "hover:bg-primary/30 active:bg-primary/50",
+                            header.column.getIsResizing() && "bg-primary/50"
+                          )}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Body */}
+            <div
+              style={{ height: virtualizer.getTotalSize(), position: "relative" }}
+            >
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const row = rows[virtualRow.index] as Row<TData>;
+
                 if (row.getIsGrouped()) {
                   return (
-                    <TableRow
+                    <div
                       key={row.id}
-                      className="bg-muted/50 hover:bg-muted/70"
+                      data-index={virtualRow.index}
+                      ref={(node) => virtualizer.measureElement(node)}
+                      className="flex items-center bg-muted/50 hover:bg-muted/70 border-b"
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualRow.start}px)`,
+                        height: ROW_HEIGHT,
+                      }}
                     >
-                      <TableCell colSpan={columns.length}>
+                      <div
+                        className="sticky left-0 h-full"
+                        style={{ width: viewportWidth || "100%" }}
+                      >
                         <button
-                          className="flex items-center gap-2 font-medium"
+                          className="flex items-center gap-2 px-3 w-full h-full text-sm text-muted-foreground"
                           onClick={() => row.toggleExpanded()}
                         >
                           {row.getIsExpanded() ? (
-                            <ChevronDown className="h-4 w-4" />
+                            <ChevronDown className="h-3.5 w-3.5" />
                           ) : (
-                            <ChevronRight className="h-4 w-4" />
+                            <ChevronRight className="h-3.5 w-3.5" />
                           )}
                           <span>{row.groupingValue as string}</span>
-                          <span className="text-muted-foreground font-normal">
-                            ({row.subRows.length} feature
-                            {row.subRows.length !== 1 ? "s" : ""})
-                          </span>
+                          <Badge variant="outline" className="ml-auto font-normal text-muted-foreground">
+                            {row.subRows.length} feature
+                            {row.subRows.length !== 1 ? "s" : ""}
+                          </Badge>
                         </button>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                    </div>
                   );
                 }
 
                 return (
-                  <TableRow
+                  <div
                     key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                    className={cn(row.depth > 0 && "bg-background", "cursor-pointer")}
+                    data-index={virtualRow.index}
+                    ref={(node) => virtualizer.measureElement(node)}
+                    data-state={row.getIsSelected() ? "selected" : undefined}
+                    className={cn(
+                      "group flex items-center hover:bg-muted data-[state=selected]:bg-muted cursor-pointer",
+                      row.depth > 0 && "bg-background"
+                    )}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: totalWidth,
+                      transform: `translateY(${virtualRow.start}px)`,
+                      height: ROW_HEIGHT,
+                    }}
                     onClick={(e) => {
-                      // Don't open sheet if clicking on checkbox
                       const target = e.target as HTMLElement;
                       if (target.closest('button[role="checkbox"]')) return;
                       setSelectedFeature(row.original as Feature);
                       setSheetOpen(true);
                     }}
                   >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {cell.getIsGrouped() ? null : cell.getIsAggregated() ? (
-                          flexRender(
-                            cell.column.columnDef.aggregatedCell ??
-                              cell.column.columnDef.cell,
-                            cell.getContext()
-                          )
-                        ) : cell.getIsPlaceholder() ? null : (
-                          flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
+                    {row.getVisibleCells().map((cell) => {
+                      const colId = cell.column.id;
+                      const pin = getPinMeta(colId);
+                      const isPinned = !!pin;
+
+                      return (
+                        <div
+                          key={cell.id}
+                          className={cn(
+                            "px-3 flex items-center whitespace-nowrap shrink-0 border-b [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+                            isPinned && "bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted"
+                          )}
+                          style={{
+                            width: cell.column.getSize(),
+                            minWidth: cell.column.getSize(),
+                            height: ROW_HEIGHT,
+                            flexShrink: 0,
+                            ...(pin ? { position: "sticky", left: pin.offset, zIndex: 10 } : {}),
+                          }}
+                        >
+                          {cell.getIsGrouped()
+                            ? null
+                            : cell.getIsAggregated()
+                              ? flexRender(
+                                  cell.column.columnDef.aggregatedCell ??
+                                    cell.column.columnDef.cell,
+                                  cell.getContext()
+                                )
+                              : cell.getIsPlaceholder()
+                                ? null
+                                : flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext()
+                                  )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 );
-              })
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No features found.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              })}
+            </div>
+          </div>
+
+          {rows.length === 0 && (
+            <div className="h-24 flex items-center justify-center text-muted-foreground">
+              No features found.
+            </div>
+          )}
+        </div>
       </div>
-      <FeaturesDataTablePagination table={table} />
+
+      {/* Bulk selection bar */}
+      {table.getFilteredSelectedRowModel().rows.length > 0 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border bg-background px-4 py-2 shadow-lg">
+          <span className="text-sm font-medium">
+            {table.getFilteredSelectedRowModel().rows.length} selected
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => table.toggleAllRowsSelected(false)}
+          >
+            <X className="mr-1 h-3.5 w-3.5" />
+            Clear
+          </Button>
+        </div>
+      )}
 
       <FeatureSheet
         feature={selectedFeature}

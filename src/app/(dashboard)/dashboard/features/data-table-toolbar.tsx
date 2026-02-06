@@ -1,20 +1,28 @@
 "use client";
 
 import { Table, GroupingState } from "@tanstack/react-table";
-import { X, Layers, Filter } from "lucide-react";
+import {
+  Layers2,
+  Filter,
+  Circle,
+  Clock,
+  PauseCircle,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Toggle } from "@/components/ui/toggle";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 interface MilestoneOption {
   id: string;
@@ -29,11 +37,11 @@ interface DataTableToolbarProps<TData> {
 }
 
 const STATUS_OPTIONS = [
-  { value: "not_started", label: "Not Started" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "on_hold", label: "On Hold" },
-  { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
+  { value: "not_started", label: "Not Started", icon: Circle, className: "text-slate-500" },
+  { value: "in_progress", label: "In Progress", icon: Clock, className: "text-blue-500" },
+  { value: "on_hold", label: "On Hold", icon: PauseCircle, className: "text-amber-500" },
+  { value: "completed", label: "Completed", icon: CheckCircle2, className: "text-green-500" },
+  { value: "cancelled", label: "Cancelled", icon: XCircle, className: "text-red-400" },
 ];
 
 export function FeaturesDataTableToolbar<TData>({
@@ -42,7 +50,6 @@ export function FeaturesDataTableToolbar<TData>({
   grouping,
   onGroupingChange,
 }: DataTableToolbarProps<TData>) {
-  const isFiltered = table.getState().columnFilters.length > 0;
   const isGrouped = grouping.length > 0;
 
   const statusColumn = table.getColumn("status");
@@ -53,6 +60,8 @@ export function FeaturesDataTableToolbar<TData>({
   const selectedMilestones =
     (milestoneColumn?.getFilterValue() as string[]) || [];
 
+  const activeFilterCount = selectedStatuses.length + selectedMilestones.length;
+
   const toggleGroupByMilestone = () => {
     if (isGrouped) {
       onGroupingChange([]);
@@ -61,127 +70,140 @@ export function FeaturesDataTableToolbar<TData>({
     }
   };
 
+  const toggleStatus = (value: string) => {
+    if (selectedStatuses.includes(value)) {
+      statusColumn?.setFilterValue(
+        selectedStatuses.filter((s) => s !== value)
+      );
+    } else {
+      statusColumn?.setFilterValue([...selectedStatuses, value]);
+    }
+  };
+
+  const toggleMilestone = (id: string) => {
+    if (selectedMilestones.includes(id)) {
+      milestoneColumn?.setFilterValue(
+        selectedMilestones.filter((s) => s !== id)
+      );
+    } else {
+      milestoneColumn?.setFilterValue([...selectedMilestones, id]);
+    }
+  };
+
+  const clearAllFilters = () => {
+    table.resetColumnFilters();
+  };
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-1 items-center space-x-2">
-          <Input
-            placeholder="Search features..."
-            value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
-            onChange={(event) =>
-              table.getColumn("title")?.setFilterValue(event.target.value)
-            }
-            className="h-9 w-[200px] lg:w-[300px]"
-          />
+    <div className="flex items-center gap-2">
+      {/* Group by Milestone — far left */}
+      <Button
+        variant={isGrouped ? "secondary" : "outline"}
+        size="sm"
+        onClick={toggleGroupByMilestone}
+        className="h-7 text-xs"
+      >
+        <Layers2 className="mr-1 h-3.5 w-3.5" />
+        <span className="text-muted-foreground">Group by</span> Milestone
+      </Button>
 
-          {/* Status Filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9">
-                <Filter className="mr-2 h-4 w-4" />
-                Status
-                {selectedStatuses.length > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-2 rounded-sm px-1 font-normal"
+      {/* Right side: Filter + Search */}
+      <div className="flex items-center gap-2 ml-auto">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-7 text-xs">
+            <Filter className="mr-1 h-3.5 w-3.5" />
+            Filter
+            {activeFilterCount > 0 && (
+              <Badge
+                variant="secondary"
+                className="ml-2 rounded-sm px-1 font-normal"
+              >
+                {activeFilterCount}
+              </Badge>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-[220px] p-3">
+          {/* Status Section */}
+          <div className="space-y-2">
+            <Label className="text-xs font-medium text-muted-foreground">
+              Status
+            </Label>
+            <div className="space-y-1.5">
+              {STATUS_OPTIONS.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <label
+                    key={option.value}
+                    className="flex items-center gap-2 cursor-pointer"
                   >
-                    {selectedStatuses.length}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[180px]">
-              <DropdownMenuLabel>Filter by status</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {STATUS_OPTIONS.map((option) => (
-                <DropdownMenuCheckboxItem
-                  key={option.value}
-                  checked={selectedStatuses.includes(option.value)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      statusColumn?.setFilterValue([
-                        ...selectedStatuses,
-                        option.value,
-                      ]);
-                    } else {
-                      statusColumn?.setFilterValue(
-                        selectedStatuses.filter((s) => s !== option.value)
-                      );
-                    }
-                  }}
-                >
-                  {option.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                    <Checkbox
+                      checked={selectedStatuses.includes(option.value)}
+                      onCheckedChange={() => toggleStatus(option.value)}
+                    />
+                    <Icon className={cn("h-3.5 w-3.5", option.className)} />
+                    <span className="text-xs">{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
 
-          {/* Milestone Filter */}
+          {/* Milestone Section */}
           {milestoneOptions.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9">
-                  <Filter className="mr-2 h-4 w-4" />
+            <>
+              <Separator className="my-3" />
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">
                   Milestone
-                  {selectedMilestones.length > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="ml-2 rounded-sm px-1 font-normal"
+                </Label>
+                <div className="space-y-1.5">
+                  {milestoneOptions.map((option) => (
+                    <label
+                      key={option.id}
+                      className="flex items-center gap-2 cursor-pointer"
                     >
-                      {selectedMilestones.length}
-                    </Badge>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[200px]">
-                <DropdownMenuLabel>Filter by milestone</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {milestoneOptions.map((option) => (
-                  <DropdownMenuCheckboxItem
-                    key={option.id}
-                    checked={selectedMilestones.includes(option.id)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        milestoneColumn?.setFilterValue([
-                          ...selectedMilestones,
-                          option.id,
-                        ]);
-                      } else {
-                        milestoneColumn?.setFilterValue(
-                          selectedMilestones.filter((s) => s !== option.id)
-                        );
-                      }
-                    }}
-                  >
-                    {option.name}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                      <Checkbox
+                        checked={selectedMilestones.includes(option.id)}
+                        onCheckedChange={() => toggleMilestone(option.id)}
+                      />
+                      <span className="text-xs">{option.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
 
-          {isFiltered && (
-            <Button
-              variant="ghost"
-              onClick={() => table.resetColumnFilters()}
-              className="h-9 px-2 lg:px-3"
-            >
-              Reset
-              <X className="ml-2 h-4 w-4" />
-            </Button>
+          {/* Clear Filters */}
+          {activeFilterCount > 0 && (
+            <>
+              <Separator className="my-3" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllFilters}
+                className="h-7 w-full text-xs"
+              >
+                Clear filters
+              </Button>
+            </>
           )}
-        </div>
+        </PopoverContent>
+      </Popover>
 
-        {/* Group by Milestone Toggle */}
-        <Toggle
-          pressed={isGrouped}
-          onPressedChange={toggleGroupByMilestone}
-          aria-label="Group by milestone"
-          className="h-9"
-        >
-          <Layers className="mr-2 h-4 w-4" />
-          Group by Milestone
-        </Toggle>
+      <div className="h-5 w-px shrink-0 bg-border" />
+
+      {/* Search */}
+      <Input
+        placeholder="Search features..."
+        value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
+        onChange={(event) =>
+          table.getColumn("title")?.setFilterValue(event.target.value)
+        }
+        className="h-7 w-[200px] lg:w-[300px] text-xs"
+      />
       </div>
     </div>
   );
