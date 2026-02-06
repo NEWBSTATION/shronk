@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
+import { differenceInDays } from "date-fns";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -134,6 +135,7 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
       description?: string;
       startDate: Date;
       endDate: Date;
+      duration?: number;
       status: MilestoneStatus;
       teamId?: string | null;
     }) => {
@@ -186,12 +188,14 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
       id: string,
       startDate: Date,
       endDate: Date,
+      duration?: number,
     ): Promise<CascadedUpdate[]> => {
       try {
         const result = await updateFeatureMutation.mutateAsync({
           id,
           startDate,
           endDate,
+          duration: duration ?? Math.max(1, differenceInDays(endDate, startDate) + 1),
         });
         return result.cascadedUpdates || [];
       } catch (error) {
@@ -200,6 +204,31 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
       }
     },
     [updateFeatureMutation]
+  );
+
+  // Sheet callbacks (shared hooks)
+  const handleSheetUpdate = useCallback(
+    async (data: Partial<Milestone> & { id: string; duration?: number }) => {
+      try {
+        await updateFeatureMutation.mutateAsync(data);
+        toast.success("Feature updated");
+      } catch (error) {
+        toast.error("Failed to update feature");
+      }
+    },
+    [updateFeatureMutation]
+  );
+
+  const handleSheetDelete = useCallback(
+    async (id: string) => {
+      try {
+        await deleteFeatureMutation.mutateAsync(id);
+        toast.success("Feature deleted");
+      } catch (error) {
+        toast.error("Failed to delete feature");
+      }
+    },
+    [deleteFeatureMutation]
   );
 
   const handleStatusChange = useCallback(
@@ -286,6 +315,9 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
           }}
           teams={teams}
           projectName={selectedMilestone.name}
+          dependencies={dependencies}
+          onUpdate={handleSheetUpdate}
+          onDelete={handleSheetDelete}
         />
       </div>
     );

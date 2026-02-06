@@ -62,6 +62,7 @@ export const milestones = pgTable("milestones", {
   priority: milestonePriorityEnum("priority").default("medium").notNull(),
   progress: integer("progress").default(0).notNull(),
   teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+  duration: integer("duration").default(1).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

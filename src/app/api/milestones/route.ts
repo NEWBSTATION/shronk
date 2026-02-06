@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import { eq, and, inArray, asc, desc, sql, ilike, or } from "drizzle-orm";
 import { z } from "zod";
+import { differenceInDays } from "date-fns";
 import { capitalizeWords } from "@/lib/capitalize";
 
 const createMilestoneSchema = z.object({
@@ -16,6 +17,7 @@ const createMilestoneSchema = z.object({
   description: z.string().optional(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
+  duration: z.number().int().min(1).optional(),
   status: z.enum(["not_started", "in_progress", "on_hold", "completed", "cancelled"]).default("not_started"),
   priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
   progress: z.number().min(0).max(100).default(0),
@@ -168,13 +170,18 @@ export async function POST(request: NextRequest) {
       .from(milestones)
       .where(eq(milestones.projectId, data.projectId));
 
+    const startDate = new Date(data.startDate);
+    const endDate = new Date(data.endDate);
+    const duration = data.duration ?? Math.max(1, differenceInDays(endDate, startDate) + 1);
+
     const [milestone] = await db
       .insert(milestones)
       .values({
         ...data,
         title: capitalizeWords(data.title),
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
+        startDate,
+        endDate,
+        duration,
         sortOrder: data.sortOrder || (maxSortOrder[0]?.max || 0) + 1,
       })
       .returning();

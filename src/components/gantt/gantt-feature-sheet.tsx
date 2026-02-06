@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState, useMemo } from "react";
 import { format } from "date-fns";
 import {
   CalendarIcon,
@@ -15,6 +14,7 @@ import {
   Minus,
   ArrowUp,
   AlertTriangle,
+  Link,
 } from "lucide-react";
 
 import {
@@ -64,7 +64,7 @@ import {
   DURATION_UNIT_MULTIPLIERS,
   type DurationUnit,
 } from "@/components/gantt/transformers";
-import type { Milestone, Team, MilestoneStatus, MilestonePriority } from "@/db/schema";
+import type { Milestone, MilestoneDependency, Team, MilestoneStatus, MilestonePriority } from "@/db/schema";
 
 interface GanttFeatureSheetProps {
   feature: Milestone | null;
@@ -72,6 +72,9 @@ interface GanttFeatureSheetProps {
   onOpenChange: (open: boolean) => void;
   teams: Team[];
   projectName: string;
+  dependencies: MilestoneDependency[];
+  onUpdate: (data: Partial<Milestone> & { id: string; duration?: number }) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }
 
 const STATUS_OPTIONS = [
@@ -89,9 +92,16 @@ const PRIORITY_OPTIONS = [
   { value: "critical", label: "Critical", icon: AlertTriangle, className: "text-red-500" },
 ];
 
-export function GanttFeatureSheet({ feature, open, onOpenChange, teams, projectName }: GanttFeatureSheetProps) {
-  const queryClient = useQueryClient();
-
+export function GanttFeatureSheet({
+  feature,
+  open,
+  onOpenChange,
+  teams,
+  projectName,
+  dependencies,
+  onUpdate,
+  onDelete,
+}: GanttFeatureSheetProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<MilestoneStatus>("not_started");
@@ -102,6 +112,14 @@ export function GanttFeatureSheet({ feature, open, onOpenChange, teams, projectN
   const [progress, setProgress] = useState(0);
   const [durationValue, setDurationValue] = useState(1);
   const [durationUnit, setDurationUnit] = useState<DurationUnit>("days");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Determine if this feature is chained (has predecessors)
+  const isChained = useMemo(() => {
+    if (!feature) return false;
+    return dependencies.some((d) => d.successorId === feature.id);
+  }, [feature, dependencies]);
 
   useEffect(() => {
     if (feature) {
@@ -122,60 +140,37 @@ export function GanttFeatureSheet({ feature, open, onOpenChange, teams, projectN
     }
   }, [feature]);
 
-  const updateMutation = useMutation({
-    mutationFn: async (data: Partial<Milestone>) => {
-      const response = await fetch(`/api/milestones/${feature?.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...data,
-          startDate: data.startDate instanceof Date ? data.startDate.toISOString() : data.startDate,
-          endDate: data.endDate instanceof Date ? data.endDate.toISOString() : data.endDate,
-        }),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to update feature");
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["milestones"] });
-      queryClient.invalidateQueries({ queryKey: ["dependencies"] });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(`/api/milestones/${feature?.id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to delete feature");
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["milestones"] });
-      queryClient.invalidateQueries({ queryKey: ["dependencies"] });
-      onOpenChange(false);
-    },
-  });
-
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!feature) return;
+    setIsSaving(true);
+    try {
+      const totalDays = durationValue * DURATION_UNIT_MULTIPLIERS[durationUnit];
+      await onUpdate({
+        id: feature.id,
+        title,
+        description: description || null,
+        status,
+        priority,
+        duration: totalDays,
+        // Only send startDate if root (not chained)
+        ...(isChained ? {} : { startDate }),
+        teamId,
+        progress,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-    updateMutation.mutate({
-      title,
-      description: description || null,
-      status,
-      priority,
-      startDate,
-      endDate,
-      teamId,
-      progress,
-    });
+  const handleDelete = async () => {
+    if (!feature) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(feature.id);
+      onOpenChange(false);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleStartDateChange = (date: Date) => {
@@ -184,15 +179,6 @@ export function GanttFeatureSheet({ feature, open, onOpenChange, teams, projectN
     const totalDays = durationValue * DURATION_UNIT_MULTIPLIERS[durationUnit];
     const newEnd = computeEndDateFromDuration(date, totalDays);
     setEndDate(newEnd);
-  };
-
-  const handleEndDateChange = (date: Date) => {
-    setEndDate(date);
-    // Recompute duration from new date range
-    const days = computeDurationDays(startDate, date);
-    const best = bestFitDurationUnit(days);
-    setDurationValue(best.value);
-    setDurationUnit(best.unit);
   };
 
   const handleDurationValueChange = (value: number) => {
@@ -308,71 +294,7 @@ export function GanttFeatureSheet({ feature, open, onOpenChange, teams, projectN
 
           <Separator />
 
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !startDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, "MMM d, yyyy") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={(date) => {
-                      if (date) handleStartDateChange(date);
-                    }}
-                    fromDate={TIMELINE_START_DATE}
-                    toDate={TIMELINE_END_DATE}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-2">
-              <Label>End Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !endDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, "MMM d, yyyy") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={(date) => {
-                      if (date) handleEndDateChange(date);
-                    }}
-                    disabled={(date) => date < startDate}
-                    fromDate={TIMELINE_START_DATE}
-                    toDate={TIMELINE_END_DATE}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-
-          {/* Duration */}
+          {/* Duration (primary input) */}
           <div className="space-y-2">
             <Label>Duration</Label>
             <div className="flex gap-2">
@@ -394,6 +316,69 @@ export function GanttFeatureSheet({ feature, open, onOpenChange, teams, projectN
                   <SelectItem value="years">years</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Start Date</Label>
+              {isChained ? (
+                <div className="space-y-1">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal opacity-60 cursor-not-allowed"
+                    disabled
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(startDate, "MMM d, yyyy")}
+                  </Button>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Link className="h-3 w-3" />
+                    Set by dependencies
+                  </p>
+                </div>
+              ) : (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !startDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {startDate ? format(startDate, "MMM d, yyyy") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={startDate}
+                      onSelect={(date) => {
+                        if (date) handleStartDateChange(date);
+                      }}
+                      fromDate={TIMELINE_START_DATE}
+                      toDate={TIMELINE_END_DATE}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>End Date</Label>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-left font-normal opacity-60 cursor-not-allowed"
+                disabled
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(endDate, "MMM d, yyyy")}
+              </Button>
+              <p className="text-xs text-muted-foreground">Computed from duration</p>
             </div>
           </div>
 
@@ -475,10 +460,10 @@ export function GanttFeatureSheet({ feature, open, onOpenChange, teams, projectN
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
-                    onClick={() => deleteMutation.mutate()}
+                    onClick={handleDelete}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
-                    {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                    {isDeleting ? "Deleting..." : "Delete"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -492,9 +477,9 @@ export function GanttFeatureSheet({ feature, open, onOpenChange, teams, projectN
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!hasChanges || !title || updateMutation.isPending}
+            disabled={!hasChanges || !title || isSaving}
           >
-            {updateMutation.isPending ? "Saving..." : "Save Changes"}
+            {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </SheetFooter>
       </SheetContent>

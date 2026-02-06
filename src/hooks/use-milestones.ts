@@ -17,6 +17,7 @@ export interface CascadedUpdate {
   id: string;
   startDate: string;
   endDate: string;
+  duration?: number;
 }
 
 interface MilestoneUpdateResponse {
@@ -113,7 +114,7 @@ export function useUpdateMilestone() {
     mutationFn: async ({
       id,
       ...data
-    }: Partial<Milestone> & { id: string; cascadeDependencies?: boolean }) => {
+    }: Partial<Milestone> & { id: string; duration?: number }) => {
       const body: Record<string, unknown> = { ...data };
       if (data.startDate) {
         body.startDate =
@@ -181,6 +182,7 @@ export function useUpdateMilestone() {
                     ...m,
                     startDate: update.startDate,
                     endDate: update.endDate,
+                    ...(update.duration !== undefined ? { duration: update.duration } : {}),
                   };
                 }
                 return m;
@@ -204,6 +206,11 @@ export function useUpdateMilestone() {
   });
 }
 
+interface MilestoneDeleteResponse {
+  success: boolean;
+  cascadedUpdates: CascadedUpdate[];
+}
+
 export function useDeleteMilestone() {
   const queryClient = useQueryClient();
 
@@ -216,7 +223,7 @@ export function useDeleteMilestone() {
         const error = await response.json();
         throw new Error(error.error || "Failed to delete milestone");
       }
-      return response.json();
+      return response.json() as Promise<MilestoneDeleteResponse>;
     },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ["milestones"] });
@@ -237,6 +244,35 @@ export function useDeleteMilestone() {
       );
 
       return { previousData };
+    },
+    onSuccess: (data) => {
+      // Apply cascaded updates from deletion reflow
+      if (data.cascadedUpdates?.length) {
+        queryClient.setQueriesData(
+          { queryKey: ["milestones"] },
+          (old: MilestonesResponse | undefined) => {
+            if (!old) return old;
+            const updateMap = new Map(
+              data.cascadedUpdates.map((u) => [u.id, u])
+            );
+            return {
+              ...old,
+              milestones: old.milestones.map((m) => {
+                const update = updateMap.get(m.id);
+                if (update) {
+                  return {
+                    ...m,
+                    startDate: update.startDate,
+                    endDate: update.endDate,
+                    ...(update.duration !== undefined ? { duration: update.duration } : {}),
+                  };
+                }
+                return m;
+              }),
+            };
+          }
+        );
+      }
     },
     onError: (_err, _variables, context) => {
       if (context?.previousData) {
@@ -376,6 +412,11 @@ export function useDependencies(projectId: string) {
   });
 }
 
+interface DependencyCreateResponse {
+  dependency: MilestoneDependency;
+  cascadedUpdates: CascadedUpdate[];
+}
+
 export function useCreateDependency() {
   const queryClient = useQueryClient();
 
@@ -390,13 +431,45 @@ export function useCreateDependency() {
         const error = await response.json();
         throw new Error(error.error || "Failed to create dependency");
       }
-      return response.json() as Promise<MilestoneDependency>;
+      return response.json() as Promise<DependencyCreateResponse>;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Apply cascaded updates to milestones cache
+      if (data.cascadedUpdates?.length) {
+        queryClient.setQueriesData(
+          { queryKey: ["milestones"] },
+          (old: MilestonesResponse | undefined) => {
+            if (!old) return old;
+            const updateMap = new Map(
+              data.cascadedUpdates.map((u) => [u.id, u])
+            );
+            return {
+              ...old,
+              milestones: old.milestones.map((m) => {
+                const update = updateMap.get(m.id);
+                if (update) {
+                  return {
+                    ...m,
+                    startDate: update.startDate,
+                    endDate: update.endDate,
+                    ...(update.duration !== undefined ? { duration: update.duration } : {}),
+                  };
+                }
+                return m;
+              }),
+            };
+          }
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ["milestones"] });
       queryClient.invalidateQueries({ queryKey: ["dependencies"] });
     },
   });
+}
+
+interface DependencyDeleteResponse {
+  success: boolean;
+  cascadedUpdates: CascadedUpdate[];
 }
 
 export function useDeleteDependency() {
@@ -413,7 +486,7 @@ export function useDeleteDependency() {
         const error = await response.json();
         throw new Error(error.error || "Failed to delete dependency");
       }
-      return response.json();
+      return response.json() as Promise<DependencyDeleteResponse>;
     },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ["milestones"] });
@@ -431,6 +504,35 @@ export function useDeleteDependency() {
       );
 
       return { previousData };
+    },
+    onSuccess: (data) => {
+      // Apply cascaded updates from dependency removal
+      if (data.cascadedUpdates?.length) {
+        queryClient.setQueriesData(
+          { queryKey: ["milestones"] },
+          (old: MilestonesResponse | undefined) => {
+            if (!old) return old;
+            const updateMap = new Map(
+              data.cascadedUpdates.map((u) => [u.id, u])
+            );
+            return {
+              ...old,
+              milestones: old.milestones.map((m) => {
+                const update = updateMap.get(m.id);
+                if (update) {
+                  return {
+                    ...m,
+                    startDate: update.startDate,
+                    endDate: update.endDate,
+                    ...(update.duration !== undefined ? { duration: update.duration } : {}),
+                  };
+                }
+                return m;
+              }),
+            };
+          }
+        );
+      }
     },
     onError: (_err, _variables, context) => {
       if (context?.previousData) {

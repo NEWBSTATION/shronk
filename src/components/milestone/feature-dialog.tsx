@@ -52,6 +52,7 @@ interface FeatureDialogProps {
     description?: string;
     startDate: Date;
     endDate: Date;
+    duration?: number;
     status: MilestoneStatus;
     teamId?: string | null;
   }) => void;
@@ -150,11 +151,13 @@ export function FeatureDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const duration = differenceInDays(endDate, startDate) + 1;
     onSave({
       title,
       description: description || undefined,
       startDate,
       endDate,
+      duration: Math.max(1, duration),
       status,
       teamId,
     });

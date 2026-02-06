@@ -4,6 +4,12 @@ import { db } from "@/db";
 import { milestoneDependencies, milestones, projects } from "@/db/schema";
 import { eq, and, or, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { reflowProject, type ReflowMilestone, type ReflowDependency } from "@/lib/reflow";
+
+function toLocalMidnight(date: Date | string): Date {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
 
 const createDependencySchema = z.object({
   predecessorId: z.string().uuid(),
@@ -13,6 +19,112 @@ const createDependencySchema = z.object({
 const deleteDependencySchema = z.object({
   id: z.string().uuid(),
 });
+
+async function fetchProjectReflowData(projectId: string) {
+  const allMilestones = await db
+    .select()
+    .from(milestones)
+    .where(eq(milestones.projectId, projectId));
+
+  const milestoneIds = allMilestones.map((m) => m.id);
+
+  const allDeps = milestoneIds.length > 0
+    ? await db
+        .select()
+        .from(milestoneDependencies)
+        .where(
+          or(
+            inArray(milestoneDependencies.predecessorId, milestoneIds),
+            inArray(milestoneDependencies.successorId, milestoneIds)
+          )
+        )
+    : [];
+
+  const reflowMilestones: ReflowMilestone[] = allMilestones.map((m) => ({
+    id: m.id,
+    startDate: toLocalMidnight(m.startDate),
+    endDate: toLocalMidnight(m.endDate),
+    duration: m.duration,
+  }));
+
+  const reflowDeps: ReflowDependency[] = allDeps.map((d) => ({
+    predecessorId: d.predecessorId,
+    successorId: d.successorId,
+  }));
+
+  return { reflowMilestones, reflowDeps };
+}
+
+async function persistReflowUpdates(updates: Array<{ id: string; startDate: Date; endDate: Date; duration: number }>) {
+  for (const update of updates) {
+    await db
+      .update(milestones)
+      .set({
+        startDate: update.startDate,
+        endDate: update.endDate,
+        duration: update.duration,
+        updatedAt: new Date(),
+      })
+      .where(eq(milestones.id, update.id));
+  }
+}
+
+/**
+ * Full BFS reachability check for cycle detection.
+ * Returns true if `from` can reach `to` following existing dependencies.
+ */
+async function wouldCreateCycle(
+  fromId: string,
+  toId: string,
+  projectId: string
+): Promise<boolean> {
+  // Get all milestones in the project
+  const projectMilestones = await db
+    .select({ id: milestones.id })
+    .from(milestones)
+    .where(eq(milestones.projectId, projectId));
+
+  const milestoneIds = projectMilestones.map((m) => m.id);
+  if (milestoneIds.length === 0) return false;
+
+  // Get all existing dependencies
+  const deps = await db
+    .select()
+    .from(milestoneDependencies)
+    .where(
+      or(
+        inArray(milestoneDependencies.predecessorId, milestoneIds),
+        inArray(milestoneDependencies.successorId, milestoneIds)
+      )
+    );
+
+  // Build successor adjacency (predecessorId → successorIds[])
+  const successorMap = new Map<string, string[]>();
+  for (const dep of deps) {
+    const list = successorMap.get(dep.predecessorId) || [];
+    list.push(dep.successorId);
+    successorMap.set(dep.predecessorId, list);
+  }
+
+  // BFS from `fromId` to see if we can reach `toId`
+  // (if successor `fromId` can reach predecessor `toId`, adding toId→fromId creates a cycle)
+  const queue = [fromId];
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current === toId) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    const succs = successorMap.get(current);
+    if (succs) {
+      for (const s of succs) queue.push(s);
+    }
+  }
+
+  return false;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -117,17 +229,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for circular dependency
-    const existingDependencies = await db
-      .select()
-      .from(milestoneDependencies)
-      .where(eq(milestoneDependencies.predecessorId, data.successorId));
-
-    const wouldCreateCycle = existingDependencies.some(
-      (d) => d.successorId === data.predecessorId
+    // Full BFS cycle detection: check if successor can reach predecessor
+    const cycleDetected = await wouldCreateCycle(
+      data.successorId,
+      data.predecessorId,
+      predecessor.projectId
     );
 
-    if (wouldCreateCycle) {
+    if (cycleDetected) {
       return NextResponse.json(
         { error: "This would create a circular dependency" },
         { status: 400 }
@@ -154,7 +263,26 @@ export async function POST(request: NextRequest) {
       .values(data)
       .returning();
 
-    return NextResponse.json(dependency, { status: 201 });
+    // Reflow project after creating the dependency
+    const { reflowMilestones, reflowDeps } = await fetchProjectReflowData(
+      predecessor.projectId
+    );
+
+    const reflowUpdates = reflowProject(reflowMilestones, reflowDeps);
+    await persistReflowUpdates(reflowUpdates);
+
+    return NextResponse.json(
+      {
+        dependency,
+        cascadedUpdates: reflowUpdates.map((u) => ({
+          id: u.id,
+          startDate: u.startDate.toISOString(),
+          endDate: u.endDate.toISOString(),
+          duration: u.duration,
+        })),
+      },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -201,11 +329,26 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
+    const projectId = existingDependency.predecessor.projectId;
+
     await db
       .delete(milestoneDependencies)
       .where(eq(milestoneDependencies.id, data.id));
 
-    return NextResponse.json({ success: true });
+    // Reflow project after removing the dependency
+    const { reflowMilestones, reflowDeps } = await fetchProjectReflowData(projectId);
+    const reflowUpdates = reflowProject(reflowMilestones, reflowDeps);
+    await persistReflowUpdates(reflowUpdates);
+
+    return NextResponse.json({
+      success: true,
+      cascadedUpdates: reflowUpdates.map((u) => ({
+        id: u.id,
+        startDate: u.startDate.toISOString(),
+        endDate: u.endDate.toISOString(),
+        duration: u.duration,
+      })),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

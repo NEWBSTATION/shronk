@@ -21,6 +21,7 @@ import { milestoneToSVARTask, dependencyToSVARLink, svarEndDateToInclusive, toLo
 import { getScaleConfig, ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from './constants';
 import { useGanttStore } from '@/store/gantt-store';
+import { reflowProject, type ReflowMilestone, type ReflowDependency } from '@/lib/reflow';
 import type { CascadedUpdate } from '@/hooks/use-milestones';
 import type { TimePeriod, SVARTask, SVARLink } from './types';
 import type { Milestone, MilestoneDependency, MilestoneStatus, MilestonePriority, Team, Project } from '@/db/schema';
@@ -33,57 +34,6 @@ const ZOOM_CONFIG: Record<TimePeriod, { min: number; max: number }> = {
   year: { min: 60, max: 220 },
 };
 
-/**
- * Compute cascading shifts for end-to-start dependencies purely client-side.
- * BFS from the moved task through the successor adjacency list.
- * Returns inclusive end dates (matching DB convention).
- */
-function computeLocalCascade(
-  draggedId: string,
-  newInclusiveEnd: Date,
-  featureMap: Map<string, Milestone>,
-  successorMap: Map<string, string[]>,
-): Array<{ id: string; start: Date; end: Date }> {
-  const updates: Array<{ id: string; start: Date; end: Date }> = [];
-  const endOverrides = new Map<string, Date>();
-  endOverrides.set(draggedId, newInclusiveEnd);
-
-  const queue = [draggedId];
-  const visited = new Set<string>();
-
-  while (queue.length > 0) {
-    const currentId = queue.shift()!;
-    if (visited.has(currentId)) continue;
-    visited.add(currentId);
-
-    const currentEnd = endOverrides.get(currentId);
-    if (!currentEnd) continue;
-
-    const successors = successorMap.get(currentId);
-    if (!successors) continue;
-
-    for (const successorId of successors) {
-      const successor = featureMap.get(successorId);
-      if (!successor) continue;
-
-      const origStart = toLocalMidnight(successor.startDate);
-      const origEnd = toLocalMidnight(successor.endDate);
-
-      // End-to-start: successor must start at least 1 day after predecessor's inclusive end
-      const requiredStart = addDays(currentEnd, 1);
-      if (requiredStart > origStart) {
-        const durationDays = differenceInDays(origEnd, origStart);
-        const newEnd = addDays(requiredStart, durationDays);
-        endOverrides.set(successorId, newEnd);
-        updates.push({ id: successorId, start: requiredStart, end: newEnd });
-        queue.push(successorId);
-      }
-    }
-  }
-
-  return updates;
-}
-
 interface SVARGanttViewProps {
   project: Project;
   features: Milestone[];
@@ -92,7 +42,7 @@ interface SVARGanttViewProps {
   onBack: () => void;
   onEdit: (feature: Milestone) => void;
   onDelete: (id: string) => void;
-  onUpdateDates: (id: string, startDate: Date, endDate: Date) => Promise<CascadedUpdate[]>;
+  onUpdateDates: (id: string, startDate: Date, endDate: Date, duration?: number) => Promise<CascadedUpdate[]>;
   onStatusChange: (id: string, status: MilestoneStatus) => Promise<void>;
   onPriorityChange?: (id: string, priority: MilestonePriority) => Promise<void>;
   onAddFeature: () => void;
@@ -189,7 +139,7 @@ export function SVARGanttView({
   const featureMapRef = useRef(featureMap);
   featureMapRef.current = featureMap;
 
-  // Successor adjacency list for local cascade computation (predecessorId → successorId[])
+  // Successor adjacency list (predecessorId → successorId[])
   const successorMap = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const dep of dependencies) {
@@ -201,6 +151,40 @@ export function SVARGanttView({
   }, [dependencies]);
   const successorMapRef = useRef(successorMap);
   successorMapRef.current = successorMap;
+
+  // Predecessor adjacency list (successorId → predecessorId[])
+  const predecessorMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const dep of dependencies) {
+      const list = map.get(dep.successorId) || [];
+      list.push(dep.predecessorId);
+      map.set(dep.successorId, list);
+    }
+    return map;
+  }, [dependencies]);
+  const predecessorMapRef = useRef(predecessorMap);
+  predecessorMapRef.current = predecessorMap;
+
+  // Reflow data for tight cascade preview
+  const reflowMilestones = useMemo((): ReflowMilestone[] => {
+    return features.map((f) => ({
+      id: f.id,
+      startDate: toLocalMidnight(f.startDate),
+      endDate: toLocalMidnight(f.endDate),
+      duration: f.duration,
+    }));
+  }, [features]);
+  const reflowMilestonesRef = useRef(reflowMilestones);
+  reflowMilestonesRef.current = reflowMilestones;
+
+  const reflowDeps = useMemo((): ReflowDependency[] => {
+    return dependencies.map((d) => ({
+      predecessorId: d.predecessorId,
+      successorId: d.successorId,
+    }));
+  }, [dependencies]);
+  const reflowDepsRef = useRef(reflowDeps);
+  reflowDepsRef.current = reflowDeps;
 
   // Drag-cascade state (refs — no re-renders needed)
   const isDraggingRef = useRef(false);
@@ -248,16 +232,12 @@ export function SVARGanttView({
     };
 
     // --- Live cascade during drag via SVAR's update-task API ---
-    // SVAR fires drag-task with pixel positions during drag, update-task on drop.
-    // We call api.exec('update-task', { inProgress: true }) on dependent tasks so
-    // SVAR renders both the shifted bars AND dependency arrows correctly.
     api.on('drag-task', (ev) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { id, left, width, inProgress } = ev as any;
 
       if (!inProgress || left == null || width == null) {
         // Drag ended — schedule revert in case of cancel.
-        // If update-task fires (successful drop), the timeout is cancelled.
         isDraggingRef.current = false;
         draggedTaskIdRef.current = null;
 
@@ -280,37 +260,84 @@ export function SVARGanttView({
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const state = api.getState() as any;
-      const scales = state?._scales;
+      const scalesInternal = state?._scales;
       const cw = state?.cellWidth;
-      if (!scales?.diff || !cw) return;
+      if (!scalesInternal?.diff || !cw) return;
 
       const origStart = toLocalMidnight(original.startDate);
       const origEnd = toLocalMidnight(original.endDate);
 
       // Compute pixels-per-day using SVAR's scale math
       const oneDayLater = addDays(origStart, 1);
-      const pixelsPerDay = scales.diff(oneDayLater, origStart, scales.lengthUnit) * cw;
+      const pixelsPerDay = scalesInternal.diff(oneDayLater, origStart, scalesInternal.lengthUnit) * cw;
       if (pixelsPerDay <= 0) return;
 
-      // Compute new inclusive end from pixel end position (handles both move and resize)
+      // Detect drag type from pixel deltas
       const origExclEnd = addDays(origEnd, 1); // inclusive → exclusive
-      const origPixelEnd = Math.round(scales.diff(origExclEnd, scales.start, scales.lengthUnit) * cw);
+      const origPixelStart = Math.round(scalesInternal.diff(origStart, scalesInternal.start, scalesInternal.lengthUnit) * cw);
+      const origPixelEnd = Math.round(scalesInternal.diff(origExclEnd, scalesInternal.start, scalesInternal.lengthUnit) * cw);
+
+      const newPixelStart = left;
       const newPixelEnd = left + width;
+
+      const startDaysDelta = Math.round((newPixelStart - origPixelStart) / pixelsPerDay);
       const endDaysDelta = Math.round((newPixelEnd - origPixelEnd) / pixelsPerDay);
 
-      if (endDaysDelta === 0 && cascadeOriginalsRef.current.size === 0) return;
+      const isChained = (predecessorMapRef.current.get(taskId) || []).length > 0;
 
-      const newInclusiveEnd = addDays(origEnd, endDaysDelta);
+      // Determine override for reflow
+      let override: Partial<ReflowMilestone> | null = null;
 
-      const cascade = computeLocalCascade(
-        taskId,
-        newInclusiveEnd,
-        featureMapRef.current,
-        successorMapRef.current,
+      if (startDaysDelta === 0 && endDaysDelta !== 0) {
+        // Resize-end: changes duration
+        const newDuration = Math.max(1, original.duration + endDaysDelta);
+        override = { duration: newDuration };
+      } else if (Math.abs(startDaysDelta - endDaysDelta) <= 1 && startDaysDelta !== 0) {
+        // Move (both edges shift roughly equally)
+        if (isChained) {
+          // Chained features can't be moved — reflow will snap them back
+          // Don't apply any override — cascade with current data
+          if (cascadeOriginalsRef.current.size > 0) {
+            revertCascadedTasks();
+          }
+          return;
+        } else {
+          // Root move: shift start date
+          const newStart = addDays(origStart, startDaysDelta);
+          override = { startDate: newStart };
+        }
+      } else if (startDaysDelta !== 0 && endDaysDelta === 0) {
+        // Resize-start (left edge moved)
+        if (isChained) {
+          // Chained: can't resize start
+          if (cascadeOriginalsRef.current.size > 0) {
+            revertCascadedTasks();
+          }
+          return;
+        } else {
+          // Root: changes start + duration
+          const newStart = addDays(origStart, startDaysDelta);
+          const newDuration = Math.max(1, original.duration - startDaysDelta);
+          override = { startDate: newStart, duration: newDuration };
+        }
+      } else {
+        // No meaningful change
+        return;
+      }
+
+      // Run tight reflow with override
+      const overrides = override
+        ? new Map([[taskId, override]])
+        : undefined;
+
+      const cascade = reflowProject(
+        reflowMilestonesRef.current,
+        reflowDepsRef.current,
+        overrides
       );
 
-      // Skip if cascade result hasn't changed (avoid redundant api.exec calls)
-      const cascadeKey = cascade.map((u) => `${u.id}:${u.start.getTime()}:${u.end.getTime()}`).join(',');
+      // Skip if cascade result hasn't changed
+      const cascadeKey = cascade.map((u) => `${u.id}:${u.startDate.getTime()}:${u.endDate.getTime()}`).join(',');
       if (cascadeKey === lastCascadeKeyRef.current) return;
       lastCascadeKeyRef.current = cascadeKey;
 
@@ -324,36 +351,36 @@ export function SVARGanttView({
         }
       }
 
-      // Apply cascade via SVAR's update-task (updates both bars and dependency arrows)
+      // Apply cascade via SVAR's update-task
       for (const update of cascade) {
+        // Skip the dragged task itself — SVAR handles its visual position
+        if (update.id === taskId) continue;
+
         const dep = featureMapRef.current.get(update.id);
         if (!dep) continue;
 
-        // Save original SVAR-format dates if not already saved (for revert on cancel)
+        // Save original SVAR-format dates if not already saved
         if (!cascadeOriginalsRef.current.has(update.id)) {
           const origDepStart = toLocalMidnight(dep.startDate);
-          const origDepEnd = addDays(toLocalMidnight(dep.endDate), 1); // inclusive → exclusive for SVAR
+          const origDepEnd = addDays(toLocalMidnight(dep.endDate), 1);
           cascadeOriginalsRef.current.set(update.id, { start: origDepStart, end: origDepEnd });
         }
 
-        // Convert cascade result to SVAR exclusive end and update visually
-        const svarEnd = addDays(update.end, 1); // inclusive → exclusive
-        api.exec('update-task', { id: update.id, task: { start: update.start, end: svarEnd }, inProgress: true });
+        // Convert to SVAR exclusive end
+        const svarEnd = addDays(update.endDate, 1);
+        api.exec('update-task', { id: update.id, task: { start: update.startDate, end: svarEnd }, inProgress: true });
       }
     });
 
     // --- Drop: persist to server ---
-    // SVAR fires update-task on drop with final task dates.
-    // We skip cascade preview events (inProgress=true) and only persist the dropped task.
-    // Server-side cascade will propagate dependent changes authoritatively.
     api.on('update-task', (ev) => {
-      // Cancel revert timeout — drop was successful, not a cancel
+      // Cancel revert timeout — drop was successful
       if (dropRevertTimeoutRef.current) {
         clearTimeout(dropRevertTimeoutRef.current);
         dropRevertTimeoutRef.current = null;
       }
 
-      // Skip in-progress cascade preview updates (from our api.exec calls)
+      // Skip in-progress cascade preview updates
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((ev as any).inProgress) return;
       if (isDraggingRef.current) return;
@@ -362,7 +389,7 @@ export function SVARGanttView({
       const task = ev.task;
       if (!taskId || !task?.start || !task?.end) return;
 
-      // Clear cascade state — server-side cascade will provide authoritative updates
+      // Clear cascade state
       cascadeOriginalsRef.current.clear();
       lastCascadeKeyRef.current = '';
       isDraggingRef.current = false;
@@ -370,7 +397,10 @@ export function SVARGanttView({
 
       const svarStart = task.start as Date;
       const inclusiveEnd = svarEndDateToInclusive(task.end as Date);
-      onUpdateDatesRef.current(taskId, svarStart, inclusiveEnd);
+
+      // Derive duration from the final SVAR dates
+      const duration = differenceInDays(inclusiveEnd, svarStart) + 1;
+      onUpdateDatesRef.current(taskId, svarStart, inclusiveEnd, duration);
     });
 
     api.on('add-link', (ev) => {
@@ -413,14 +443,12 @@ export function SVARGanttView({
     const today = startOfDay(new Date());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const state = api.getState() as any;
-    const scales = state?._scales;
-    if (!scales?.diff || !scales.start || !scales.lengthUnit) return;
+    const scalesInternal = state?._scales;
+    if (!scalesInternal?.diff || !scalesInternal.start || !scalesInternal.lengthUnit) return;
 
-    // Use SVAR's own diff function to get today's pixel position
-    const todayX = Math.round(scales.diff(today, scales.start, scales.lengthUnit) * state.cellWidth);
+    const todayX = Math.round(scalesInternal.diff(today, scalesInternal.start, scalesInternal.lengthUnit) * state.cellWidth);
     if (todayX < 0) return;
 
-    // .wx-area is the full-width content; its scrollable parent is the viewport
     const wxArea = container.querySelector('.wx-area') as HTMLElement;
     const scrollContainer = wxArea?.parentElement;
     if (!scrollContainer) return;
@@ -459,9 +487,6 @@ export function SVARGanttView({
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
 
-      // Compute zoom anchor directly from the wheel event's cursor position.
-      // Reading scrollLeft here (synchronously in the event) guarantees the
-      // value is current, unlike cursorInfoRef which may be stale.
       const api = ganttApiRef.current;
       if (api) {
         const wxArea = container.querySelector('.wx-area') as HTMLElement;
@@ -491,7 +516,6 @@ export function SVARGanttView({
   }, []);
 
   // After cellWidth changes, scroll to keep the anchored point at the same viewport position.
-  // Uses React's cellWidth (guaranteed correct) rather than SVAR's internal state (may lag).
   useEffect(() => {
     const anchor = zoomAnchorRef.current;
     if (!anchor) return;
@@ -501,7 +525,6 @@ export function SVARGanttView({
     const api = ganttApiRef.current;
     if (!container || !api) return;
 
-    // Recompute pixel position: same fractional units * new cellWidth
     const newPixelX = Math.round(anchor.fractionalUnits * cellWidth);
     const scrollTarget = Math.max(0, newPixelX - anchor.viewportX);
 
@@ -513,9 +536,7 @@ export function SVARGanttView({
       api.exec('scroll-chart', { left: scrollTarget });
     };
 
-    // Apply immediately (before SVAR re-renders)
     applyScroll();
-    // Re-apply after SVAR processes the new cellWidth prop
     const raf = requestAnimationFrame(applyScroll);
 
     return () => cancelAnimationFrame(raf);
@@ -557,7 +578,7 @@ export function SVARGanttView({
           </Button>
         </div>
 
-        <span className="text-sm text-muted-foreground">
+        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
           {sortedFeatures.length} feature{sortedFeatures.length !== 1 ? 's' : ''}
         </span>
       </div>
@@ -577,8 +598,20 @@ export function SVARGanttView({
             links={links}
             scales={scales}
             columns={[
-              { id: 'text', header: 'Feature', width: 200, resize: true },
-              { id: 'durationText', header: 'Duration', width: 80, resize: true },
+              {
+                id: 'text',
+                header: 'Feature',
+                width: 200,
+                resize: true,
+                cell: ({ row }: { row: SVARTask }) => (
+                  <div className="flex items-center justify-between gap-2 w-full overflow-hidden">
+                    <span className="truncate">{row.text}</span>
+                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                      {row.durationText}
+                    </span>
+                  </div>
+                ),
+              },
             ]}
             cellWidth={cellWidth}
             cellHeight={ROW_HEIGHT}

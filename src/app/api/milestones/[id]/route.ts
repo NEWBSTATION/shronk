@@ -3,81 +3,76 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import {
   milestones,
-  projects,
   milestoneDependencies,
 } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { addDays, differenceInDays, isBefore } from "date-fns";
+import { addDays, differenceInDays } from "date-fns";
 import { capitalizeWords } from "@/lib/capitalize";
+import { reflowProject, type ReflowMilestone, type ReflowDependency } from "@/lib/reflow";
+
+function toLocalMidnight(date: Date | string): Date {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
 
 const updateMilestoneSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   description: z.string().optional().nullable(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
+  duration: z.number().int().min(1).optional(),
   status: z.enum(["not_started", "in_progress", "on_hold", "completed", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high", "critical"]).optional(),
   progress: z.number().min(0).max(100).optional(),
   teamId: z.string().uuid().optional().nullable(),
   sortOrder: z.number().optional(),
-  cascadeDependencies: z.boolean().default(true),
 });
 
 interface MilestoneUpdate {
   id: string;
   startDate: Date;
   endDate: Date;
+  duration: number;
 }
 
-async function cascadeDependencies(
-  milestoneId: string,
-  newEndDate: Date,
-  projectId: string
-): Promise<MilestoneUpdate[]> {
-  const updates: MilestoneUpdate[] = [];
-
-  // Get all milestones for this project
+async function fetchProjectReflowData(projectId: string) {
   const allMilestones = await db
     .select()
     .from(milestones)
     .where(eq(milestones.projectId, projectId));
 
-  // Get all dependencies
-  const dependencies = await db.select().from(milestoneDependencies);
+  const allDeps = await db.select().from(milestoneDependencies);
 
-  // Find direct dependents (milestones that depend on this one)
-  const directDependents = dependencies.filter(
-    (d) => d.predecessorId === milestoneId
-  );
+  const reflowMilestones: ReflowMilestone[] = allMilestones.map((m) => ({
+    id: m.id,
+    startDate: toLocalMidnight(m.startDate),
+    endDate: toLocalMidnight(m.endDate),
+    duration: m.duration,
+  }));
 
-  for (const dep of directDependents) {
-    const dependent = allMilestones.find((m) => m.id === dep.successorId);
-    if (!dependent) continue;
+  const reflowDeps: ReflowDependency[] = allDeps
+    .filter((d) => allMilestones.some((m) => m.id === d.predecessorId) && allMilestones.some((m) => m.id === d.successorId))
+    .map((d) => ({
+      predecessorId: d.predecessorId,
+      successorId: d.successorId,
+    }));
 
-    const requiredStart = addDays(newEndDate, 1);
+  return { reflowMilestones, reflowDeps };
+}
 
-    if (isBefore(dependent.startDate, requiredStart)) {
-      const duration = differenceInDays(dependent.endDate, dependent.startDate);
-      const newDependentEnd = addDays(requiredStart, duration);
-
-      updates.push({
-        id: dependent.id,
-        startDate: requiredStart,
-        endDate: newDependentEnd,
-      });
-
-      // Recursively cascade
-      const cascadedUpdates = await cascadeDependencies(
-        dependent.id,
-        newDependentEnd,
-        projectId
-      );
-      updates.push(...cascadedUpdates);
-    }
+async function persistReflowUpdates(updates: MilestoneUpdate[]) {
+  for (const update of updates) {
+    await db
+      .update(milestones)
+      .set({
+        startDate: update.startDate,
+        endDate: update.endDate,
+        duration: update.duration,
+        updatedAt: new Date(),
+      })
+      .where(eq(milestones.id, update.id));
   }
-
-  return updates;
 }
 
 export async function PATCH(
@@ -129,8 +124,41 @@ export async function PATCH(
     if (data.progress !== undefined) updateData.progress = data.progress;
     if (data.teamId !== undefined) updateData.teamId = data.teamId;
     if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
-    if (data.startDate !== undefined) updateData.startDate = new Date(data.startDate);
-    if (data.endDate !== undefined) updateData.endDate = new Date(data.endDate);
+
+    // Duration-first date logic:
+    // 1. If duration sent: store it, compute endDate = start + duration - 1
+    // 2. If endDate sent (resize): derive duration = end - start + 1, store both
+    // 3. If startDate sent (root move): keep duration, compute new endDate
+    if (data.duration !== undefined) {
+      updateData.duration = data.duration;
+      const start = data.startDate
+        ? new Date(data.startDate)
+        : existingMilestone.startDate;
+      updateData.startDate = start;
+      updateData.endDate = addDays(start, data.duration - 1);
+    } else if (data.endDate !== undefined && data.startDate !== undefined) {
+      // Both dates sent (drag resize or move): derive duration
+      const start = new Date(data.startDate);
+      const end = new Date(data.endDate);
+      const duration = differenceInDays(end, start) + 1;
+      updateData.startDate = start;
+      updateData.endDate = end;
+      updateData.duration = Math.max(1, duration);
+    } else if (data.endDate !== undefined) {
+      // Only endDate (resize right edge): derive duration
+      const end = new Date(data.endDate);
+      const start = existingMilestone.startDate;
+      const duration = differenceInDays(end, start) + 1;
+      updateData.endDate = end;
+      updateData.duration = Math.max(1, duration);
+    } else if (data.startDate !== undefined) {
+      // Only startDate (root move): keep duration, compute new end
+      const start = new Date(data.startDate);
+      const duration = existingMilestone.duration;
+      updateData.startDate = start;
+      updateData.endDate = addDays(start, duration - 1);
+      updateData.duration = duration;
+    }
 
     // Update the milestone
     const [updatedMilestone] = await db
@@ -139,34 +167,27 @@ export async function PATCH(
       .where(eq(milestones.id, id))
       .returning();
 
-    // Handle dependency cascading if end date changed
-    let cascadedUpdates: MilestoneUpdate[] = [];
-    if (data.endDate && data.cascadeDependencies !== false) {
-      const newEndDate = new Date(data.endDate);
-      if (newEndDate > existingMilestone.endDate) {
-        cascadedUpdates = await cascadeDependencies(
-          id,
-          newEndDate,
-          existingMilestone.projectId
-        );
+    // Run reflow on entire project to cascade changes
+    const { reflowMilestones, reflowDeps } = await fetchProjectReflowData(
+      existingMilestone.projectId
+    );
 
-        // Apply cascaded updates
-        for (const update of cascadedUpdates) {
-          await db
-            .update(milestones)
-            .set({
-              startDate: update.startDate,
-              endDate: update.endDate,
-              updatedAt: new Date(),
-            })
-            .where(eq(milestones.id, update.id));
-        }
-      }
-    }
+    const reflowUpdates = reflowProject(reflowMilestones, reflowDeps);
+
+    // Filter out the milestone we just updated (it's already persisted)
+    const cascadedUpdates = reflowUpdates.filter((u) => u.id !== id);
+
+    // Persist cascaded changes
+    await persistReflowUpdates(cascadedUpdates);
 
     return NextResponse.json({
       milestone: updatedMilestone,
-      cascadedUpdates,
+      cascadedUpdates: cascadedUpdates.map((u) => ({
+        id: u.id,
+        startDate: u.startDate.toISOString(),
+        endDate: u.endDate.toISOString(),
+        duration: u.duration,
+      })),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -212,9 +233,26 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
+    const projectId = existingMilestone.projectId;
+
+    // Delete the milestone (cascade deletes dependencies)
     await db.delete(milestones).where(eq(milestones.id, id));
 
-    return NextResponse.json({ success: true });
+    // Reflow remaining milestones to tighten chains
+    const { reflowMilestones, reflowDeps } = await fetchProjectReflowData(projectId);
+    const reflowUpdates = reflowProject(reflowMilestones, reflowDeps);
+
+    await persistReflowUpdates(reflowUpdates);
+
+    return NextResponse.json({
+      success: true,
+      cascadedUpdates: reflowUpdates.map((u) => ({
+        id: u.id,
+        startDate: u.startDate.toISOString(),
+        endDate: u.endDate.toISOString(),
+        duration: u.duration,
+      })),
+    });
   } catch (error) {
     console.error("Error deleting milestone:", error);
     return NextResponse.json(
