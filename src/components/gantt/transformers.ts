@@ -1,15 +1,65 @@
-import { addDays, subDays, differenceInDays, format } from 'date-fns';
+import { addDays, subDays, differenceInDays } from 'date-fns';
 import type { Milestone, MilestoneDependency } from '@/db/schema';
 import type { SVARTask, SVARLink } from './types';
 
+/** Unit multipliers for duration conversion */
+export const DURATION_UNIT_MULTIPLIERS = {
+  days: 1,
+  weeks: 7,
+  months: 30,
+  years: 365,
+} as const;
+
+export type DurationUnit = keyof typeof DURATION_UNIT_MULTIPLIERS;
+
 /**
- * Format a duration string showing date range and days
- * e.g., "Jan 15 - Feb 20 (36d)"
+ * Compute the inclusive day count between start and end dates.
+ * e.g., Jan 1 to Jan 1 = 1 day, Jan 1 to Jan 7 = 7 days
  */
-function formatDurationText(start: Date, end: Date, days: number): string {
-  const startStr = format(start, 'MMM d');
-  const endStr = format(end, 'MMM d');
-  return `${startStr} - ${endStr} (${days}d)`;
+export function computeDurationDays(start: Date, inclusiveEnd: Date): number {
+  return differenceInDays(inclusiveEnd, start) + 1;
+}
+
+/**
+ * Auto-format a day count to the best human-readable string.
+ * e.g., 7 → "1w", 14 → "2w", 35 → "1mo 5d", 365 → "1y"
+ */
+export function formatDuration(days: number): string {
+  if (days <= 0) return '0d';
+
+  const years = Math.floor(days / 365);
+  let remaining = days % 365;
+  const months = Math.floor(remaining / 30);
+  remaining = remaining % 30;
+  const weeks = Math.floor(remaining / 7);
+  const d = remaining % 7;
+
+  const parts: string[] = [];
+  if (years > 0) parts.push(`${years}y`);
+  if (months > 0) parts.push(`${months}mo`);
+  if (weeks > 0) parts.push(`${weeks}w`);
+  if (d > 0 || parts.length === 0) parts.push(`${d}d`);
+
+  return parts.join(' ');
+}
+
+/**
+ * Compute the inclusive end date from a start date and duration in days.
+ * e.g., start=Jan 1, days=7 → Jan 7 (inclusive)
+ */
+export function computeEndDateFromDuration(start: Date, durationDays: number): Date {
+  return addDays(start, Math.max(durationDays, 1) - 1);
+}
+
+/**
+ * Pick the best-fit unit and value for a given day count.
+ * e.g., 14 → { value: 2, unit: 'weeks' }, 35 → { value: 35, unit: 'days' }
+ */
+export function bestFitDurationUnit(days: number): { value: number; unit: DurationUnit } {
+  if (days >= 365 && days % 365 === 0) return { value: days / 365, unit: 'years' };
+  if (days >= 30 && days % 30 === 0) return { value: days / 30, unit: 'months' };
+  if (days >= 7 && days % 7 === 0) return { value: days / 7, unit: 'weeks' };
+  return { value: days, unit: 'days' };
 }
 
 /**
@@ -35,16 +85,15 @@ export function milestoneToSVARTask(milestone: Milestone): SVARTask {
   const start = toLocalMidnight(milestone.startDate);
   const inclusiveEnd = toLocalMidnight(milestone.endDate);
   const end = addDays(inclusiveEnd, 1); // inclusive → exclusive for SVAR
-  const duration = differenceInDays(end, start);
-  const displayDays = duration; // exclusive end means differenceInDays gives inclusive count
+  const days = computeDurationDays(start, inclusiveEnd);
 
   return {
     id: milestone.id,
     text: milestone.title,
     start,
     end,
-    duration,
-    durationText: formatDurationText(start, inclusiveEnd, displayDays),
+    duration: days,
+    durationText: formatDuration(days),
     progress: milestone.progress,
     type: 'task',
     // Store custom data for filtering/styling

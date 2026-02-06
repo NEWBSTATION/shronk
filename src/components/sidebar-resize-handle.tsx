@@ -60,7 +60,7 @@ export function SidebarResizeHandle() {
       <div
         onMouseDown={handleMouseDown}
         className={cn(
-          "absolute top-0 right-0 z-20 h-full w-3 cursor-col-resize group py-2",
+          "absolute top-0 right-0 z-20 h-full w-3 cursor-col-resize group/resize py-2",
           "flex items-center justify-end"
         )}
       >
@@ -68,7 +68,7 @@ export function SidebarResizeHandle() {
         <div
           className={cn(
             "h-full w-[3px] rounded-xl transition-colors",
-            "group-hover:bg-primary/30",
+            "group-hover/resize:bg-primary/30",
             isDragging && "bg-primary/50"
           )}
         />

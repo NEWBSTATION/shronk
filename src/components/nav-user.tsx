@@ -2,7 +2,8 @@
 
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { ChevronsUpDown, LogOut, Settings, User } from "lucide-react";
+import { ChevronsUpDown, LogOut, Settings } from "lucide-react";
+import { usePreferencesStore } from "@/store/preferences-store";
 import { ThemeSelectorCompact } from "@/components/theme-selector";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -26,6 +27,7 @@ export function NavUser() {
   const { signOut } = useClerk();
   const router = useRouter();
   const { isMobile } = useSidebar();
+  const { showDisplayName } = usePreferencesStore();
 
   if (!isLoaded || !user) {
     return (
@@ -44,7 +46,11 @@ export function NavUser() {
     ? `${user.firstName[0]}${user.lastName[0]}`
     : user.firstName?.[0] || user.emailAddresses[0]?.emailAddress[0]?.toUpperCase() || "U";
 
-  const displayName = user.fullName || user.firstName || "User";
+  const customDisplayName = user.unsafeMetadata?.displayName as string | undefined;
+  const displayName =
+    showDisplayName && customDisplayName
+      ? customDisplayName
+      : user.fullName || user.firstName || "User";
   const email = user.primaryEmailAddress?.emailAddress || "";
 
   return (
@@ -88,10 +94,6 @@ export function NavUser() {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => router.push("/dashboard/settings/profile")}>
-                  <User />
-                  Profile
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
                   <Settings />
                   Settings

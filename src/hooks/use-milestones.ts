@@ -13,9 +13,15 @@ interface MilestonesResponse {
   dependencies: MilestoneDependency[];
 }
 
+export interface CascadedUpdate {
+  id: string;
+  startDate: string;
+  endDate: string;
+}
+
 interface MilestoneUpdateResponse {
   milestone: Milestone;
-  cascadedUpdates: Array<{ id: string; startDate: string; endDate: string }>;
+  cascadedUpdates: CascadedUpdate[];
 }
 
 interface FetchMilestonesParams {
@@ -155,6 +161,34 @@ export function useUpdateMilestone() {
       );
 
       return { previousData };
+    },
+    onSuccess: (data) => {
+      // Apply cascaded updates to the cache immediately (before invalidation refetch)
+      if (data.cascadedUpdates?.length) {
+        queryClient.setQueriesData(
+          { queryKey: ["milestones"] },
+          (old: MilestonesResponse | undefined) => {
+            if (!old) return old;
+            const updateMap = new Map(
+              data.cascadedUpdates.map((u) => [u.id, u])
+            );
+            return {
+              ...old,
+              milestones: old.milestones.map((m) => {
+                const update = updateMap.get(m.id);
+                if (update) {
+                  return {
+                    ...m,
+                    startDate: update.startDate,
+                    endDate: update.endDate,
+                  };
+                }
+                return m;
+              }),
+            };
+          }
+        );
+      }
     },
     onError: (_err, _variables, context) => {
       // Rollback on error

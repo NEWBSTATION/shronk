@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { startOfDay } from 'date-fns';
+import { startOfDay, addDays, differenceInDays } from 'date-fns';
 import { Gantt } from '@svar-ui/react-gantt';
 import type { IApi } from '@svar-ui/react-gantt';
 import { Plus, Minus, GitBranch } from 'lucide-react';
@@ -17,10 +17,11 @@ import {
 import { SVARThemeWrapper } from './svar-theme-wrapper';
 import { TodayMarker } from './today-marker';
 import { CursorMarker } from './cursor-marker';
-import { milestoneToSVARTask, dependencyToSVARLink, svarEndDateToInclusive } from './transformers';
+import { milestoneToSVARTask, dependencyToSVARLink, svarEndDateToInclusive, toLocalMidnight } from './transformers';
 import { getScaleConfig, ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from './constants';
 import { useGanttStore } from '@/store/gantt-store';
+import type { CascadedUpdate } from '@/hooks/use-milestones';
 import type { TimePeriod, SVARTask, SVARLink } from './types';
 import type { Milestone, MilestoneDependency, MilestoneStatus, MilestonePriority, Team, Project } from '@/db/schema';
 
@@ -32,6 +33,57 @@ const ZOOM_CONFIG: Record<TimePeriod, { min: number; max: number }> = {
   year: { min: 60, max: 220 },
 };
 
+/**
+ * Compute cascading shifts for end-to-start dependencies purely client-side.
+ * BFS from the moved task through the successor adjacency list.
+ * Returns inclusive end dates (matching DB convention).
+ */
+function computeLocalCascade(
+  draggedId: string,
+  newInclusiveEnd: Date,
+  featureMap: Map<string, Milestone>,
+  successorMap: Map<string, string[]>,
+): Array<{ id: string; start: Date; end: Date }> {
+  const updates: Array<{ id: string; start: Date; end: Date }> = [];
+  const endOverrides = new Map<string, Date>();
+  endOverrides.set(draggedId, newInclusiveEnd);
+
+  const queue = [draggedId];
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+
+    const currentEnd = endOverrides.get(currentId);
+    if (!currentEnd) continue;
+
+    const successors = successorMap.get(currentId);
+    if (!successors) continue;
+
+    for (const successorId of successors) {
+      const successor = featureMap.get(successorId);
+      if (!successor) continue;
+
+      const origStart = toLocalMidnight(successor.startDate);
+      const origEnd = toLocalMidnight(successor.endDate);
+
+      // End-to-start: successor must start at least 1 day after predecessor's inclusive end
+      const requiredStart = addDays(currentEnd, 1);
+      if (requiredStart > origStart) {
+        const durationDays = differenceInDays(origEnd, origStart);
+        const newEnd = addDays(requiredStart, durationDays);
+        endOverrides.set(successorId, newEnd);
+        updates.push({ id: successorId, start: requiredStart, end: newEnd });
+        queue.push(successorId);
+      }
+    }
+  }
+
+  return updates;
+}
+
 interface SVARGanttViewProps {
   project: Project;
   features: Milestone[];
@@ -40,7 +92,7 @@ interface SVARGanttViewProps {
   onBack: () => void;
   onEdit: (feature: Milestone) => void;
   onDelete: (id: string) => void;
-  onUpdateDates: (id: string, startDate: Date, endDate: Date) => Promise<void>;
+  onUpdateDates: (id: string, startDate: Date, endDate: Date) => Promise<CascadedUpdate[]>;
   onStatusChange: (id: string, status: MilestoneStatus) => Promise<void>;
   onPriorityChange?: (id: string, priority: MilestonePriority) => Promise<void>;
   onAddFeature: () => void;
@@ -81,6 +133,10 @@ export function SVARGanttView({
   // Keep a ref to dependencies so event handlers always see the latest value
   const dependenciesRef = useRef(dependencies);
   dependenciesRef.current = dependencies;
+  const onEditRef = useRef(onEdit);
+  onEditRef.current = onEdit;
+  const onUpdateDatesRef = useRef(onUpdateDates);
+  onUpdateDatesRef.current = onUpdateDates;
 
   // Zoom anchoring: track cursor position so zooming keeps the date under cursor in place
   const cursorInfoRef = useRef<{ absoluteX: number; viewportX: number } | null>(null);
@@ -130,6 +186,31 @@ export function SVARGanttView({
     features.forEach((f) => map.set(f.id, f));
     return map;
   }, [features]);
+  const featureMapRef = useRef(featureMap);
+  featureMapRef.current = featureMap;
+
+  // Successor adjacency list for local cascade computation (predecessorId → successorId[])
+  const successorMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const dep of dependencies) {
+      const list = map.get(dep.predecessorId) || [];
+      list.push(dep.successorId);
+      map.set(dep.predecessorId, list);
+    }
+    return map;
+  }, [dependencies]);
+  const successorMapRef = useRef(successorMap);
+  successorMapRef.current = successorMap;
+
+  // Drag-cascade state (refs — no re-renders needed)
+  const isDraggingRef = useRef(false);
+  const draggedTaskIdRef = useRef<string | null>(null);
+  // Tracks original SVAR-format dates for cascaded tasks so we can revert on cancel
+  const cascadeOriginalsRef = useRef<Map<string, { start: Date; end: Date }>>(new Map());
+  // Timeout to detect drag cancel vs successful drop
+  const dropRevertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // De-duplicate: skip api.exec calls when cascade result hasn't changed
+  const lastCascadeKeyRef = useRef('');
 
   // Cell width must be computed before scales (scales format depends on cellWidth)
   const cellWidth = useMemo(() => {
@@ -153,21 +234,143 @@ export function SVARGanttView({
   const initGantt = useCallback((api: IApi) => {
     ganttApiRef.current = api;
 
-    api.on('update-task', (ev) => {
-      const task = ev.task;
-      if (task?.id && task.start && task.end) {
-        const svarStart = task.start as Date;
-        const svarEnd = task.end as Date;
-        const inclusiveEnd = svarEndDateToInclusive(svarEnd);
-        console.log('[Gantt update-task]', {
-          svarStart: svarStart.toDateString(),
-          svarEnd: svarEnd.toDateString(),
-          svarDuration: task.duration,
-          savedInclusiveEnd: inclusiveEnd.toDateString(),
+    // --- Helper: revert all cascaded tasks to original positions ---
+    const revertCascadedTasks = () => {
+      for (const [taskId, orig] of cascadeOriginalsRef.current) {
+        api.exec('update-task', {
+          id: taskId,
+          task: { start: orig.start, end: orig.end },
+          inProgress: true,
         });
-        // SVAR uses exclusive end dates; convert to inclusive for DB storage
-        onUpdateDates(task.id as string, svarStart, inclusiveEnd);
       }
+      cascadeOriginalsRef.current.clear();
+      lastCascadeKeyRef.current = '';
+    };
+
+    // --- Live cascade during drag via SVAR's update-task API ---
+    // SVAR fires drag-task with pixel positions during drag, update-task on drop.
+    // We call api.exec('update-task', { inProgress: true }) on dependent tasks so
+    // SVAR renders both the shifted bars AND dependency arrows correctly.
+    api.on('drag-task', (ev) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { id, left, width, inProgress } = ev as any;
+
+      if (!inProgress || left == null || width == null) {
+        // Drag ended — schedule revert in case of cancel.
+        // If update-task fires (successful drop), the timeout is cancelled.
+        isDraggingRef.current = false;
+        draggedTaskIdRef.current = null;
+
+        if (cascadeOriginalsRef.current.size > 0) {
+          dropRevertTimeoutRef.current = setTimeout(() => {
+            revertCascadedTasks();
+            dropRevertTimeoutRef.current = null;
+          }, 150);
+        }
+        return;
+      }
+
+      const taskId = String(id);
+      isDraggingRef.current = true;
+      draggedTaskIdRef.current = taskId;
+
+      // Get the original task data from our feature map
+      const original = featureMapRef.current.get(taskId);
+      if (!original) return;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const state = api.getState() as any;
+      const scales = state?._scales;
+      const cw = state?.cellWidth;
+      if (!scales?.diff || !cw) return;
+
+      const origStart = toLocalMidnight(original.startDate);
+      const origEnd = toLocalMidnight(original.endDate);
+
+      // Compute pixels-per-day using SVAR's scale math
+      const oneDayLater = addDays(origStart, 1);
+      const pixelsPerDay = scales.diff(oneDayLater, origStart, scales.lengthUnit) * cw;
+      if (pixelsPerDay <= 0) return;
+
+      // Compute new inclusive end from pixel end position (handles both move and resize)
+      const origExclEnd = addDays(origEnd, 1); // inclusive → exclusive
+      const origPixelEnd = Math.round(scales.diff(origExclEnd, scales.start, scales.lengthUnit) * cw);
+      const newPixelEnd = left + width;
+      const endDaysDelta = Math.round((newPixelEnd - origPixelEnd) / pixelsPerDay);
+
+      if (endDaysDelta === 0 && cascadeOriginalsRef.current.size === 0) return;
+
+      const newInclusiveEnd = addDays(origEnd, endDaysDelta);
+
+      const cascade = computeLocalCascade(
+        taskId,
+        newInclusiveEnd,
+        featureMapRef.current,
+        successorMapRef.current,
+      );
+
+      // Skip if cascade result hasn't changed (avoid redundant api.exec calls)
+      const cascadeKey = cascade.map((u) => `${u.id}:${u.start.getTime()}:${u.end.getTime()}`).join(',');
+      if (cascadeKey === lastCascadeKeyRef.current) return;
+      lastCascadeKeyRef.current = cascadeKey;
+
+      const newCascadedIds = new Set(cascade.map((u) => u.id));
+
+      // Revert tasks that no longer need cascading
+      for (const [prevId, orig] of cascadeOriginalsRef.current) {
+        if (!newCascadedIds.has(prevId)) {
+          api.exec('update-task', { id: prevId, task: { start: orig.start, end: orig.end }, inProgress: true });
+          cascadeOriginalsRef.current.delete(prevId);
+        }
+      }
+
+      // Apply cascade via SVAR's update-task (updates both bars and dependency arrows)
+      for (const update of cascade) {
+        const dep = featureMapRef.current.get(update.id);
+        if (!dep) continue;
+
+        // Save original SVAR-format dates if not already saved (for revert on cancel)
+        if (!cascadeOriginalsRef.current.has(update.id)) {
+          const origDepStart = toLocalMidnight(dep.startDate);
+          const origDepEnd = addDays(toLocalMidnight(dep.endDate), 1); // inclusive → exclusive for SVAR
+          cascadeOriginalsRef.current.set(update.id, { start: origDepStart, end: origDepEnd });
+        }
+
+        // Convert cascade result to SVAR exclusive end and update visually
+        const svarEnd = addDays(update.end, 1); // inclusive → exclusive
+        api.exec('update-task', { id: update.id, task: { start: update.start, end: svarEnd }, inProgress: true });
+      }
+    });
+
+    // --- Drop: persist to server ---
+    // SVAR fires update-task on drop with final task dates.
+    // We skip cascade preview events (inProgress=true) and only persist the dropped task.
+    // Server-side cascade will propagate dependent changes authoritatively.
+    api.on('update-task', (ev) => {
+      // Cancel revert timeout — drop was successful, not a cancel
+      if (dropRevertTimeoutRef.current) {
+        clearTimeout(dropRevertTimeoutRef.current);
+        dropRevertTimeoutRef.current = null;
+      }
+
+      // Skip in-progress cascade preview updates (from our api.exec calls)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((ev as any).inProgress) return;
+      if (isDraggingRef.current) return;
+
+      const taskId = String((ev as Record<string, unknown>).id ?? ev.task?.id);
+      const task = ev.task;
+      if (!taskId || !task?.start || !task?.end) return;
+
+      // Clear cascade state — server-side cascade will provide authoritative updates
+      cascadeOriginalsRef.current.clear();
+      lastCascadeKeyRef.current = '';
+      isDraggingRef.current = false;
+      draggedTaskIdRef.current = null;
+
+      const svarStart = task.start as Date;
+      const inclusiveEnd = svarEndDateToInclusive(task.end as Date);
+      onUpdateDatesRef.current(taskId, svarStart, inclusiveEnd);
     });
 
     api.on('add-link', (ev) => {
@@ -189,14 +392,17 @@ export function SVARGanttView({
       }
     });
 
-    api.intercept('open-task-editor', (ev) => {
+    // Open sheet on single-click (select)
+    api.on('select-task', (ev) => {
       if (ev.id) {
-        const feature = featureMap.get(ev.id as string);
-        if (feature) onEdit(feature);
+        const feature = featureMapRef.current.get(ev.id as string);
+        if (feature) onEditRef.current(feature);
       }
-      return false;
     });
-  }, [featureMap, onEdit, onUpdateDates, onCreateDependency, onDeleteDependency]);
+
+    // Prevent SVAR's built-in editor on double-click
+    api.intercept('show-editor', () => false);
+  }, [onCreateDependency, onDeleteDependency]);
 
   // Scroll to today using SVAR's internal scales for accurate pixel calculation
   const scrollToToday = useCallback(() => {
@@ -230,6 +436,15 @@ export function SVARGanttView({
     const timeout = setTimeout(scrollToToday, 300);
     return () => clearTimeout(timeout);
   }, [scrollToToday]);
+
+  // Cleanup cascade revert timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (dropRevertTimeoutRef.current) {
+        clearTimeout(dropRevertTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Zoom handlers
   const handleZoomIn = useCallback(() => setZoomLevel((p) => Math.min(9, p + 1)), []);
@@ -362,7 +577,8 @@ export function SVARGanttView({
             links={links}
             scales={scales}
             columns={[
-              { id: 'text', header: 'Feature', width: 200, resize: true }
+              { id: 'text', header: 'Feature', width: 200, resize: true },
+              { id: 'durationText', header: 'Duration', width: 80, resize: true },
             ]}
             cellWidth={cellWidth}
             cellHeight={ROW_HEIGHT}

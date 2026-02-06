@@ -9,6 +9,7 @@ import {
   FeatureDialog,
 } from "@/components/milestone";
 import { SVARGanttView } from "@/components/gantt";
+import { GanttFeatureSheet } from "@/components/gantt/gantt-feature-sheet";
 import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
 import {
   useMilestones,
@@ -22,6 +23,7 @@ import {
   useDeleteDependency,
 } from "@/hooks/use-milestones";
 import { useHeader } from "@/components/header-context";
+import type { CascadedUpdate } from "@/hooks/use-milestones";
 import type {
   Project,
   Milestone,
@@ -68,6 +70,10 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
 
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [editingFeature, setEditingFeature] = useState<Milestone | null>(null);
+
+  // Sheet state for editing features from Gantt
+  const [featureSheetOpen, setFeatureSheetOpen] = useState(false);
+  const [sheetFeature, setSheetFeature] = useState<Milestone | null>(null);
 
   // Get selected milestone
   const selectedMilestone = projects.find((p) => p.id === selectedMilestoneId);
@@ -118,8 +124,8 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
   }, []);
 
   const handleEditFeature = useCallback((feature: Milestone) => {
-    setEditingFeature(feature);
-    setFeatureDialogOpen(true);
+    setSheetFeature(feature);
+    setFeatureSheetOpen(true);
   }, []);
 
   const handleSaveFeature = useCallback(
@@ -180,58 +186,20 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
       id: string,
       startDate: Date,
       endDate: Date,
-      cascadeAfter?: boolean
-    ) => {
+    ): Promise<CascadedUpdate[]> => {
       try {
-        // For cascade shifting, we'd need to update the API to support this
-        // For now, just update the single feature
-        await updateFeatureMutation.mutateAsync({
+        const result = await updateFeatureMutation.mutateAsync({
           id,
           startDate,
           endDate,
         });
-
-        // If cascade is requested, shift features that come after
-        if (cascadeAfter) {
-          const feature = features.find((f) => f.id === id);
-          if (feature) {
-            const featureIndex = features
-              .sort((a, b) => a.sortOrder - b.sortOrder)
-              .findIndex((f) => f.id === id);
-
-            const followingFeatures = features
-              .sort((a, b) => a.sortOrder - b.sortOrder)
-              .slice(featureIndex + 1);
-
-            // Check if any following features need to be shifted
-            const originalEndDate = new Date(feature.endDate);
-            const daysDiff = Math.ceil(
-              (endDate.getTime() - originalEndDate.getTime()) /
-                (1000 * 60 * 60 * 24)
-            );
-
-            if (daysDiff > 0) {
-              // Shift following features
-              for (const f of followingFeatures) {
-                const newStart = new Date(f.startDate);
-                const newEnd = new Date(f.endDate);
-                newStart.setDate(newStart.getDate() + daysDiff);
-                newEnd.setDate(newEnd.getDate() + daysDiff);
-
-                await updateFeatureMutation.mutateAsync({
-                  id: f.id,
-                  startDate: newStart,
-                  endDate: newEnd,
-                });
-              }
-            }
-          }
-        }
+        return result.cascadedUpdates || [];
       } catch (error) {
         toast.error("Failed to update dates");
+        return [];
       }
     },
-    [updateFeatureMutation, features]
+    [updateFeatureMutation]
   );
 
   const handleStatusChange = useCallback(
@@ -307,6 +275,17 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
           isLoading={
             createFeatureMutation.isPending || updateFeatureMutation.isPending
           }
+        />
+
+        <GanttFeatureSheet
+          feature={sheetFeature}
+          open={featureSheetOpen}
+          onOpenChange={(open) => {
+            setFeatureSheetOpen(open);
+            if (!open) setSheetFeature(null);
+          }}
+          teams={teams}
+          projectName={selectedMilestone.name}
         />
       </div>
     );
