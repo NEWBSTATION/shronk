@@ -201,7 +201,6 @@ export function FeaturesDataTable<TData, TValue>({
     setDropTargetId(null);
   };
 
-  const totalWidth = table.getTotalSize();
 
   return (
     <div className="relative flex flex-col flex-1 min-h-0 gap-4">
@@ -217,14 +216,13 @@ export function FeaturesDataTable<TData, TValue>({
           ref={scrollContainerRef}
           className="h-full overflow-auto"
         >
-          {/* Wrapper to enforce minimum width for horizontal scroll */}
-          <div style={{ minWidth: totalWidth }}>
+          <div>
             {/* Header */}
             <div
               className="sticky top-0 z-20 bg-background border-b"
               role="row"
             >
-              <div className="flex" style={{ width: totalWidth }}>
+              <div className="flex min-w-full">
                 {table.getFlatHeaders().map((header) => {
                   const colId = header.column.id;
                   const pin = getPinMeta(colId);
@@ -339,14 +337,14 @@ export function FeaturesDataTable<TData, TValue>({
                     ref={(node) => virtualizer.measureElement(node)}
                     data-state={row.getIsSelected() ? "selected" : undefined}
                     className={cn(
-                      "group flex items-center hover:bg-muted data-[state=selected]:bg-muted cursor-pointer",
+                      "group flex items-center hover:bg-muted data-[state=selected]:bg-muted cursor-pointer shadow-[inset_0_-1px_0_0_var(--color-border)]",
                       row.depth > 0 && "bg-background"
                     )}
                     style={{
                       position: "absolute",
                       top: 0,
                       left: 0,
-                      width: totalWidth,
+                      minWidth: "100%",
                       transform: `translateY(${virtualRow.start}px)`,
                       height: ROW_HEIGHT,
                     }}
@@ -366,8 +364,8 @@ export function FeaturesDataTable<TData, TValue>({
                         <div
                           key={cell.id}
                           className={cn(
-                            "px-3 flex items-center whitespace-nowrap shrink-0 border-b [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
-                            isPinned && "bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted"
+                            "px-3 flex items-center whitespace-nowrap shrink-0 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+                            isPinned && "bg-background group-hover:bg-muted group-data-[state=selected]:bg-muted shadow-[inset_0_-1px_0_0_var(--color-border)]"
                           )}
                           style={{
                             width: cell.column.getSize(),
