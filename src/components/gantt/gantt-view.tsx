@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { startOfDay } from 'date-fns';
 import { Gantt } from '@svar-ui/react-gantt';
 import type { IApi } from '@svar-ui/react-gantt';
-import { GripVertical, Circle, Clock, PauseCircle, CheckCircle2, XCircle, ChevronRight, Plus, Minus } from 'lucide-react';
+import { GripVertical, Circle, Clock, PauseCircle, CircleCheck, XCircle, ChevronRight, Plus, Minus } from 'lucide-react';
 import { GanttToolbar } from './gantt-toolbar';
 import { MilestoneContextMenu } from './milestone-context-menu';
 import { SVARThemeWrapper } from './svar-theme-wrapper';
@@ -37,7 +37,7 @@ const STATUS_ICONS: Record<MilestoneStatus, typeof Circle> = {
   not_started: Circle,
   in_progress: Clock,
   on_hold: PauseCircle,
-  completed: CheckCircle2,
+  completed: CircleCheck,
   cancelled: XCircle,
 };
 

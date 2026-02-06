@@ -6,7 +6,7 @@ import {
   Circle,
   Play,
   Pause,
-  CheckCircle2,
+  CircleCheck,
   XCircle,
   AlertTriangle,
   ArrowUp,
@@ -35,7 +35,7 @@ const statusConfig: Record<
   },
   completed: {
     label: "Completed",
-    icon: CheckCircle2,
+    icon: CircleCheck,
     className: "bg-green-500/10 text-green-600 dark:text-green-400",
   },
   cancelled: {

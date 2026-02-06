@@ -5,10 +5,9 @@ import { ColumnDef } from "@tanstack/react-table";
 import { format, getYear } from "date-fns";
 import {
   Circle,
-  Clock,
-  PauseCircle,
-  CheckCircle2,
-  XCircle,
+  CircleCheck,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -39,42 +38,7 @@ interface Feature {
   milestoneName: string;
 }
 
-const STATUS_CONFIG = {
-  not_started: {
-    label: "Not Started",
-    icon: Circle,
-    className: "text-slate-500",
-  },
-  in_progress: {
-    label: "In Progress",
-    icon: Clock,
-    className: "text-blue-500",
-  },
-  on_hold: {
-    label: "On Hold",
-    icon: PauseCircle,
-    className: "text-amber-500",
-  },
-  completed: {
-    label: "Completed",
-    icon: CheckCircle2,
-    className: "text-green-500",
-  },
-  cancelled: {
-    label: "Cancelled",
-    icon: XCircle,
-    className: "text-red-400",
-  },
-};
-
 type DurationUnit = "d" | "w" | "mo" | "y";
-
-const UNIT_LABELS: Record<DurationUnit, string> = {
-  d: "day",
-  w: "wk",
-  mo: "mo",
-  y: "yr",
-};
 
 const UNIT_DAYS: Record<DurationUnit, number> = {
   d: 1,
@@ -116,28 +80,60 @@ function DurationCell({
     }
   };
 
+  const increment = () => {
+    const next = numValue + 1;
+    setNumValue(next);
+    commit(next, unit);
+  };
+
+  const decrement = () => {
+    const next = Math.max(1, numValue - 1);
+    setNumValue(next);
+    commit(next, unit);
+  };
+
   return (
     <div
       className="flex items-center gap-1"
       onClick={(e) => e.stopPropagation()}
     >
-      <input
-        type="number"
-        min={1}
-        className="h-7 w-11 rounded-md border border-input bg-transparent px-1.5 text-xs tabular-nums text-center outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        value={numValue}
-        onChange={(e) => {
-          const v = Math.max(1, parseInt(e.target.value) || 1);
-          setNumValue(v);
-        }}
-        onBlur={() => commit(numValue, unit)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            commit(numValue, unit);
-            (e.target as HTMLInputElement).blur();
-          }
-        }}
-      />
+      <div className="relative flex items-center">
+        <input
+          type="number"
+          min={1}
+          className="h-7 w-14 rounded-md border border-input bg-transparent pl-1.5 pr-5 text-xs tabular-nums text-center outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          value={numValue}
+          onChange={(e) => {
+            const v = Math.max(1, parseInt(e.target.value) || 1);
+            setNumValue(v);
+          }}
+          onBlur={() => commit(numValue, unit)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              commit(numValue, unit);
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+        />
+        <div className="absolute right-0 inset-y-0 flex flex-col border-l">
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={increment}
+            className="flex-1 flex items-center justify-center px-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-tr-md transition-colors"
+          >
+            <ChevronUp className="h-2.5 w-2.5" />
+          </button>
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={decrement}
+            className="flex-1 flex items-center justify-center px-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-br-md transition-colors"
+          >
+            <ChevronDown className="h-2.5 w-2.5" />
+          </button>
+        </div>
+      </div>
       <select
         className="h-7 rounded-md border border-input bg-transparent px-1 text-xs outline-none cursor-pointer focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
         value={unit}
@@ -156,59 +152,32 @@ function DurationCell({
   );
 }
 
-const STATUS_OPTIONS = Object.entries(STATUS_CONFIG).map(([value, config]) => ({
-  value: value as Feature["status"],
-  ...config,
-}));
-
-function StatusCell({
+function CompletedCell({
   status,
   featureId,
-  onStatusChange,
+  onToggleComplete,
 }: {
   status: Feature["status"];
   featureId: string;
-  onStatusChange: (id: string, status: Feature["status"]) => void;
+  onToggleComplete: (id: string, completed: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const config = STATUS_CONFIG[status];
-  const Icon = config.icon;
+  const isCompleted = status === "completed";
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className="flex items-center rounded p-0.5 -m-0.5 hover:bg-muted/50 transition-colors"
-          onClick={(e) => e.stopPropagation()}
-          title={config.label}
-        >
-          <Icon className={cn("h-4 w-4", config.className)} />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-[160px] p-1" onClick={(e) => e.stopPropagation()}>
-        {STATUS_OPTIONS.map((option) => {
-          const OptionIcon = option.icon;
-          return (
-            <button
-              key={option.value}
-              className={cn(
-                "flex items-center gap-2 w-full rounded px-2 py-1.5 text-xs hover:bg-accent transition-colors",
-                option.value === status && "bg-accent"
-              )}
-              onClick={() => {
-                if (option.value !== status) {
-                  onStatusChange(featureId, option.value);
-                }
-                setOpen(false);
-              }}
-            >
-              <OptionIcon className={cn("h-3.5 w-3.5", option.className)} />
-              {option.label}
-            </button>
-          );
-        })}
-      </PopoverContent>
-    </Popover>
+    <button
+      className="flex items-center rounded p-0.5 -m-0.5 hover:bg-muted/50 transition-colors"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggleComplete(featureId, !isCompleted);
+      }}
+      title={isCompleted ? "Mark incomplete" : "Mark completed"}
+    >
+      {isCompleted ? (
+        <CircleCheck className="h-4 w-4 text-green-500" fill="currentColor" />
+      ) : (
+        <Circle className="h-4 w-4 text-muted-foreground/40" />
+      )}
+    </button>
   );
 }
 
@@ -268,7 +237,7 @@ function DateCell({
 
 export function createColumns(
   onDurationChange: (id: string, duration: number) => void,
-  onStatusChange: (id: string, status: Feature["status"]) => void,
+  onToggleComplete: (id: string, completed: boolean) => void,
   onDateChange: (id: string, field: "startDate" | "endDate", date: Date) => void,
 ): ColumnDef<Feature>[] {
   return [
@@ -300,15 +269,38 @@ export function createColumns(
       enablePinning: true,
     },
     {
+      id: "completed",
+      header: "",
+      cell: ({ row }) => (
+        <CompletedCell
+          status={row.original.status}
+          featureId={row.original.id}
+          onToggleComplete={onToggleComplete}
+        />
+      ),
+      size: 36,
+      enableSorting: false,
+      enableHiding: false,
+      enableResizing: false,
+    },
+    {
       accessorKey: "title",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Title" />
       ),
-      cell: ({ row }) => (
-        <div className="truncate font-medium">
-          {row.getValue("title")}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const isCompleted = row.original.status === "completed";
+        return (
+          <div
+            className={cn(
+              "truncate font-medium",
+              isCompleted && "text-muted-foreground line-through",
+            )}
+          >
+            {row.getValue("title")}
+          </div>
+        );
+      },
       size: 200,
       minSize: 100,
       maxSize: 600,
@@ -349,26 +341,6 @@ export function createColumns(
       minSize: 150,
       maxSize: 220,
       enableResizing: true,
-    },
-    {
-      accessorKey: "status",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Status" />
-      ),
-      cell: ({ row }) => (
-        <StatusCell
-          status={row.getValue("status") as Feature["status"]}
-          featureId={row.original.id}
-          onStatusChange={onStatusChange}
-        />
-      ),
-      size: 50,
-      minSize: 40,
-      maxSize: 80,
-      enableResizing: true,
-      filterFn: (row, id, value: string[]) => {
-        return value.includes(row.getValue(id));
-      },
     },
     {
       accessorKey: "startDate",

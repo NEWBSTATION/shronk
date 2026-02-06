@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   Calendar,
-  CheckCircle2,
+  CircleCheck,
   ChevronRight,
   Clock,
   Layers,
@@ -110,7 +110,7 @@ export function MilestoneCard({
           {/* Status Badge */}
           {isCompleted ? (
             <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
-              <CheckCircle2 className="h-3 w-3 mr-1" />
+              <CircleCheck className="h-3 w-3 mr-1" fill="currentColor" />
               Complete
             </Badge>
           ) : isOverdue ? (

@@ -41,7 +41,7 @@ import {
   Circle,
   Clock,
   PauseCircle,
-  CheckCircle2,
+  CircleCheck,
   XCircle,
   Plus,
   ZoomIn,
@@ -80,7 +80,7 @@ const STATUS_ICONS: Record<MilestoneStatus, typeof Circle> = {
   not_started: Circle,
   in_progress: Clock,
   on_hold: PauseCircle,
-  completed: CheckCircle2,
+  completed: CircleCheck,
   cancelled: XCircle,
 };
 

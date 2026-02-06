@@ -1,16 +1,21 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { differenceInDays } from "date-fns";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   MilestoneOverview,
-  FeatureDialog,
 } from "@/components/milestone";
-import { SVARGanttView } from "@/components/gantt";
-import { GanttFeatureSheet } from "@/components/gantt/gantt-feature-sheet";
+import { FeatureSheet } from "@/components/feature-sheet";
+
+const SVARGanttView = dynamic(
+  () => import("@/components/gantt/svar-gantt-view").then((m) => m.SVARGanttView),
+  { ssr: false }
+);
 import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
 import {
   useMilestones,
@@ -39,12 +44,13 @@ type ViewLevel = "overview" | "detail";
 
 export function MilestonesView({ projects }: MilestonesViewProps) {
   const { clearBreadcrumbs, setHeaderAction, clearHeaderAction } = useHeader();
+  const searchParams = useSearchParams();
 
-  // Navigation state
-  const [viewLevel, setViewLevel] = useState<ViewLevel>("overview");
+  // Navigation state — local for instant transitions, synced to URL for refresh persistence
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(
-    null
+    () => searchParams.get("id")
   );
+  const viewLevel: ViewLevel = selectedMilestoneId ? "detail" : "overview";
 
   // Dialog states
   const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
@@ -69,10 +75,7 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
     return () => clearHeaderAction();
   }, [viewLevel, clearBreadcrumbs, setHeaderAction, clearHeaderAction]);
 
-  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
-  const [editingFeature, setEditingFeature] = useState<Milestone | null>(null);
-
-  // Sheet state for editing features from Gantt
+  // Unified sheet state (both create and edit)
   const [featureSheetOpen, setFeatureSheetOpen] = useState(false);
   const [sheetFeature, setSheetFeature] = useState<Milestone | null>(null);
 
@@ -107,21 +110,21 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
   const createDependencyMutation = useCreateDependency();
   const deleteDependencyMutation = useDeleteDependency();
 
-  // Handlers: Navigation
+  // Handlers: Navigation — update state + URL (no server roundtrip)
   const handleSelectMilestone = useCallback((milestoneId: string) => {
     setSelectedMilestoneId(milestoneId);
-    setViewLevel("detail");
+    window.history.replaceState(null, "", `/dashboard/milestones?id=${milestoneId}`);
   }, []);
 
   const handleBack = useCallback(() => {
-    setViewLevel("overview");
     setSelectedMilestoneId(null);
+    window.history.replaceState(null, "", "/dashboard/milestones");
   }, []);
 
   // Handlers: Feature CRUD
   const handleAddFeature = useCallback(() => {
-    setEditingFeature(null);
-    setFeatureDialogOpen(true);
+    setSheetFeature(null);
+    setFeatureSheetOpen(true);
   }, []);
 
   const handleEditFeature = useCallback((feature: Milestone) => {
@@ -129,8 +132,8 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
     setFeatureSheetOpen(true);
   }, []);
 
-  const handleSaveFeature = useCallback(
-    async (formData: {
+  const handleCreateFeature = useCallback(
+    (formData: {
       title: string;
       description?: string;
       startDate: Date;
@@ -140,35 +143,18 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
       teamId?: string | null;
     }) => {
       if (!selectedMilestoneId) return;
-
-      try {
-        if (editingFeature) {
-          await updateFeatureMutation.mutateAsync({
-            id: editingFeature.id,
-            ...formData,
-          });
-          toast.success("Feature updated");
-        } else {
-          await createFeatureMutation.mutateAsync({
-            projectId: selectedMilestoneId,
-            ...formData,
-          });
-          toast.success("Feature added");
+      createFeatureMutation.mutate(
+        { projectId: selectedMilestoneId, ...formData },
+        {
+          onSuccess: () => {
+            toast.success("Feature added");
+            setFeatureSheetOpen(false);
+          },
+          onError: () => toast.error("Failed to add feature"),
         }
-        setFeatureDialogOpen(false);
-        setEditingFeature(null);
-      } catch (error) {
-        toast.error(
-          editingFeature ? "Failed to update feature" : "Failed to add feature"
-        );
-      }
+      );
     },
-    [
-      selectedMilestoneId,
-      editingFeature,
-      createFeatureMutation,
-      updateFeatureMutation,
-    ]
+    [selectedMilestoneId, createFeatureMutation]
   );
 
   const handleDeleteFeature = useCallback(
@@ -292,21 +278,7 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
           onDeleteDependency={handleDeleteDependency}
         />
 
-        <FeatureDialog
-          open={featureDialogOpen}
-          onOpenChange={(open) => {
-            setFeatureDialogOpen(open);
-            if (!open) setEditingFeature(null);
-          }}
-          feature={editingFeature}
-          teams={teams}
-          onSave={handleSaveFeature}
-          isLoading={
-            createFeatureMutation.isPending || updateFeatureMutation.isPending
-          }
-        />
-
-        <GanttFeatureSheet
+        <FeatureSheet
           feature={sheetFeature}
           open={featureSheetOpen}
           onOpenChange={(open) => {
@@ -317,7 +289,9 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
           projectName={selectedMilestone.name}
           dependencies={dependencies}
           onUpdate={handleSheetUpdate}
+          onCreate={handleCreateFeature}
           onDelete={handleSheetDelete}
+          isLoading={createFeatureMutation.isPending}
         />
       </div>
     );

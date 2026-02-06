@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FeaturesDataTable } from "./data-table";
 import { createColumns } from "./columns";
 import { Layers, Plus } from "lucide-react";
-import { FeatureDialog } from "@/components/milestone/feature-dialog";
+import { FeatureSheet } from "@/components/feature-sheet";
 import { useHeader } from "@/components/header-context";
 import type { MilestoneStatus } from "@/db/schema";
 
@@ -52,7 +52,7 @@ async function fetchFeatures(): Promise<FeaturesResponse> {
 export function FeaturesView() {
   const queryClient = useQueryClient();
   const { setHeaderAction, clearHeaderAction } = useHeader();
-  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
+  const [featureSheetOpen, setFeatureSheetOpen] = useState(false);
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
@@ -70,7 +70,7 @@ export function FeaturesView() {
         <Button
           onClick={() => {
             setSelectedMilestoneId(milestoneOptions[0]?.id || null);
-            setFeatureDialogOpen(true);
+            setFeatureSheetOpen(true);
           }}
           className="h-7 text-xs"
         >
@@ -113,15 +113,18 @@ export function FeaturesView() {
     [updateDurationMutation]
   );
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+  const toggleCompleteMutation = useMutation({
+    mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
       const response = await fetch(`/api/milestones/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status: completed ? "completed" : "not_started",
+          progress: completed ? 100 : 0,
+        }),
       });
       if (!response.ok) {
-        throw new Error("Failed to update status");
+        throw new Error("Failed to update");
       }
       return response.json();
     },
@@ -130,15 +133,15 @@ export function FeaturesView() {
       queryClient.invalidateQueries({ queryKey: ["milestones"] });
     },
     onError: () => {
-      toast.error("Failed to update status");
+      toast.error("Failed to update completion");
     },
   });
 
-  const handleStatusChange = useCallback(
-    (id: string, status: string) => {
-      updateStatusMutation.mutate({ id, status });
+  const handleToggleComplete = useCallback(
+    (id: string, completed: boolean) => {
+      toggleCompleteMutation.mutate({ id, completed });
     },
-    [updateStatusMutation]
+    [toggleCompleteMutation]
   );
 
   const updateDateMutation = useMutation({
@@ -170,8 +173,8 @@ export function FeaturesView() {
   );
 
   const columns = useMemo(
-    () => createColumns(handleDurationChange, handleStatusChange, handleDateChange),
-    [handleDurationChange, handleStatusChange, handleDateChange]
+    () => createColumns(handleDurationChange, handleToggleComplete, handleDateChange),
+    [handleDurationChange, handleToggleComplete, handleDateChange]
   );
 
   const createFeatureMutation = useMutation({
@@ -200,7 +203,7 @@ export function FeaturesView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
       toast.success("Feature created");
-      setFeatureDialogOpen(false);
+      setFeatureSheetOpen(false);
     },
     onError: () => {
       toast.error("Failed to create feature");
@@ -264,12 +267,12 @@ export function FeaturesView() {
         milestoneOptions={milestoneOptions}
       />
 
-      <FeatureDialog
-        open={featureDialogOpen}
-        onOpenChange={setFeatureDialogOpen}
+      <FeatureSheet
+        open={featureSheetOpen}
+        onOpenChange={setFeatureSheetOpen}
         feature={null}
         teams={[]}
-        onSave={handleSaveFeature}
+        onCreate={handleSaveFeature}
         isLoading={createFeatureMutation.isPending}
         milestoneOptions={milestoneOptions}
         selectedMilestoneId={selectedMilestoneId}

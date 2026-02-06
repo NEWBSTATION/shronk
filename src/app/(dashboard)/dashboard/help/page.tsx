@@ -1,14 +1,6 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import Image from "next/image";
 
-export default async function HelpPage() {
-  const { userId } = await auth();
-
-  if (!userId) {
-    redirect("/sign-in");
-  }
-
+export default function HelpPage() {
   return (
     <div className="flex flex-1 items-center justify-center">
       <Image

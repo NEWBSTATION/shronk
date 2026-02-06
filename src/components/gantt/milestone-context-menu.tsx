@@ -3,7 +3,7 @@ import {
   Trash2,
   Play,
   Pause,
-  CheckCircle2,
+  CircleCheck,
   XCircle,
   Circle,
   Flag,
@@ -35,7 +35,7 @@ const statusOptions: { value: MilestoneStatus; label: string; icon: typeof Circl
   { value: 'not_started', label: 'Not Started', icon: Circle, color: 'text-muted-foreground' },
   { value: 'in_progress', label: 'In Progress', icon: Play, color: 'text-blue-500' },
   { value: 'on_hold', label: 'On Hold', icon: Pause, color: 'text-amber-500' },
-  { value: 'completed', label: 'Completed', icon: CheckCircle2, color: 'text-emerald-500' },
+  { value: 'completed', label: 'Completed', icon: CircleCheck, color: 'text-emerald-500' },
   { value: 'cancelled', label: 'Cancelled', icon: XCircle, color: 'text-red-500' },
 ];
 

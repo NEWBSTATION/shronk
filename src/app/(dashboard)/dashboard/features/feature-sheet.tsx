@@ -9,7 +9,7 @@ import {
   Circle,
   Clock,
   PauseCircle,
-  CheckCircle2,
+  CircleCheck,
   XCircle,
   ArrowDown,
   Minus,
@@ -85,7 +85,7 @@ const STATUS_OPTIONS = [
   { value: "not_started", label: "Not Started", icon: Circle, className: "text-slate-500" },
   { value: "in_progress", label: "In Progress", icon: Clock, className: "text-blue-500" },
   { value: "on_hold", label: "On Hold", icon: PauseCircle, className: "text-amber-500" },
-  { value: "completed", label: "Completed", icon: CheckCircle2, className: "text-green-500" },
+  { value: "completed", label: "Completed", icon: CircleCheck, className: "text-green-500" },
   { value: "cancelled", label: "Cancelled", icon: XCircle, className: "text-red-400" },
 ];
 

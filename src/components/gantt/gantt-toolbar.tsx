@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { GitBranch, Calendar, Filter, X, Search, Circle, Clock, PauseCircle, CheckCircle2, XCircle, Flag, Users, PanelLeftClose, PanelLeftOpen, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, Type, CalendarDays, ZoomIn, ZoomOut } from 'lucide-react';
+import { GitBranch, Calendar, Filter, X, Search, Circle, Clock, PauseCircle, CircleCheck, XCircle, Flag, Users, PanelLeftClose, PanelLeftOpen, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, Type, CalendarDays, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -31,7 +31,7 @@ const STATUS_CONFIG: Record<MilestoneStatus, { icon: typeof Circle; label: strin
   not_started: { icon: Circle, label: 'Not Started', color: 'var(--status-not-started)' },
   in_progress: { icon: Clock, label: 'In Progress', color: 'var(--status-in-progress)' },
   on_hold: { icon: PauseCircle, label: 'On Hold', color: 'var(--status-on-hold)' },
-  completed: { icon: CheckCircle2, label: 'Completed', color: 'var(--status-completed)' },
+  completed: { icon: CircleCheck, label: 'Completed', color: 'var(--status-completed)' },
   cancelled: { icon: XCircle, label: 'Cancelled', color: 'var(--status-cancelled)' },
 };
 
