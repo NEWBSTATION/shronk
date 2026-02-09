@@ -308,6 +308,18 @@ export function createColumns(
       enablePinning: true,
     },
     {
+      accessorKey: "status",
+      header: "Status",
+      enableHiding: true,
+      enableSorting: false,
+      size: 0,
+      filterFn: (row, id, value: string[]) => {
+        if (!value.length) return true;
+        return value.includes(row.getValue(id));
+      },
+      meta: { hidden: true },
+    },
+    {
       accessorKey: "milestoneName",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Milestone" />

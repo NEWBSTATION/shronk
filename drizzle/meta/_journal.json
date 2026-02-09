@@ -8,6 +8,13 @@
       "when": 1770662507285,
       "tag": "0000_little_thunderbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1770664263768,
+      "tag": "0001_skinny_golden_guardian",
+      "breakpoints": true
     }
   ]
 }

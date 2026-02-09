@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { startOfDay, addDays, differenceInDays } from 'date-fns';
+import { startOfDay, addDays, addMonths, subMonths, differenceInDays } from 'date-fns';
 import { Gantt } from '@svar-ui/react-gantt';
 import type { IApi } from '@svar-ui/react-gantt';
 import { Plus, Minus, GitBranch } from 'lucide-react';
@@ -25,6 +25,44 @@ import { reflowProject, type ReflowMilestone, type ReflowDependency } from '@/li
 import type { CascadedUpdate } from '@/hooks/use-milestones';
 import type { TimePeriod, SVARTask, SVARLink } from './types';
 import type { Milestone, MilestoneDependency, MilestoneStatus, MilestonePriority, Team, Project } from '@/db/schema';
+
+const ADD_FEATURE_TASK_ID = '__add_feature__';
+
+// Timeline windowing — initial padding (months each side) and expansion chunk (months)
+const WINDOW_PADDING: Record<TimePeriod, number> = {
+  week: 3,
+  month: 6,
+  quarter: 12,
+  year: 24,
+};
+const EXPANSION_CHUNK: Record<TimePeriod, number> = {
+  week: 2,
+  month: 4,
+  quarter: 6,
+  year: 12,
+};
+
+function computeInitialWindow(
+  features: Milestone[],
+  timePeriod: TimePeriod,
+): { start: Date; end: Date } {
+  const today = startOfDay(new Date());
+  const padding = WINDOW_PADDING[timePeriod];
+  let minDate = today;
+  let maxDate = today;
+  for (const f of features) {
+    const s = toLocalMidnight(f.startDate);
+    const e = toLocalMidnight(f.endDate);
+    if (s < minDate) minDate = s;
+    if (e > maxDate) maxDate = e;
+  }
+  const start = subMonths(minDate, padding);
+  const end = addMonths(maxDate, padding);
+  return {
+    start: start < TIMELINE_START_DATE ? TIMELINE_START_DATE : start,
+    end: end > TIMELINE_END_DATE ? TIMELINE_END_DATE : end,
+  };
+}
 
 // Zoom level configuration
 const ZOOM_CONFIG: Record<TimePeriod, { min: number; max: number }> = {
@@ -87,10 +125,168 @@ export function SVARGanttView({
   onEditRef.current = onEdit;
   const onUpdateDatesRef = useRef(onUpdateDates);
   onUpdateDatesRef.current = onUpdateDates;
+  const onAddFeatureRef = useRef(onAddFeature);
+  onAddFeatureRef.current = onAddFeature;
+  const onCreateDependencyRef = useRef(onCreateDependency);
+  onCreateDependencyRef.current = onCreateDependency;
+  const onDeleteDependencyRef = useRef(onDeleteDependency);
+  onDeleteDependencyRef.current = onDeleteDependency;
+
+  // --- Timeline windowing (lazy-load columns) ---
+  const [windowStart, setWindowStart] = useState<Date>(() => computeInitialWindow(features, timePeriod).start);
+  const [windowEnd, setWindowEnd] = useState<Date>(() => computeInitialWindow(features, timePeriod).end);
+
+  // Refs so scroll handler always sees latest values without re-registering
+  const windowStartRef = useRef(windowStart);
+  windowStartRef.current = windowStart;
+  const windowEndRef = useRef(windowEnd);
+  windowEndRef.current = windowEnd;
+  const timePeriodRef = useRef(timePeriod);
+  timePeriodRef.current = timePeriod;
+  const cellWidthRef = useRef(0); // updated below after cellWidth is computed
+
+  // Expansion lock + scroll preservation for left expansion
+  const isExpandingRef = useRef(false);
+  const scrollAdjustRef = useRef<{ oldStart: Date; oldScrollLeft: number } | null>(null);
+
+  // Reset window when time period changes
+  const prevTimePeriodRef = useRef(timePeriod);
+  useEffect(() => {
+    if (prevTimePeriodRef.current !== timePeriod) {
+      prevTimePeriodRef.current = timePeriod;
+      const w = computeInitialWindow(features, timePeriod);
+      setWindowStart(w.start);
+      setWindowEnd(w.end);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timePeriod]);
+
+  // Auto-expand window if any feature falls outside (e.g. newly created)
+  useEffect(() => {
+    let newStart = windowStart;
+    let newEnd = windowEnd;
+    let changed = false;
+    for (const f of features) {
+      const s = toLocalMidnight(f.startDate);
+      const e = toLocalMidnight(f.endDate);
+      if (s < newStart) { newStart = subMonths(s, 1); changed = true; }
+      if (e > newEnd) { newEnd = addMonths(e, 1); changed = true; }
+    }
+    if (changed) {
+      if (newStart < TIMELINE_START_DATE) newStart = TIMELINE_START_DATE;
+      if (newEnd > TIMELINE_END_DATE) newEnd = TIMELINE_END_DATE;
+      setWindowStart(newStart);
+      setWindowEnd(newEnd);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [features]);
+
+  // Helper to find the SVAR chart scroll element
+  const getScrollElement = useCallback(() => {
+    const container = ganttContainerRef.current;
+    if (!container) return null;
+    const wxArea = container.querySelector('.wx-area') as HTMLElement;
+    return wxArea?.parentElement || null;
+  }, []);
+
+  // Attach scroll listener for edge-based expansion (once after SVAR mounts)
+  useEffect(() => {
+    let mounted = true;
+    let scrollEl: HTMLElement | null = null;
+
+    const handleScroll = () => {
+      if (isExpandingRef.current || !scrollEl) return;
+      const { scrollLeft, scrollWidth, clientWidth } = scrollEl;
+      const threshold = clientWidth; // 1 viewport width from edge
+
+      let expandLeft = false;
+      let expandRight = false;
+
+      if (scrollLeft < threshold && windowStartRef.current > TIMELINE_START_DATE) {
+        expandLeft = true;
+      }
+      if (scrollLeft + clientWidth > scrollWidth - threshold && windowEndRef.current < TIMELINE_END_DATE) {
+        expandRight = true;
+      }
+
+      if (!expandLeft && !expandRight) return;
+      isExpandingRef.current = true;
+
+      if (expandLeft) {
+        scrollAdjustRef.current = {
+          oldStart: windowStartRef.current,
+          oldScrollLeft: scrollLeft,
+        };
+        setWindowStart((prev) => {
+          const chunk = EXPANSION_CHUNK[timePeriodRef.current];
+          const next = subMonths(prev, chunk);
+          return next < TIMELINE_START_DATE ? TIMELINE_START_DATE : next;
+        });
+      }
+      if (expandRight) {
+        setWindowEnd((prev) => {
+          const chunk = EXPANSION_CHUNK[timePeriodRef.current];
+          const next = addMonths(prev, chunk);
+          return next > TIMELINE_END_DATE ? TIMELINE_END_DATE : next;
+        });
+      }
+    };
+
+    // Retry until SVAR's scroll container is in the DOM
+    const tryAttach = () => {
+      scrollEl = getScrollElement();
+      if (!scrollEl) {
+        if (mounted) requestAnimationFrame(tryAttach);
+        return;
+      }
+      scrollEl.addEventListener('scroll', handleScroll, { passive: true });
+    };
+    requestAnimationFrame(tryAttach);
+
+    return () => {
+      mounted = false;
+      scrollEl?.removeEventListener('scroll', handleScroll);
+    };
+  }, [getScrollElement]);
+
+  // After window change, preserve scroll position (left expansion shifts content right)
+  const prevWindowRef = useRef({ start: windowStart, end: windowEnd });
+  useEffect(() => {
+    const prev = prevWindowRef.current;
+    prevWindowRef.current = { start: windowStart, end: windowEnd };
+
+    const adj = scrollAdjustRef.current;
+    if (adj && windowStart < prev.start) {
+      scrollAdjustRef.current = null;
+      // Double-rAF: wait for SVAR to render new cells
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const api = ganttApiRef.current;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const state = api?.getState() as any;
+          const scales = state?._scales;
+          if (scales?.diff && scales.lengthUnit) {
+            const addedPixels = Math.round(
+              scales.diff(adj.oldStart, windowStart, scales.lengthUnit) * cellWidthRef.current,
+            );
+            const scrollEl = getScrollElement();
+            if (scrollEl && addedPixels > 0) {
+              scrollEl.scrollLeft = adj.oldScrollLeft + addedPixels;
+              api?.exec('scroll-chart', { left: adj.oldScrollLeft + addedPixels });
+            }
+          }
+          isExpandingRef.current = false;
+        });
+      });
+    } else {
+      isExpandingRef.current = false;
+    }
+  }, [windowStart, windowEnd, getScrollElement]);
 
   // Zoom anchoring: track cursor position so zooming keeps the date under cursor in place
   const cursorInfoRef = useRef<{ absoluteX: number; viewportX: number } | null>(null);
   const zoomAnchorRef = useRef<{ fractionalUnits: number; viewportX: number } | null>(null);
+  const zoomAnchorClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCursorMove = useCallback((info: { absoluteX: number; viewportX: number } | null) => {
     cursorInfoRef.current = info;
@@ -102,16 +298,17 @@ export function SVARGanttView({
     return () => clearBreadcrumbs();
   }, [project.name, onBack, setBreadcrumbs, clearBreadcrumbs]);
 
-  // Set header action
+  // Set header action (use ref to avoid effect churn)
   useEffect(() => {
     setHeaderAction(
-      <Button onClick={onAddFeature} size="sm">
+      <Button onClick={() => onAddFeatureRef.current()} size="sm">
         <Plus className="h-4 w-4 mr-1.5" />
         New Feature
       </Button>
     );
     return () => clearHeaderAction();
-  }, [onAddFeature, setHeaderAction, clearHeaderAction]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setHeaderAction, clearHeaderAction]);
 
   // Sort and transform features
   const sortedFeatures = useMemo(() => {
@@ -119,7 +316,19 @@ export function SVARGanttView({
   }, [features]);
 
   const tasks: SVARTask[] = useMemo(() => {
-    return sortedFeatures.map(milestoneToSVARTask);
+    const featureTasks = sortedFeatures.map(milestoneToSVARTask);
+    // Sentinel row: "+ Add feature" (like ClickUp)
+    featureTasks.push({
+      id: ADD_FEATURE_TASK_ID,
+      text: '',
+      start: TIMELINE_START_DATE,
+      end: TIMELINE_START_DATE, // 0-width → no visible bar
+      duration: 0,
+      durationText: '',
+      progress: 0,
+      type: 'task',
+    });
+    return featureTasks;
   }, [sortedFeatures]);
 
   const links: SVARLink[] = useMemo(() => {
@@ -201,6 +410,7 @@ export function SVARGanttView({
     const { min, max } = ZOOM_CONFIG[timePeriod];
     return Math.round(min + (max - min) * ((zoomLevel - 1) / 8));
   }, [zoomLevel, timePeriod]);
+  cellWidthRef.current = cellWidth;
 
   // Scale config — adapts labels when cells are too narrow (e.g. drops day letter in week view)
   const scales = useMemo(() => getScaleConfig(timePeriod, cellWidth), [timePeriod, cellWidth]);
@@ -253,6 +463,9 @@ export function SVARGanttView({
       const taskId = String(id);
       isDraggingRef.current = true;
       draggedTaskIdRef.current = taskId;
+
+      // Skip sentinel row
+      if (taskId === ADD_FEATURE_TASK_ID) return;
 
       // Get the original task data from our feature map
       const original = featureMapRef.current.get(taskId);
@@ -386,6 +599,7 @@ export function SVARGanttView({
       if (isDraggingRef.current) return;
 
       const taskId = String((ev as Record<string, unknown>).id ?? ev.task?.id);
+      if (taskId === ADD_FEATURE_TASK_ID) return;
       const task = ev.task;
       if (!taskId || !task?.start || !task?.end) return;
 
@@ -406,7 +620,8 @@ export function SVARGanttView({
     api.on('add-link', (ev) => {
       const link = ev.link;
       if (link?.source && link.target) {
-        onCreateDependency(link.source as string, link.target as string);
+        if (link.source === ADD_FEATURE_TASK_ID || link.target === ADD_FEATURE_TASK_ID) return;
+        onCreateDependencyRef.current(link.source as string, link.target as string);
       }
     });
 
@@ -417,9 +632,20 @@ export function SVARGanttView({
           (d) => d.predecessorId === link.source && d.successorId === link.target
         );
         if (dep) {
-          onDeleteDependency(dep.id);
+          onDeleteDependencyRef.current(dep.id);
         }
       }
+    });
+
+    // Intercept select on sentinel to trigger add feature
+    api.intercept('select-task', (ev) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((ev as any).id === ADD_FEATURE_TASK_ID) {
+        // Defer to next microtask to avoid SVAR re-entrant state loop
+        Promise.resolve().then(() => onAddFeatureRef.current());
+        return false;
+      }
+      return true;
     });
 
     // Open sheet on single-click (select)
@@ -432,7 +658,8 @@ export function SVARGanttView({
 
     // Prevent SVAR's built-in editor on double-click
     api.intercept('show-editor', () => false);
-  }, [onCreateDependency, onDeleteDependency]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Scroll to today using SVAR's internal scales for accurate pixel calculation
   const scrollToToday = useCallback(() => {
@@ -474,6 +701,53 @@ export function SVARGanttView({
     };
   }, []);
 
+  // Row hover highlight — spans both left grid and right chart
+  const rowHoverRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const container = ganttContainerRef.current;
+    if (!container) return;
+
+    // Create the highlight element
+    const highlight = document.createElement('div');
+    highlight.className = 'gantt-row-hover';
+    highlight.style.cssText =
+      'position:absolute;left:0;right:0;pointer-events:none;opacity:0;transition:opacity 0.1s;z-index:0;';
+    highlight.style.height = `${ROW_HEIGHT}px`;
+    container.appendChild(highlight);
+    rowHoverRef.current = highlight;
+
+    const headerOffset = SCALE_HEIGHT * 2;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+
+      // Only highlight rows below the timescale header
+      if (y <= headerOffset || y >= rect.height) {
+        highlight.style.opacity = '0';
+        return;
+      }
+
+      const rowIndex = Math.floor((y - headerOffset) / ROW_HEIGHT);
+      const rowTop = headerOffset + rowIndex * ROW_HEIGHT;
+
+      highlight.style.top = `${rowTop}px`;
+      highlight.style.opacity = '1';
+    };
+
+    const handleMouseLeave = () => {
+      highlight.style.opacity = '0';
+    };
+
+    container.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mouseleave', handleMouseLeave);
+    return () => {
+      container.removeEventListener('mousemove', handleMouseMove);
+      container.removeEventListener('mouseleave', handleMouseLeave);
+      highlight.remove();
+    };
+  }, []);
+
   // Zoom handlers
   const handleZoomIn = useCallback(() => setZoomLevel((p) => Math.min(9, p + 1)), []);
   const handleZoomOut = useCallback(() => setZoomLevel((p) => Math.max(1, p - 1)), []);
@@ -487,22 +761,34 @@ export function SVARGanttView({
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
 
-      const api = ganttApiRef.current;
-      if (api) {
-        const wxArea = container.querySelector('.wx-area') as HTMLElement;
-        const scrollContainer = wxArea?.parentElement;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const state = api.getState() as any;
-        if (scrollContainer && state?.cellWidth) {
-          const rect = scrollContainer.getBoundingClientRect();
-          const viewportX = e.clientX - rect.left;
-          if (viewportX >= 0 && viewportX <= rect.width) {
-            const absoluteX = viewportX + scrollContainer.scrollLeft;
-            const fractionalUnits = absoluteX / state.cellWidth;
-            zoomAnchorRef.current = { fractionalUnits, viewportX };
+      // Only capture anchor if no pending one exists — during rapid zoom,
+      // the first capture is always consistent (cellWidth + scrollLeft match).
+      // Subsequent events before render see stale values and would corrupt it.
+      if (!zoomAnchorRef.current) {
+        const api = ganttApiRef.current;
+        if (api) {
+          const wxArea = container.querySelector('.wx-area') as HTMLElement;
+          const scrollContainer = wxArea?.parentElement;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const state = api.getState() as any;
+          if (scrollContainer && state?.cellWidth) {
+            const rect = scrollContainer.getBoundingClientRect();
+            const viewportX = e.clientX - rect.left;
+            if (viewportX >= 0 && viewportX <= rect.width) {
+              const absoluteX = viewportX + scrollContainer.scrollLeft;
+              const fractionalUnits = absoluteX / state.cellWidth;
+              zoomAnchorRef.current = { fractionalUnits, viewportX };
+            }
           }
         }
       }
+
+      // Keep anchor alive while zooming — clear only after activity settles
+      if (zoomAnchorClearRef.current) clearTimeout(zoomAnchorClearRef.current);
+      zoomAnchorClearRef.current = setTimeout(() => {
+        zoomAnchorRef.current = null;
+        zoomAnchorClearRef.current = null;
+      }, 200);
 
       if (e.deltaY < 0) {
         setZoomLevel((p) => Math.min(9, p + 1));
@@ -512,14 +798,73 @@ export function SVARGanttView({
     };
 
     container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      if (zoomAnchorClearRef.current) clearTimeout(zoomAnchorClearRef.current);
+    };
   }, []);
 
+  // Middle-click grab-to-pan (replaces browser auto-scroll)
+  useEffect(() => {
+    const container = ganttContainerRef.current;
+    if (!container) return;
+
+    let isPanning = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    // Block the default auto-scroll on middle-click
+    const handleAuxClick = (e: MouseEvent) => {
+      if (e.button === 1) e.preventDefault();
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button !== 1) return; // middle button only
+      e.preventDefault();
+      isPanning = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      container.style.cursor = 'grabbing';
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isPanning) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+
+      const scrollEl = getScrollElement();
+      if (scrollEl) {
+        scrollEl.scrollLeft -= dx;
+        scrollEl.scrollTop -= dy;
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button !== 1 || !isPanning) return;
+      isPanning = false;
+      container.style.cursor = '';
+    };
+
+    container.addEventListener('mousedown', handleMouseDown);
+    container.addEventListener('auxclick', handleAuxClick);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      container.removeEventListener('mousedown', handleMouseDown);
+      container.removeEventListener('auxclick', handleAuxClick);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [getScrollElement]);
+
   // After cellWidth changes, scroll to keep the anchored point at the same viewport position.
+  // The anchor persists across rapid zoom (cleared by timeout in wheel handler, not here).
+  // Query the scroll element fresh each call (SVAR may recreate DOM nodes during re-render).
   useEffect(() => {
     const anchor = zoomAnchorRef.current;
     if (!anchor) return;
-    zoomAnchorRef.current = null;
 
     const container = ganttContainerRef.current;
     const api = ganttApiRef.current;
@@ -537,10 +882,42 @@ export function SVARGanttView({
     };
 
     applyScroll();
-    const raf = requestAnimationFrame(applyScroll);
+    const raf1 = requestAnimationFrame(() => {
+      applyScroll();
+      requestAnimationFrame(applyScroll);
+    });
 
-    return () => cancelAnimationFrame(raf);
+    return () => cancelAnimationFrame(raf1);
   }, [cellWidth]);
+
+  // Memoize columns to prevent SVAR Grid re-initialization on every render
+  const columns = useMemo(() => [
+    {
+      id: 'text',
+      header: 'Feature',
+      width: 200,
+      resize: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cell: ({ row }: any) => {
+        if (row.id === ADD_FEATURE_TASK_ID) {
+          return (
+            <div className="flex items-center gap-1.5 w-full text-muted-foreground cursor-pointer">
+              <Plus className="h-3.5 w-3.5" />
+              <span className="text-xs">Add feature</span>
+            </div>
+          );
+        }
+        return (
+          <div className="flex items-center justify-between gap-2 w-full overflow-hidden">
+            <span className="truncate">{row.text}</span>
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+              {row.durationText}
+            </span>
+          </div>
+        );
+      },
+    },
+  ], []);
 
   return (
     <div className="flex flex-col h-full min-h-0 border border-border rounded-lg overflow-hidden">
@@ -590,6 +967,7 @@ export function SVARGanttView({
         style={{
           '--gantt-cell-width': `${cellWidth}px`,
           '--gantt-row-height': `${ROW_HEIGHT}px`,
+          maxHeight: `${tasks.length * ROW_HEIGHT + SCALE_HEIGHT * 2}px`,
         } as React.CSSProperties}
       >
         <SVARThemeWrapper>
@@ -597,28 +975,13 @@ export function SVARGanttView({
             tasks={tasks}
             links={links}
             scales={scales}
-            columns={[
-              {
-                id: 'text',
-                header: 'Feature',
-                width: 200,
-                resize: true,
-                cell: ({ row }: { row: SVARTask }) => (
-                  <div className="flex items-center justify-between gap-2 w-full overflow-hidden">
-                    <span className="truncate">{row.text}</span>
-                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                      {row.durationText}
-                    </span>
-                  </div>
-                ),
-              },
-            ]}
+            columns={columns}
             cellWidth={cellWidth}
             cellHeight={ROW_HEIGHT}
             scaleHeight={SCALE_HEIGHT}
-            start={TIMELINE_START_DATE}
-            end={TIMELINE_END_DATE}
-            cellBorders="full"
+            start={windowStart}
+            end={windowEnd}
+            cellBorders="column"
             highlightTime={highlightTime}
             init={initGantt}
           />
@@ -626,8 +989,8 @@ export function SVARGanttView({
 
         {/* Custom Today Marker (SVAR markers are paywalled) */}
         <TodayMarker
-          timelineStart={TIMELINE_START_DATE}
-          timelineEnd={TIMELINE_END_DATE}
+          timelineStart={windowStart}
+          timelineEnd={windowEnd}
           timePeriod={timePeriod}
           cellWidth={cellWidth}
           scaleHeight={SCALE_HEIGHT}
@@ -642,9 +1005,9 @@ export function SVARGanttView({
 
         {/* Zoom controls overlay */}
         <div
-          className="absolute flex flex-col rounded-md border border-border bg-background/95 backdrop-blur-sm shadow-sm overflow-hidden"
+          className="absolute flex flex-col rounded-md border border-border bg-background/95 backdrop-blur-sm shadow-sm overflow-hidden z-10"
           style={{
-            top: `${SCALE_HEIGHT * 2 + 8}px`,
+            top: '8px',
             right: '12px',
           }}
         >

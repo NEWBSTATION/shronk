@@ -610,20 +610,15 @@ pre {
   border-bottom: 1px solid var(--border) !important;
 }
 
-/* Header row bottom border */
-.gantt-theme-wrapper [class*="wx-header"] {
-  border-bottom: 1px solid var(--border) !important;
-}
+/* Header row bottom border - rely on SVAR's own border, no extra needed */
 
-/* Header cells - right border */
-.gantt-theme-wrapper [class*="wx-header"] [class*="wx-cell"] {
-  border-right: 1px solid var(--border) !important;
-}
+/* Header cells - SVAR cellBorders="column" handles right borders */
 
-/* Timescale cells - right and bottom borders */
+/* Timescale cells - right border */
 .gantt-theme-wrapper [class*="wx-scale"] [class*="wx-cell"] {
   border-right: 1px solid var(--border) !important;
 }
+/* Timescale rows - bottom border separates header rows and chart body */
 .gantt-theme-wrapper [class*="wx-scale"] [class*="wx-row"] {
   border-bottom: 1px solid var(--border) !important;
 }
@@ -713,31 +708,10 @@ pre {
    The overlay children (.wx-bars, .wx-holidays, etc.) are absolutely positioned
    on top of .wx-area, so they MUST stay transparent to show the grid through */
 
-/* Chart area - grid pattern with theme background */
+/* Chart area - background only (SVAR cellBorders="column" handles vertical lines) */
 .gantt-theme-wrapper [class*="wx-chart"] > [class*="wx-area"],
 .gantt-theme-wrapper [class*="wx-area"]:not([class*="wx-sidearea"]):not([class*="wx-tooltip"]) {
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0px,
-      transparent calc(var(--gantt-row-height, 52px) - 1px),
-      var(--border) calc(var(--gantt-row-height, 52px) - 1px),
-      var(--border) var(--gantt-row-height, 52px)
-    ),
-    repeating-linear-gradient(
-      to right,
-      transparent 0px,
-      transparent calc(var(--gantt-cell-width, 60px) - 1px),
-      var(--border) calc(var(--gantt-cell-width, 60px) - 1px),
-      var(--border) var(--gantt-cell-width, 60px)
-    ),
-    var(--background) !important;
-  background-size:
-    100% var(--gantt-row-height, 52px),
-    var(--gantt-cell-width, 60px) 100%,
-    100% 100% !important;
-  background-position: top left !important;
-  background-repeat: repeat !important;
+  background: var(--background) !important;
 }
 
 /* Overlays inside .wx-area must be transparent so grid shows through */
@@ -786,6 +760,14 @@ pre {
 .cursor-marker-label {
   font-family: var(--font-sans);
   box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+/* ================================================
+   Row Hover Highlight - Full-width strip
+   ================================================ */
+
+.gantt-row-hover {
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
 }
 
 

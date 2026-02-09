@@ -75,8 +75,12 @@ export function FeaturesDataTable<TData, TValue>({
   const [grouping, setGrouping] = React.useState<GroupingState>([]);
   const [expanded, setExpanded] = React.useState({});
 
-  const columnVisibility = useFeaturesTableStore((s) => s.columnVisibility);
+  const storedVisibility = useFeaturesTableStore((s) => s.columnVisibility);
   const setColumnVisibility = useFeaturesTableStore((s) => s.setColumnVisibility);
+  const columnVisibility = React.useMemo(
+    () => ({ ...storedVisibility, status: false }),
+    [storedVisibility]
+  );
   const columnOrder = useFeaturesTableStore((s) => s.columnOrder);
   const setColumnOrder = useFeaturesTableStore((s) => s.setColumnOrder);
   const columnSizing = useFeaturesTableStore((s) => s.columnSizing);

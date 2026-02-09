@@ -37,11 +37,14 @@ export function RichTextEditor({
   className,
 }: RichTextEditorProps) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },
         bulletList: { keepMarks: true },
         orderedList: { keepMarks: true },
+        link: false,
+        underline: false,
       }),
       Placeholder.configure({ placeholder }),
       Underline,

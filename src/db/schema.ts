@@ -99,6 +99,20 @@ export const milestones = pgTable("milestones", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Dashboard layouts table
+export const dashboardLayouts = pgTable("dashboard_layouts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(),
+  widgets: text("widgets").notNull(), // JSON string of WidgetConfig[]
+  globalFilters: text("global_filters"), // JSON string of GlobalFilters
+  updatedBy: varchar("updated_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Milestone dependencies table
 export const milestoneDependencies = pgTable("milestone_dependencies", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -112,9 +126,13 @@ export const milestoneDependencies = pgTable("milestone_dependencies", {
 });
 
 // Relations
-export const projectsRelations = relations(projects, ({ many }) => ({
+export const projectsRelations = relations(projects, ({ many, one }) => ({
   milestones: many(milestones),
   teams: many(teams),
+  dashboardLayout: one(dashboardLayouts, {
+    fields: [projects.id],
+    references: [dashboardLayouts.projectId],
+  }),
 }));
 
 export const teamsRelations = relations(teams, ({ one, many }) => ({
@@ -136,6 +154,13 @@ export const milestonesRelations = relations(milestones, ({ one, many }) => ({
   }),
   predecessors: many(milestoneDependencies, { relationName: "successor" }),
   successors: many(milestoneDependencies, { relationName: "predecessor" }),
+}));
+
+export const dashboardLayoutsRelations = relations(dashboardLayouts, ({ one }) => ({
+  project: one(projects, {
+    fields: [dashboardLayouts.projectId],
+    references: [projects.id],
+  }),
 }));
 
 export const milestoneDependenciesRelations = relations(
@@ -174,3 +199,5 @@ export type Member = typeof members.$inferSelect;
 export type NewMember = typeof members.$inferInsert;
 export type Invite = typeof invites.$inferSelect;
 export type NewInvite = typeof invites.$inferInsert;
+export type DashboardLayout = typeof dashboardLayouts.$inferSelect;
+export type NewDashboardLayout = typeof dashboardLayouts.$inferInsert;

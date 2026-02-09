@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ const SVARGanttView = dynamic(
 );
 import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
 import {
+  useProjects,
   useMilestones,
   useMilestoneStats,
   useCreateMilestone,
@@ -31,18 +32,15 @@ import {
 import { useHeader } from "@/components/header-context";
 import type { CascadedUpdate } from "@/hooks/use-milestones";
 import type {
-  Project,
   Milestone,
   MilestoneStatus,
 } from "@/db/schema";
 
-interface MilestonesViewProps {
-  projects: Project[];
-}
-
 type ViewLevel = "overview" | "detail";
 
-export function MilestonesView({ projects }: MilestonesViewProps) {
+export function MilestonesView() {
+  const { data: projectsData } = useProjects();
+  const projects = projectsData?.projects ?? [];
   const { clearBreadcrumbs, setHeaderAction, clearHeaderAction } = useHeader();
   const searchParams = useSearchParams();
 
@@ -93,15 +91,15 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
     sortDirection: "asc",
   });
 
-  const features = featuresData?.milestones || [];
+  const features = useMemo(() => featuresData?.milestones ?? [], [featuresData?.milestones]);
 
   // Fetch teams for selected milestone
   const { data: teamsData } = useTeams(selectedMilestoneId || "");
-  const teams = teamsData?.teams || [];
+  const teams = useMemo(() => teamsData?.teams ?? [], [teamsData?.teams]);
 
   // Fetch dependencies for selected milestone
   const { data: dependenciesData } = useDependencies(selectedMilestoneId || "");
-  const dependencies = dependenciesData?.dependencies || [];
+  const dependencies = useMemo(() => dependenciesData?.dependencies ?? [], [dependenciesData?.dependencies]);
 
   // Mutations
   const createFeatureMutation = useCreateMilestone();
@@ -122,6 +120,11 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
   }, []);
 
   // Handlers: Feature CRUD
+  const handleFeatureSheetOpenChange = useCallback((open: boolean) => {
+    setFeatureSheetOpen(open);
+    if (!open) setSheetFeature(null);
+  }, []);
+
   const handleAddFeature = useCallback(() => {
     setSheetFeature(null);
     setFeatureSheetOpen(true);
@@ -281,10 +284,7 @@ export function MilestonesView({ projects }: MilestonesViewProps) {
         <FeatureSheet
           feature={sheetFeature}
           open={featureSheetOpen}
-          onOpenChange={(open) => {
-            setFeatureSheetOpen(open);
-            if (!open) setSheetFeature(null);
-          }}
+          onOpenChange={handleFeatureSheetOpenChange}
           teams={teams}
           projectName={selectedMilestone.name}
           dependencies={dependencies}
