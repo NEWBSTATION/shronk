@@ -10,6 +10,15 @@ import {
 import { relations } from "drizzle-orm";
 
 // Enums
+export const memberRoleEnum = pgEnum("member_role", ["admin", "member"]);
+
+export const inviteStatusEnum = pgEnum("invite_status", [
+  "pending",
+  "accepted",
+  "expired",
+  "revoked",
+]);
+
 export const milestoneStatusEnum = pgEnum("milestone_status", [
   "not_started",
   "in_progress",
@@ -24,6 +33,27 @@ export const milestonePriorityEnum = pgEnum("milestone_priority", [
   "high",
   "critical",
 ]);
+
+// Members table
+export const members = pgTable("members", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id", { length: 255 }).notNull().unique(),
+  email: varchar("email", { length: 255 }).notNull(),
+  role: memberRoleEnum("role").default("member").notNull(),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+// Invites table
+export const invites = pgTable("invites", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: varchar("email", { length: 255 }).notNull(),
+  role: memberRoleEnum("role").default("admin").notNull(),
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  status: inviteStatusEnum("status").default("pending").notNull(),
+  invitedBy: varchar("invited_by", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
 
 // Projects table
 export const projects = pgTable("projects", {
@@ -140,3 +170,7 @@ export type MilestoneStatus =
   | "completed"
   | "cancelled";
 export type MilestonePriority = "low" | "medium" | "high" | "critical";
+export type Member = typeof members.$inferSelect;
+export type NewMember = typeof members.$inferInsert;
+export type Invite = typeof invites.$inferSelect;
+export type NewInvite = typeof invites.$inferInsert;

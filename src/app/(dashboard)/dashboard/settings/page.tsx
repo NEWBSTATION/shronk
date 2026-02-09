@@ -6,9 +6,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileTab } from "@/components/settings/profile-tab";
 import { PreferencesTab } from "@/components/settings/preferences-tab";
 import { AppearanceTab } from "@/components/settings/appearance-tab";
+import { MembersTab } from "@/components/settings/members-tab";
+import { useMembers } from "@/hooks/use-members";
 
 export default function SettingsPage() {
   const { isLoaded, user } = useUser();
+  const { data: membersData } = useMembers();
+  const isAdmin = membersData?.currentUserRole === "admin";
 
   if (!isLoaded) {
     return (
@@ -33,6 +37,7 @@ export default function SettingsPage() {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="preferences">Preferences</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
+          {isAdmin && <TabsTrigger value="members">Members</TabsTrigger>}
         </TabsList>
         <TabsContent value="profile">
           <ProfileTab />
@@ -43,6 +48,11 @@ export default function SettingsPage() {
         <TabsContent value="appearance">
           <AppearanceTab />
         </TabsContent>
+        {isAdmin && (
+          <TabsContent value="members">
+            <MembersTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
