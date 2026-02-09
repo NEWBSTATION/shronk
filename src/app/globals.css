@@ -431,7 +431,7 @@ pre {
   --wx-gantt-link-color-hovered: var(--foreground);
   --wx-gantt-link-critical-color: var(--destructive);
   --wx-gantt-link-critical-color-hovered: color-mix(in srgb, var(--destructive) 80%, black);
-  --wx-gantt-link-marker-background: var(--muted);
+  --wx-gantt-link-marker-background: var(--background);
   --wx-gantt-link-marker-color: var(--muted-foreground);
 
   /* ============================================
@@ -547,6 +547,36 @@ pre {
 .gantt-theme-wrapper [class*="wx-bar"][class*="wx-task"]:not([class*="wx-split"]) {
   background-color: var(--chart-2) !important;
   color: #fff !important;
+  overflow: visible !important;
+  box-shadow: inset 0 6px 0 var(--background), inset 0 -6px 0 var(--background) !important;
+  border-radius: 4px !important;
+  border: none !important;
+  outline: none !important;
+}
+.gantt-theme-wrapper [class*="wx-bar"][class*="wx-task"]:not([class*="wx-split"]) * {
+  border: none !important;
+  outline: none !important;
+}
+
+/* Allow bar labels to extend beyond bar container */
+.gantt-theme-wrapper [class*="wx-bars"] {
+  overflow: visible !important;
+}
+
+/* Bar label — positioned past the right link handle, always visible */
+.gantt-theme-wrapper .gantt-bar-label {
+  position: absolute;
+  left: calc(100% + 32px);
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--foreground);
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* Summary bars */
@@ -770,4 +800,145 @@ pre {
   background: color-mix(in srgb, var(--foreground) 5%, transparent);
 }
 
+/* ================================================
+   Dependency Handle Styling - Radio-button style
+   ClickUp-inspired: ring outline, white center, colored
+   dot on hover. Outer = border ring, inner = center dot.
+   ================================================ */
 
+/* Outer ring — white fill, themed border, works on any bg */
+.gantt-theme-wrapper .wx-link.wx-GKbcLEGA {
+  width: 14px !important;
+  height: 14px !important;
+  border: 2px solid color-mix(in srgb, var(--foreground) 35%, transparent) !important;
+  background-color: #fff !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 10%, transparent);
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+
+/* Inner dot — hidden by default, shown on hover */
+.gantt-theme-wrapper .wx-link .wx-inner.wx-GKbcLEGA {
+  width: 6px !important;
+  height: 6px !important;
+  border: 3px solid color-mix(in srgb, var(--foreground) 35%, transparent) !important;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+/* Show handles on bar hover */
+.gantt-theme-wrapper .wx-bar:hover .wx-link {
+  opacity: 1 !important;
+}
+
+/* Hover state — colored ring + show inner dot */
+.gantt-theme-wrapper .wx-link:hover {
+  border-color: var(--chart-2) !important;
+  transform: translateY(-50%) scale(1.15) !important;
+}
+
+.gantt-theme-wrapper .wx-link:hover .wx-inner {
+  opacity: 1 !important;
+  border-color: var(--chart-2) !important;
+}
+
+/* Selected state (during link creation click flow) */
+.gantt-theme-wrapper .wx-link.wx-selected {
+  border-color: var(--chart-2) !important;
+  background-color: var(--chart-2) !important;
+}
+
+.gantt-theme-wrapper .wx-link.wx-selected .wx-inner {
+  opacity: 1 !important;
+  border-color: #fff !important;
+}
+
+/* ================================================
+   Link Delete Button - floating X on click
+   ================================================ */
+
+.link-delete-btn {
+  position: absolute;
+  z-index: 60;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--destructive);
+  color: var(--destructive-foreground);
+  border: 2px solid var(--background);
+  cursor: pointer;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--foreground) 25%, transparent);
+  transition: transform 0.1s ease;
+  animation: link-delete-pop 0.15s ease-out;
+}
+
+.link-delete-btn:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+.link-delete-btn svg {
+  flex-shrink: 0;
+}
+
+@keyframes link-delete-pop {
+  from { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+/* ================================================
+   Drag-to-Connect Dependency Link Overlay
+   ================================================ */
+
+.drag-link-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  overflow: visible;
+}
+
+.drag-link-overlay path {
+  stroke: var(--chart-2);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  fill: none;
+}
+
+/* During drag: show all link handles */
+.drag-link-active .wx-link {
+  opacity: 1 !important;
+}
+
+/* Crosshair cursor while dragging */
+.drag-link-active {
+  cursor: crosshair !important;
+}
+
+/* Source handle — filled accent */
+.drag-link-active .wx-link.drag-link-source {
+  border-color: var(--chart-2) !important;
+  background-color: var(--chart-2) !important;
+  transform: translateY(-50%) scale(1.2) !important;
+}
+
+.drag-link-active .wx-link.drag-link-source .wx-inner {
+  opacity: 1 !important;
+  border-color: #fff !important;
+}
+
+/* Valid drop target — pulsing accent ring */
+.drag-link-active .wx-link.drag-link-target-hover {
+  border-color: var(--chart-2) !important;
+  background-color: #fff !important;
+  transform: translateY(-50%) scale(1.3) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--chart-2) 30%, transparent) !important;
+}
+
+.drag-link-active .wx-link.drag-link-target-hover .wx-inner {
+  opacity: 1 !important;
+  border-color: var(--chart-2) !important;
+}

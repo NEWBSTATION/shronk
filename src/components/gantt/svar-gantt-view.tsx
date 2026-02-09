@@ -25,6 +25,9 @@ import { reflowProject, type ReflowMilestone, type ReflowDependency } from '@/li
 import type { CascadedUpdate } from '@/hooks/use-milestones';
 import type { TimePeriod, SVARTask, SVARLink } from './types';
 import type { Milestone, MilestoneDependency, MilestoneStatus, MilestonePriority, Team, Project } from '@/db/schema';
+import { TaskBarTemplate } from './task-bar-template';
+import { useDragLink } from './use-drag-link';
+import { useLinkDelete } from './use-link-delete';
 
 const ADD_FEATURE_TASK_ID = '__add_feature__';
 
@@ -131,6 +134,12 @@ export function SVARGanttView({
   onCreateDependencyRef.current = onCreateDependency;
   const onDeleteDependencyRef = useRef(onDeleteDependency);
   onDeleteDependencyRef.current = onDeleteDependency;
+
+  // Drag-to-connect dependency creation
+  useDragLink(ganttContainerRef, onCreateDependencyRef, ADD_FEATURE_TASK_ID);
+
+  // Click-on-link delete button
+  useLinkDelete(ganttContainerRef, onDeleteDependencyRef);
 
   // --- Timeline windowing (lazy-load columns) ---
   const [windowStart, setWindowStart] = useState<Date>(() => computeInitialWindow(features, timePeriod).start);
@@ -626,14 +635,10 @@ export function SVARGanttView({
     });
 
     api.on('delete-link', (ev) => {
-      const link = ev.link;
-      if (link?.source && link.target) {
-        const dep = dependenciesRef.current.find(
-          (d) => d.predecessorId === link.source && d.successorId === link.target
-        );
-        if (dep) {
-          onDeleteDependencyRef.current(dep.id);
-        }
+      // SVAR sends { id } where id is the link ID (= our dependency ID)
+      const linkId = String((ev as Record<string, unknown>).id ?? '');
+      if (linkId) {
+        onDeleteDependencyRef.current(linkId);
       }
     });
 
@@ -908,9 +913,9 @@ export function SVARGanttView({
           );
         }
         return (
-          <div className="flex items-center justify-between gap-2 w-full overflow-hidden">
-            <span className="truncate">{row.text}</span>
-            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+          <div className="flex items-center gap-2 w-full min-w-0">
+            <span className="truncate min-w-0 flex-1">{row.text}</span>
+            <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
               {row.durationText}
             </span>
           </div>
@@ -983,16 +988,14 @@ export function SVARGanttView({
             end={windowEnd}
             cellBorders="column"
             highlightTime={highlightTime}
+            taskTemplate={TaskBarTemplate}
             init={initGantt}
           />
         </SVARThemeWrapper>
 
         {/* Custom Today Marker (SVAR markers are paywalled) */}
         <TodayMarker
-          timelineStart={windowStart}
-          timelineEnd={windowEnd}
-          timePeriod={timePeriod}
-          cellWidth={cellWidth}
+          ganttApiRef={ganttApiRef}
           scaleHeight={SCALE_HEIGHT}
         />
 
@@ -1007,7 +1010,7 @@ export function SVARGanttView({
         <div
           className="absolute flex flex-col rounded-md border border-border bg-background/95 backdrop-blur-sm shadow-sm overflow-hidden z-10"
           style={{
-            top: '8px',
+            top: `${SCALE_HEIGHT * 2 + 8}px`,
             right: '12px',
           }}
         >
@@ -1030,6 +1033,7 @@ export function SVARGanttView({
           </button>
         </div>
       </div>
+
     </div>
   );
 }
