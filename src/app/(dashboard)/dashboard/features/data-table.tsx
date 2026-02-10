@@ -27,8 +27,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 import { FeaturesDataTableToolbar } from "./data-table-toolbar";
-import { FeatureSheet } from "./feature-sheet";
+import { FeatureSheet } from "@/components/feature-sheet";
 import { useFeaturesTableStore } from "@/store/features-table-store";
+import type { Milestone, MilestoneDependency, Team, MilestoneStatus } from "@/db/schema";
 
 interface MilestoneOption {
   id: string;
@@ -58,6 +59,11 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   milestoneOptions: MilestoneOption[];
+  teams: Team[];
+  dependencies: MilestoneDependency[];
+  onUpdateFeature: (data: Partial<Milestone> & { id: string; duration?: number }) => Promise<void>;
+  onDeleteFeature: (id: string) => Promise<void>;
+  onFeatureSelect?: (feature: TData) => void;
 }
 
 const ROW_HEIGHT = 40;
@@ -66,6 +72,11 @@ export function FeaturesDataTable<TData, TValue>({
   columns,
   data,
   milestoneOptions,
+  teams,
+  dependencies,
+  onUpdateFeature,
+  onDeleteFeature,
+  onFeatureSelect,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -356,6 +367,7 @@ export function FeaturesDataTable<TData, TValue>({
                       const target = e.target as HTMLElement;
                       if (target.closest('button[role="checkbox"]')) return;
                       setSelectedFeature(row.original as Feature);
+                      onFeatureSelect?.(row.original);
                       setSheetOpen(true);
                     }}
                   >
@@ -429,9 +441,17 @@ export function FeaturesDataTable<TData, TValue>({
       )}
 
       <FeatureSheet
-        feature={selectedFeature}
+        feature={selectedFeature as unknown as Milestone | null}
         open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) setSelectedFeature(null);
+        }}
+        teams={teams}
+        dependencies={dependencies}
+        projectName={selectedFeature?.milestoneName}
+        onUpdate={onUpdateFeature}
+        onDelete={onDeleteFeature}
       />
     </div>
   );

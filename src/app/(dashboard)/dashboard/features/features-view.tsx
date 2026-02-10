@@ -10,7 +10,14 @@ import { createColumns } from "./columns";
 import { Layers, Plus } from "lucide-react";
 import { FeatureSheet } from "@/components/feature-sheet";
 import { useHeader } from "@/components/header-context";
-import type { MilestoneStatus } from "@/db/schema";
+import { useFeaturesTableStore } from "@/store/features-table-store";
+import {
+  useTeams,
+  useDependencies,
+  useUpdateMilestone,
+  useDeleteMilestone,
+} from "@/hooks/use-milestones";
+import type { Milestone, MilestoneStatus } from "@/db/schema";
 
 interface Feature {
   id: string;
@@ -52,8 +59,13 @@ async function fetchFeatures(): Promise<FeaturesResponse> {
 export function FeaturesView() {
   const queryClient = useQueryClient();
   const { setHeaderAction, clearHeaderAction } = useHeader();
+  const durationDisplayUnit = useFeaturesTableStore((s) => s.durationDisplayUnit);
   const [featureSheetOpen, setFeatureSheetOpen] = useState(false);
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
+
+  // Track the projectId of the feature currently being viewed in the sheet
+  // so we can fetch the right teams & dependencies
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["allFeatures"],
@@ -62,6 +74,17 @@ export function FeaturesView() {
 
   const features = data?.features || [];
   const milestoneOptions = data?.milestones || [];
+
+  // Fetch teams and dependencies for the active project (on demand)
+  const { data: teamsData } = useTeams(activeProjectId || "");
+  const teams = useMemo(() => teamsData?.teams ?? [], [teamsData?.teams]);
+
+  const { data: depsData } = useDependencies(activeProjectId || "");
+  const dependencies = useMemo(() => depsData?.dependencies ?? [], [depsData?.dependencies]);
+
+  // Shared mutation hooks
+  const updateMutation = useUpdateMilestone();
+  const deleteMutation = useDeleteMilestone();
 
   // Set header action for New Feature button
   useEffect(() => {
@@ -84,6 +107,8 @@ export function FeaturesView() {
 
     return () => clearHeaderAction();
   }, [milestoneOptions, setHeaderAction, clearHeaderAction]);
+
+  // --- Inline table edit handlers (column cells) ---
 
   const updateDurationMutation = useMutation({
     mutationFn: async ({ id, duration }: { id: string; duration: number }) => {
@@ -172,13 +197,41 @@ export function FeaturesView() {
     [updateDateMutation]
   );
 
+  // --- Sheet handlers (update / delete via shared hooks) ---
+
+  const handleUpdateFeature = useCallback(
+    async (data: Partial<Milestone> & { id: string; duration?: number }) => {
+      try {
+        await updateMutation.mutateAsync(data);
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+        toast.success("Feature updated");
+      } catch {
+        toast.error("Failed to update feature");
+      }
+    },
+    [updateMutation, queryClient]
+  );
+
+  const handleDeleteFeature = useCallback(
+    async (id: string) => {
+      try {
+        await deleteMutation.mutateAsync(id);
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+        toast.success("Feature deleted");
+      } catch {
+        toast.error("Failed to delete feature");
+      }
+    },
+    [deleteMutation, queryClient]
+  );
+
   const columns = useMemo(
-    () => createColumns(handleDurationChange, handleToggleComplete, handleDateChange),
-    [handleDurationChange, handleToggleComplete, handleDateChange]
+    () => createColumns(handleDurationChange, handleToggleComplete, handleDateChange, durationDisplayUnit),
+    [handleDurationChange, handleToggleComplete, handleDateChange, durationDisplayUnit]
   );
 
   const createFeatureMutation = useMutation({
-    mutationFn: async (data: {
+    mutationFn: async (formData: {
       projectId: string;
       title: string;
       description?: string;
@@ -190,9 +243,9 @@ export function FeaturesView() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...data,
-          startDate: data.startDate.toISOString(),
-          endDate: data.endDate.toISOString(),
+          ...formData,
+          startDate: formData.startDate.toISOString(),
+          endDate: formData.endDate.toISOString(),
         }),
       });
       if (!response.ok) {
@@ -225,6 +278,11 @@ export function FeaturesView() {
       ...formData,
     });
   };
+
+  // When a feature row is clicked, set the activeProjectId so teams/deps load
+  const handleRowFeatureSelect = useCallback((feature: Feature) => {
+    setActiveProjectId(feature.projectId);
+  }, []);
 
   if (isLoading) {
     return (
@@ -262,9 +320,14 @@ export function FeaturesView() {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <FeaturesDataTable
-        columns={columns}
+        columns={columns as any}
         data={features}
         milestoneOptions={milestoneOptions}
+        teams={teams}
+        dependencies={dependencies}
+        onUpdateFeature={handleUpdateFeature}
+        onDeleteFeature={handleDeleteFeature}
+        onFeatureSelect={handleRowFeatureSelect}
       />
 
       <FeatureSheet

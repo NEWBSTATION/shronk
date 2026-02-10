@@ -8,10 +8,13 @@ import {
   VisibilityState,
 } from "@tanstack/react-table";
 
+export type DurationDisplayUnit = "auto" | "days" | "weeks" | "months" | "years";
+
 interface FeaturesTableStore {
   columnSizing: ColumnSizingState;
   columnOrder: ColumnOrderState;
   columnVisibility: VisibilityState;
+  durationDisplayUnit: DurationDisplayUnit;
 
   setColumnSizing: (
     updater: ColumnSizingState | ((prev: ColumnSizingState) => ColumnSizingState)
@@ -22,6 +25,7 @@ interface FeaturesTableStore {
   setColumnVisibility: (
     updater: VisibilityState | ((prev: VisibilityState) => VisibilityState)
   ) => void;
+  setDurationDisplayUnit: (unit: DurationDisplayUnit) => void;
 }
 
 export const useFeaturesTableStore = create<FeaturesTableStore>()(
@@ -30,6 +34,7 @@ export const useFeaturesTableStore = create<FeaturesTableStore>()(
       columnSizing: {},
       columnOrder: [],
       columnVisibility: {},
+      durationDisplayUnit: "auto",
 
       setColumnSizing: (updater) =>
         set({
@@ -52,6 +57,8 @@ export const useFeaturesTableStore = create<FeaturesTableStore>()(
               ? updater(get().columnVisibility)
               : updater,
         }),
+      setDurationDisplayUnit: (unit) =>
+        set({ durationDisplayUnit: unit }),
     }),
     {
       name: "shronk-features-table-storage",

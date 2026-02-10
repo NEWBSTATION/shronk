@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import {
   CalendarIcon,
@@ -14,12 +15,6 @@ import {
   X,
 } from "lucide-react";
 
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
@@ -48,6 +43,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import {
+  useLayoutStore,
+  FEATURE_SHEET_MIN_WIDTH,
+  FEATURE_SHEET_MAX_WIDTH,
+  FEATURE_SHEET_DEFAULT_WIDTH,
+} from "@/store/layout-store";
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/gantt/constants";
 import {
   computeDurationDays,
@@ -147,6 +148,54 @@ export function FeatureSheet({
   onMilestoneChange,
 }: FeatureSheetProps) {
   const isEditMode = !!feature;
+
+  const featureSheetWidth = useLayoutStore((s) => s.featureSheetWidth);
+  const setFeatureSheetWidth = useLayoutStore((s) => s.setFeatureSheetWidth);
+  const resetFeatureSheetWidth = useLayoutStore((s) => s.resetFeatureSheetWidth);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const container = document.querySelector('[data-slot="sidebar-inset"]');
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      setFeatureSheetWidth(rect.right - ev.clientX);
+    };
+
+    const onMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [isResizing, setFeatureSheetWidth]);
+
+  // Portal into the SidebarInset (main card) instead of document.body
+  const [portalContainer, setPortalContainer] = useState<Element | null>(null);
+  useEffect(() => {
+    setPortalContainer(document.querySelector('[data-slot="sidebar-inset"]'));
+  }, []);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onOpenChange(false);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onOpenChange]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -278,19 +327,44 @@ export function FeatureSheet({
   /*  Render                                                                   */
   /* ======================================================================== */
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        className="sm:max-w-[560px] flex flex-col p-0 gap-0"
-        showCloseButton={false}
+  if (!open || !portalContainer) return null;
+
+  return createPortal(
+    <>
+      {/* Full-screen overlay to capture mouse during resize */}
+      {isResizing &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] cursor-col-resize select-none" />,
+          document.body
+        )}
+
+      {/* Transparent backdrop — click to close */}
+      <div
+        className="absolute inset-0 z-40"
+        onClick={() => { if (!isResizing) onOpenChange(false); }}
+      />
+
+      {/* Panel */}
+      <div
+        role="dialog"
+        aria-label={isEditMode ? "Edit Feature" : "New Feature"}
+        className="absolute inset-y-0 right-0 z-50 bg-background border-l shadow-lg flex flex-col animate-in slide-in-from-right duration-300"
+        style={{ width: featureSheetWidth, maxWidth: featureSheetWidth }}
       >
-        {/* a11y */}
-        <SheetTitle className="sr-only">
-          {isEditMode ? "Edit Feature" : "New Feature"}
-        </SheetTitle>
-        <SheetDescription className="sr-only">
-          {isEditMode ? "Edit feature details" : "Create a new feature"}
-        </SheetDescription>
+        {/* Resize handle */}
+        <div
+          onMouseDown={handleResizeMouseDown}
+          onDoubleClick={resetFeatureSheetWidth}
+          className="absolute left-0 top-0 bottom-0 w-3 cursor-col-resize z-50 group/resize flex items-center"
+        >
+          <div
+            className={cn(
+              "h-full w-[3px] rounded-xl transition-colors",
+              "group-hover/resize:bg-primary/30",
+              isResizing && "bg-primary/50"
+            )}
+          />
+        </div>
 
         {/* ── Sticky header: breadcrumb + title ── */}
         <div className="sticky top-0 z-10 bg-background border-b border-border/40">
@@ -360,7 +434,7 @@ export function FeatureSheet({
                   value={selectedMilestoneId || ""}
                   onValueChange={(v) => onMilestoneChange?.(v || null)}
                 >
-                  <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent/50 focus:ring-0">
+                  <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0">
                     <SelectValue placeholder="Select milestone" />
                   </SelectTrigger>
                   <SelectContent>
@@ -380,7 +454,7 @@ export function FeatureSheet({
                 value={teamId || "none"}
                 onValueChange={(v) => setTeamId(v === "none" ? null : v)}
               >
-                <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent/50 focus:ring-0 w-auto gap-2">
+                <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0 w-auto gap-2">
                   <SelectValue>
                     {team ? (
                       <div className="flex items-center gap-2">
@@ -416,30 +490,42 @@ export function FeatureSheet({
 
             {/* Duration */}
             <PropertyRow icon={Timer} label="Duration">
-              <div className="flex items-center gap-1.5">
-                <NumberStepper
-                  value={durationValue}
-                  onChange={handleDurationValueChange}
-                  min={1}
-                  className="w-16"
-                />
-                <Select
-                  value={durationUnit}
-                  onValueChange={(v) =>
-                    handleDurationUnitChange(v as DurationUnit)
-                  }
-                >
-                  <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent/50 focus:ring-0 w-[90px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="days">days</SelectItem>
-                    <SelectItem value="weeks">weeks</SelectItem>
-                    <SelectItem value="months">months</SelectItem>
-                    <SelectItem value="years">years</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex items-center h-8 px-2 text-sm rounded-md hover:bg-accent transition-colors"
+                  >
+                    {durationValue} {durationValue === 1 ? durationUnit.slice(0, -1) : durationUnit}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3" align="start">
+                  <div className="flex items-center gap-2">
+                    <NumberStepper
+                      value={durationValue}
+                      onChange={handleDurationValueChange}
+                      min={1}
+                      className="w-20"
+                    />
+                    <Select
+                      value={durationUnit}
+                      onValueChange={(v) =>
+                        handleDurationUnitChange(v as DurationUnit)
+                      }
+                    >
+                      <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="days">days</SelectItem>
+                        <SelectItem value="weeks">weeks</SelectItem>
+                        <SelectItem value="months">months</SelectItem>
+                        <SelectItem value="years">years</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </PropertyRow>
 
             {/* Start Date */}
@@ -459,7 +545,7 @@ export function FeatureSheet({
                   <PopoverTrigger asChild>
                     <button
                       type="button"
-                      className="flex items-center h-8 px-2 text-sm rounded-md hover:bg-accent/50 transition-colors"
+                      className="flex items-center h-8 px-2 text-sm rounded-md hover:bg-accent transition-colors"
                     >
                       {format(startDate, "MMM d, yyyy")}
                     </button>
@@ -499,7 +585,7 @@ export function FeatureSheet({
             <RichTextEditor
               content={description}
               onChange={setDescription}
-              placeholder="Add a description..."
+              placeholder="Add a description, or type '/' for commands..."
             />
           </div>
         </div>
@@ -563,8 +649,9 @@ export function FeatureSheet({
             </Button>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </>,
+    portalContainer
   );
 }
 
