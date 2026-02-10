@@ -1,32 +1,44 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState, useCallback, useEffect, Suspense } from "react";
-import { AppHeader, type TabId } from "@/components/app-header";
+import { useState, useCallback, useEffect, useRef, Suspense } from "react";
+import { AppHeader, type TabId, type CreateAction } from "@/components/app-header";
 import {
   DrilldownProvider,
   useDrilldown,
 } from "@/components/drilldown/drilldown-context";
 import { DrilldownStack } from "@/components/drilldown/drilldown-stack";
-import { MilestonesTab } from "@/components/tabs/milestones-tab";
 import { FeaturesTab } from "@/components/tabs/features-tab";
 import { TimelineTab } from "@/components/tabs/timeline-tab";
 import { SettingsTab } from "@/components/tabs/settings-tab";
 import { cn } from "@/lib/utils";
 
-const VALID_TABS: TabId[] = ["milestones", "features", "timeline", "settings"];
+const VALID_TABS: TabId[] = ["features", "timeline", "settings"];
 
 function DashboardMain({
   activeTab,
   mountedTabs,
   milestoneId,
+  createIntent,
+  createType,
 }: {
   activeTab: TabId;
   mountedTabs: Set<TabId>;
   milestoneId: string | null;
+  createIntent: number;
+  createType: CreateAction;
 }) {
-  const { panels } = useDrilldown();
+  const { panels, popAll } = useDrilldown();
   const depth = panels.length;
+
+  // Close all drilldown panels when the active tab changes
+  const prevTab = useRef(activeTab);
+  useEffect(() => {
+    if (activeTab !== prevTab.current) {
+      prevTab.current = activeTab;
+      popAll();
+    }
+  }, [activeTab, popAll]);
 
   return (
     <main className="flex-1 relative overflow-hidden">
@@ -51,18 +63,15 @@ function DashboardMain({
         <div
           className={cn(
             "absolute inset-0 flex flex-col",
-            activeTab !== "milestones" && "invisible pointer-events-none"
-          )}
-        >
-          {mountedTabs.has("milestones") && <MilestonesTab />}
-        </div>
-        <div
-          className={cn(
-            "absolute inset-0 flex flex-col",
             activeTab !== "features" && "invisible pointer-events-none"
           )}
         >
-          {mountedTabs.has("features") && <FeaturesTab />}
+          {mountedTabs.has("features") && (
+            <FeaturesTab
+              createIntent={activeTab === "features" ? createIntent : 0}
+              createType={createType}
+            />
+          )}
         </div>
         <div
           className={cn(
@@ -93,7 +102,7 @@ function DashboardContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as TabId | null;
   const initialTab: TabId =
-    tabParam && VALID_TABS.includes(tabParam) ? tabParam : "milestones";
+    tabParam && VALID_TABS.includes(tabParam) ? tabParam : "features";
   const milestoneId = searchParams.get("milestone");
 
   // Local state for instant tab switching (bypasses Next.js router overhead)
@@ -103,6 +112,10 @@ function DashboardContent() {
   const [mountedTabs, setMountedTabs] = useState<Set<TabId>>(
     () => new Set([initialTab])
   );
+
+  // Trigger for "create" action from header — incremented to signal tabs
+  const [createIntent, setCreateIntent] = useState(0);
+  const [createType, setCreateType] = useState<CreateAction>("feature");
 
   // Sync with external URL changes (e.g., middleware redirects, deep links)
   useEffect(() => {
@@ -138,14 +151,26 @@ function DashboardContent() {
     window.history.replaceState(null, "", url.toString());
   }, []);
 
+  const handleCreateAction = useCallback(
+    (type: CreateAction) => {
+      handleTabChange("features");
+      setCreateType(type);
+      // Use setTimeout so the tab switch mounts/activates before the intent fires
+      setTimeout(() => setCreateIntent((n) => n + 1), 0);
+    },
+    [handleTabChange]
+  );
+
   return (
     <DrilldownProvider>
       <div className="flex flex-col h-svh">
-        <AppHeader activeTab={activeTab} onTabChange={handleTabChange} />
+        <AppHeader activeTab={activeTab} onTabChange={handleTabChange} onCreateAction={handleCreateAction} />
         <DashboardMain
           activeTab={activeTab}
           mountedTabs={mountedTabs}
           milestoneId={milestoneId}
+          createIntent={createIntent}
+          createType={createType}
         />
       </div>
     </DrilldownProvider>

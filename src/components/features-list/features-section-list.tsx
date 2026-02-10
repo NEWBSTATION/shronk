@@ -16,6 +16,7 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
+import { Plus } from "lucide-react";
 import { useFeaturesListStore } from "@/store/features-list-store";
 import { SectionHeader } from "./section-header";
 import { FeatureRow, SortableFeatureRow } from "./feature-row";
@@ -44,6 +45,12 @@ interface FeaturesSectionListProps {
   features: Feature[];
   milestones: MilestoneOption[];
   onFeatureClick: (feature: any) => void;
+  onToggleComplete?: (featureId: string, currentStatus: string) => void;
+  onAddFeature?: (milestoneId: string) => void;
+  onEditMilestone?: (milestoneId: string) => void;
+  onDeleteMilestone?: (milestoneId: string) => void;
+  onUpdateAppearance?: (milestoneId: string, data: { color: string; icon: string }) => void;
+  onAddMilestone?: () => void;
   onReorder?: (args: {
     projectId: string;
     items: Array<{ id: string; sortOrder: number }>;
@@ -54,12 +61,19 @@ interface Section {
   milestone: MilestoneOption;
   features: Feature[];
   completedCount: number;
+  totalDuration: number;
 }
 
 export function FeaturesSectionList({
   features,
   milestones,
   onFeatureClick,
+  onToggleComplete,
+  onAddFeature,
+  onEditMilestone,
+  onDeleteMilestone,
+  onUpdateAppearance,
+  onAddMilestone,
   onReorder,
 }: FeaturesSectionListProps) {
   const {
@@ -90,18 +104,20 @@ export function FeaturesSectionList({
       byProject.set(f.projectId, arr);
     }
 
-    return milestones
-      .filter((m) => byProject.has(m.id))
-      .map((m) => {
-        const sectionFeatures = byProject.get(m.id)!;
-        return {
-          milestone: m,
-          features: sectionFeatures,
-          completedCount: sectionFeatures.filter(
-            (f) => f.status === "completed"
-          ).length,
-        };
-      });
+    return milestones.map((m) => {
+      const sectionFeatures = byProject.get(m.id) ?? [];
+      return {
+        milestone: m,
+        features: sectionFeatures,
+        completedCount: sectionFeatures.filter(
+          (f) => f.status === "completed"
+        ).length,
+        totalDuration: sectionFeatures.reduce(
+          (sum, f) => sum + (f.duration || 0),
+          0
+        ),
+      };
+    });
   }, [features, milestones]);
 
   // Build a flat ordered list of feature IDs for shift-click range selection
@@ -220,8 +236,13 @@ export function FeaturesSectionList({
                 icon={section.milestone.icon}
                 featureCount={section.features.length}
                 completedCount={section.completedCount}
+                totalDuration={section.totalDuration}
                 collapsed={isCollapsed}
                 onToggle={() => toggleSection(section.milestone.id)}
+                onAddFeature={() => onAddFeature?.(section.milestone.id)}
+                onEditMilestone={() => onEditMilestone?.(section.milestone.id)}
+                onDeleteMilestone={() => onDeleteMilestone?.(section.milestone.id)}
+                onUpdateAppearance={(data) => onUpdateAppearance?.(section.milestone.id, data)}
               />
 
               {/* Animated collapse container */}
@@ -232,30 +253,54 @@ export function FeaturesSectionList({
                 }}
               >
                 <div className="overflow-hidden">
-                  <SortableContext
-                    items={featureIds}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {section.features.map((feature) => (
-                      <SortableFeatureRow
-                        key={feature.id}
-                        id={feature.id}
-                        title={feature.title}
-                        status={feature.status}
-                        priority={feature.priority}
-                        duration={feature.duration}
-                        selected={selectedIds.has(feature.id)}
-                        selectMode={selectMode}
-                        onSelect={(e) => handleSelect(feature.id, e)}
-                        onClick={() => onFeatureClick(feature)}
-                      />
-                    ))}
-                  </SortableContext>
+                  {section.features.length === 0 ? (
+                    <button
+                      onClick={() => onAddFeature?.(section.milestone.id)}
+                      className="w-full px-4 py-4 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span className="text-sm">Add a feature</span>
+                    </button>
+                  ) : (
+                    <SortableContext
+                      items={featureIds}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {section.features.map((feature) => (
+                        <SortableFeatureRow
+                          key={feature.id}
+                          id={feature.id}
+                          title={feature.title}
+                          status={feature.status}
+                          priority={feature.priority}
+                          duration={feature.duration}
+                          selected={selectedIds.has(feature.id)}
+                          selectMode={selectMode}
+                          onSelect={(e) => handleSelect(feature.id, e)}
+                          onClick={() => onFeatureClick(feature)}
+                          onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}
+                        />
+                      ))}
+                    </SortableContext>
+                  )}
                 </div>
               </div>
             </div>
           );
         })}
+
+        {/* Ghost section — add new milestone */}
+        {onAddMilestone && (
+          <button
+            onClick={onAddMilestone}
+            className="w-full rounded-2xl border border-dashed border-border px-4 py-3 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-accent/20 transition-colors"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <Plus className="h-4 w-4" />
+            </div>
+            <span className="text-sm">New milestone</span>
+          </button>
+        )}
       </div>
 
       <DragOverlay>

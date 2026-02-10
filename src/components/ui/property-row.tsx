@@ -54,12 +54,12 @@ export function PropertyRow(props: PropertyRowProps) {
   return (
     <div
       className={cn(
-        "flex items-start gap-3 py-1.5 rounded-md px-2 -mx-2",
+        "flex items-center gap-3 min-h-8 py-1.5 rounded-md px-2 -mx-2",
         className
       )}
     >
-      {/* Icon — matches Dougly: size-4 text-muted-foreground mt-0.5 shrink-0 */}
-      <div className="shrink-0 mt-0.5">
+      {/* Icon */}
+      <div className="shrink-0">
         {Icon ? (
           <Icon className="size-4 text-muted-foreground" />
         ) : (
@@ -67,7 +67,7 @@ export function PropertyRow(props: PropertyRowProps) {
         )}
       </div>
 
-      {/* Label — matches Dougly: w-32 shrink-0 text-muted-foreground text-sm */}
+      {/* Label */}
       <span className="w-32 shrink-0 text-muted-foreground text-sm">
         {label}
       </span>

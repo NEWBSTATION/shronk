@@ -3,6 +3,7 @@
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileTab } from "@/components/settings/profile-tab";
 import { PreferencesTab } from "@/components/settings/preferences-tab";
 import { AppearanceTab } from "@/components/settings/appearance-tab";
@@ -16,12 +17,28 @@ export function SettingsTab() {
 
   if (!isLoaded) {
     return (
-      <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-4 md:py-6">
+      <div className="flex-1 overflow-y-auto px-6 py-8">
         <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl">
           <div className="flex flex-col gap-6">
-            <div className="h-10 w-64 animate-pulse rounded-lg bg-muted" />
-            <div className="h-64 animate-pulse rounded-lg bg-muted" />
-            <div className="h-48 animate-pulse rounded-lg bg-muted" />
+            {/* Tab pills */}
+            <div className="flex items-center gap-1">
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-24 rounded-md" />
+              <Skeleton className="h-8 w-24 rounded-md" />
+            </div>
+            {/* Profile section */}
+            <div className="flex flex-col gap-4">
+              <Skeleton className="h-5 w-32" />
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-16 w-16 rounded-full" />
+                <div className="flex flex-col gap-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-56" />
+                </div>
+              </div>
+              <Skeleton className="h-10 w-full rounded-md" />
+              <Skeleton className="h-10 w-full rounded-md" />
+            </div>
           </div>
         </div>
       </div>
@@ -33,7 +50,7 @@ export function SettingsTab() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-4 md:py-6">
+    <div className="flex-1 overflow-y-auto px-6 py-8">
       <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl">
         <Tabs defaultValue="profile" className="gap-6">
           <TabsList>

@@ -2,6 +2,7 @@
 
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { MilestoneIcon } from "@/lib/milestone-icon";
 import type { Project } from "@/db/schema";
 
 interface MilestoneCardProps {
@@ -50,17 +51,18 @@ export function MilestoneCard({
         "focus-visible:outline-none focus-visible:bg-accent/40"
       )}
     >
-      {/* Status dot */}
-      <span
+      {/* Milestone icon */}
+      <MilestoneIcon
+        name={milestone.icon}
         className={cn(
-          "h-2 w-2 rounded-full shrink-0",
+          "size-4 shrink-0",
           isCompleted
-            ? "bg-green-500"
+            ? "text-green-500"
             : isOverdue
-              ? "bg-destructive"
+              ? "text-destructive"
               : progress > 0
-                ? "bg-primary"
-                : "bg-muted-foreground/40"
+                ? "text-primary"
+                : "text-muted-foreground/40"
         )}
       />
 

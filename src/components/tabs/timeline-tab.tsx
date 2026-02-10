@@ -4,8 +4,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { differenceInDays } from "date-fns";
-import { ChartGantt, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChartGantt } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { FeatureDetailPanel } from "@/components/drilldown/panels/feature-detail-panel";
@@ -311,14 +310,14 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
   if (isLoadingProjects) {
     return (
       <div className="flex flex-col flex-1 min-h-0">
-        <div className="flex items-center gap-2 px-4 lg:px-6 py-2 border-b shrink-0">
+        <div className="flex items-center gap-2 px-6 py-2 border-b shrink-0">
           <div className="flex items-center gap-1">
             <Skeleton className="h-6 w-20 rounded-full" />
             <Skeleton className="h-6 w-24 rounded-full" />
           </div>
           <Skeleton className="h-7 w-28 ml-auto rounded-md" />
         </div>
-        <div className="min-h-0 flex-1 p-3">
+        <div className="min-h-0 flex-1 p-6">
           <div className="h-full flex flex-col">
             <TimelineSkeleton />
           </div>
@@ -342,43 +341,14 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 relative">
-      {/* Milestone pill switcher */}
-      <div className="flex items-center gap-2 px-4 lg:px-6 py-2 border-b shrink-0">
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-          {projects.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setSelectedMilestoneId(p.id)}
-              className={cn(
-                "shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors",
-                p.id === selectedMilestoneId
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              )}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
-
-        {selectedMilestone && (
-          <Button
-            onClick={handleAddFeature}
-            size="sm"
-            className="h-7 text-xs ml-auto shrink-0"
-          >
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            New Feature
-          </Button>
-        )}
-      </div>
-
       {/* Timeline chart */}
       {selectedMilestone && (
-        <div className="min-h-0 flex-1 p-3">
+        <div className="min-h-0 flex-1 p-6">
           <div className="h-full flex flex-col">
             <SVARTimelineView
               project={selectedMilestone}
+              allProjects={projects}
+              onProjectChange={setSelectedMilestoneId}
               features={features}
               dependencies={dependencies}
               teams={teams}

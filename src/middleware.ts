@@ -11,7 +11,7 @@ const isPublicRoute = createRouteMatcher([
 // Route redirects: old sidebar routes → new tab query params
 const TAB_REDIRECTS: Record<string, string> = {
   "/dashboard/features": "/dashboard?tab=features",
-  "/dashboard/milestones": "/dashboard?tab=milestones",
+  "/dashboard/milestones": "/dashboard?tab=features",
   "/dashboard/settings": "/dashboard?tab=settings",
   "/dashboard/help": "/dashboard?tab=settings",
 };
@@ -34,7 +34,7 @@ export default clerkMiddleware(async (auth, request) => {
   // Redirect bare /dashboard to default tab
   if (pathname === "/dashboard" && !request.nextUrl.searchParams.has("tab")) {
     const url = request.nextUrl.clone();
-    url.searchParams.set("tab", "milestones");
+    url.searchParams.set("tab", "features");
     return NextResponse.redirect(url);
   }
 

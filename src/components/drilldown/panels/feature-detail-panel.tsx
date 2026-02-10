@@ -5,8 +5,6 @@ import { format } from "date-fns";
 import {
   CalendarIcon,
   Trash2,
-  Circle,
-  CircleCheck,
   Link,
   Clock,
   Users,
@@ -250,28 +248,23 @@ export function FeatureDetailPanel({
     }
   };
 
-  // Create mode: create on title blur
-  const handleCreateOnTitleBlur = useCallback(
-    (newTitle: string) => {
-      if (!isEditMode && onCreate && newTitle.trim()) {
-        setTitle(newTitle);
-        const totalDays = durationValue * DURATION_UNIT_MULTIPLIERS[durationUnit];
-        const computedEnd = computeEndDateFromDuration(startDate, totalDays);
-        const status: MilestoneStatus = completed ? "completed" : "not_started";
-        onCreate({
-          title: newTitle,
-          description: description || undefined,
-          startDate,
-          endDate: computedEnd,
-          duration: totalDays,
-          status,
-          teamId,
-        });
-        back();
-      }
-    },
-    [isEditMode, onCreate, durationValue, durationUnit, startDate, completed, description, teamId, back]
-  );
+  // Create mode: explicit submit via button
+  const handleCreateSubmit = useCallback(() => {
+    if (!onCreate || !title.trim()) return;
+    const totalDays = durationValue * DURATION_UNIT_MULTIPLIERS[durationUnit];
+    const computedEnd = computeEndDateFromDuration(startDate, totalDays);
+    const status: MilestoneStatus = completed ? "completed" : "not_started";
+    onCreate({
+      title: title.trim(),
+      description: description || undefined,
+      startDate,
+      endDate: computedEnd,
+      duration: totalDays,
+      status,
+      teamId,
+    });
+    back();
+  }, [onCreate, title, durationValue, durationUnit, startDate, completed, description, teamId, back]);
 
   const team = teams.find((t) => t.id === teamId);
 
@@ -319,12 +312,12 @@ export function FeatureDetailPanel({
             {projectName}
           </div>
         )}
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={handleCompletionToggle}
             className={cn(
-              "shrink-0 mt-1 rounded-full transition-colors",
+              "shrink-0 rounded-full transition-colors",
               completed
                 ? "text-green-500 hover:text-green-600"
                 : "text-muted-foreground/40 hover:text-muted-foreground/70"
@@ -332,9 +325,13 @@ export function FeatureDetailPanel({
             title={completed ? "Mark incomplete" : "Mark completed"}
           >
             {completed ? (
-              <CircleCheck className="h-7 w-7" fill="currentColor" />
+              <svg className="h-7 w-7" viewBox="0 -960 960 960" fill="currentColor">
+                <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Z" />
+              </svg>
             ) : (
-              <Circle className="h-7 w-7" />
+              <svg className="h-7 w-7" viewBox="0 -960 960 960" fill="currentColor">
+                <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Zm0-72q130 0 221-91t91-221q0-130-91-221t-221-91q-130 0-221 91t-91 221q0 130 91 221t221 91Zm0-312Z" />
+              </svg>
             )}
           </button>
           {isEditMode ? (
@@ -361,10 +358,9 @@ export function FeatureDetailPanel({
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              onBlur={() => handleCreateOnTitleBlur(title)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && title.trim()) {
-                  handleCreateOnTitleBlur(title);
+                  handleCreateSubmit();
                 }
               }}
               placeholder="Feature title"
@@ -486,26 +482,46 @@ export function FeatureDetailPanel({
         </PropertyRow>
 
         {/* End Date (computed) */}
-        <PropertyRow icon={Clock} label="End Date">
-          <span className="text-sm text-muted-foreground">
-            {format(endDate, "MMM d, yyyy")}
-          </span>
-          <span className="text-[11px] text-muted-foreground/40 italic ml-2">
-            computed
-          </span>
-        </PropertyRow>
-
-        {/* Description */}
-        <PropertyRow icon={FileText} label="Description" type="custom">
-          <div className="w-full -mx-2">
-            <RichTextEditor
-              content={description}
-              onChange={handleDescriptionChange}
-              placeholder="Add a description..."
-            />
+        <PropertyRow icon={Clock} label="End Date" type="custom">
+          <div className="flex items-center h-8 px-2">
+            <span className="text-sm text-muted-foreground">
+              {format(endDate, "MMM d, yyyy")}
+            </span>
+            <span className="text-[11px] text-muted-foreground/40 italic ml-2">
+              computed
+            </span>
           </div>
         </PropertyRow>
+
       </div>
+
+      {/* Description — separated below properties */}
+      <div className="mt-6 pt-6 border-t border-border">
+        <div className="flex items-center gap-3 mb-2 px-2 -mx-2">
+          <FileText className="size-4 text-muted-foreground shrink-0" />
+          <span className="text-sm text-muted-foreground">Description</span>
+        </div>
+        <RichTextEditor
+          content={description}
+          onChange={handleDescriptionChange}
+          placeholder="Add a description..."
+        />
+      </div>
+
+      {/* Create mode footer */}
+      {!isEditMode && (
+        <div className="flex justify-end gap-2 mt-6 pt-6 border-t border-border">
+          <Button variant="outline" onClick={back}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateSubmit}
+            disabled={!title.trim()}
+          >
+            Create Feature
+          </Button>
+        </div>
+      )}
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

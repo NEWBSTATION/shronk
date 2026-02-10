@@ -77,12 +77,18 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
         line.style.display = 'none';
         label.style.display = 'none';
       } else {
-        line.style.display = 'block';
-        line.style.left = `${visibleX}px`;
+        // Position label below the scale headers, at the start of data rows
+        const labelHeight = label.offsetHeight || 20;
+        const dataRowsTop = chartTop + scaleHeight * 2;
 
         label.style.display = 'block';
         label.style.left = `${visibleX}px`;
-        label.style.top = `${chartTop + 4}px`;
+        label.style.top = `${dataRowsTop}px`;
+
+        // Line starts below the label
+        line.style.display = 'block';
+        line.style.left = `${visibleX}px`;
+        line.style.top = `${dataRowsTop + labelHeight + 4}px`;
       }
 
       rafId = requestAnimationFrame(tick);
@@ -102,12 +108,11 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
         ref={lineRef}
         style={{
           position: 'absolute',
-          top: 0,
           width: 2,
           height: 9999,
           transform: 'translateX(-50%)',
-          backgroundColor: 'var(--destructive, #ef4444)',
-          boxShadow: '0 0 8px var(--destructive, #ef4444)',
+          backgroundColor: 'var(--destructive)',
+          boxShadow: '0 0 8px color-mix(in srgb, var(--destructive) 40%, transparent)',
           display: 'none',
         }}
       />
@@ -117,8 +122,8 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
         style={{
           position: 'absolute',
           transform: 'translateX(-50%)',
-          backgroundColor: 'var(--destructive, #ef4444)',
-          color: 'var(--destructive-foreground, #fff)',
+          backgroundColor: 'var(--destructive)',
+          color: 'var(--destructive-foreground)',
           fontSize: 11,
           fontWeight: 600,
           padding: '3px 8px',

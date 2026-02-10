@@ -76,6 +76,8 @@ const ZOOM_CONFIG: Record<TimePeriod, { min: number; max: number }> = {
 
 interface SVARTimelineViewProps {
   project: Project;
+  allProjects?: Project[];
+  onProjectChange?: (id: string) => void;
   features: Milestone[];
   dependencies: MilestoneDependency[];
   teams: Team[];
@@ -92,6 +94,8 @@ interface SVARTimelineViewProps {
 
 export function SVARTimelineView({
   project,
+  allProjects,
+  onProjectChange,
   features,
   dependencies,
   teams,
@@ -688,6 +692,8 @@ export function SVARTimelineView({
 
   // Row hover highlight — spans both left grid and right chart
   const rowHoverRef = useRef<HTMLDivElement | null>(null);
+  const taskCountRef = useRef(tasks.length);
+  taskCountRef.current = tasks.length;
   useEffect(() => {
     const container = ganttContainerRef.current;
     if (!container) return;
@@ -714,6 +720,13 @@ export function SVARTimelineView({
       }
 
       const rowIndex = Math.floor((y - headerOffset) / ROW_HEIGHT);
+
+      // Only highlight rows that have actual tasks (features + add feature row)
+      if (rowIndex >= taskCountRef.current) {
+        highlight.style.opacity = '0';
+        return;
+      }
+
       const rowTop = headerOffset + rowIndex * ROW_HEIGHT;
 
       highlight.style.top = `${rowTop}px`;
@@ -907,7 +920,8 @@ export function SVARTimelineView({
   return (
     <div className="flex flex-col flex-1 min-h-0 border border-border rounded-lg overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
+      <div className="relative flex items-center px-3 py-2 border-b border-border bg-muted/30">
+        {/* Left controls */}
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="text-xs" style={{ height: '28px' }} onClick={scrollToToday}>
             Today
@@ -940,7 +954,28 @@ export function SVARTimelineView({
           </Button>
         </div>
 
-        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+        {/* Center — milestone selector */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {allProjects && allProjects.length > 1 && onProjectChange ? (
+            <Select value={project.id} onValueChange={onProjectChange}>
+              <SelectTrigger className="w-auto gap-1.5 text-sm font-medium border-none shadow-none bg-transparent pointer-events-auto" style={{ height: '28px' }}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {allProjects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="text-sm font-medium">{project.name}</span>
+          )}
+        </div>
+
+        {/* Right — feature count */}
+        <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
           {sortedFeatures.length} feature{sortedFeatures.length !== 1 ? 's' : ''}
         </span>
       </div>

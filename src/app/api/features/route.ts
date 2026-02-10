@@ -120,6 +120,7 @@ export async function GET(request: NextRequest) {
         name: projects.name,
         color: projects.color,
         icon: projects.icon,
+        description: projects.description,
       })
       .from(projects)
       .where(eq(projects.userId, userId))

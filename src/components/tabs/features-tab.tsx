@@ -1,14 +1,26 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Layers, Plus } from "lucide-react";
+import { Layers } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { FeatureDetailPanel } from "@/components/drilldown/panels/feature-detail-panel";
 import { useDrilldown } from "@/components/drilldown/drilldown-context";
 import { FeaturesSectionList } from "@/components/features-list/features-section-list";
+import { MilestoneInfoPanel } from "@/components/drilldown/panels/milestone-info-panel";
+import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
+import { FeatureDialog } from "@/components/feature/feature-dialog";
 import { BulkActionBar } from "@/components/features-list/bulk-action-bar";
 import { useFeaturesListStore } from "@/store/features-list-store";
 import {
@@ -46,6 +58,7 @@ interface MilestoneOption {
   name: string;
   color: string;
   icon: string;
+  description?: string | null;
 }
 
 interface FeaturesResponse {
@@ -61,12 +74,16 @@ async function fetchFeatures(): Promise<FeaturesResponse> {
   return response.json();
 }
 
-export function FeaturesTab() {
+export function FeaturesTab({ createIntent = 0, createType = "feature" }: { createIntent?: number; createType?: "milestone" | "feature" }) {
   const { push, isOpen } = useDrilldown();
   const queryClient = useQueryClient();
   const clearSelection = useFeaturesListStore((s) => s.clearSelection);
   const selectMode = useFeaturesListStore((s) => s.selectMode);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
+  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
+  const [featureDialogMilestoneId, setFeatureDialogMilestoneId] = useState<string | null>(null);
+  const [deletingMilestoneId, setDeletingMilestoneId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["allFeatures"],
@@ -112,33 +129,23 @@ export function FeaturesTab() {
     [deleteMutation, queryClient]
   );
 
-  const createFeatureMutation = useMutation({
-    mutationFn: async (formData: {
-      projectId: string;
-      title: string;
-      description?: string;
-      startDate: Date;
-      endDate: Date;
-      status: MilestoneStatus;
-    }) => {
-      const response = await fetch("/api/milestones", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          startDate: formData.startDate.toISOString(),
-          endDate: formData.endDate.toISOString(),
-        }),
-      });
-      if (!response.ok) throw new Error("Failed to create feature");
-      return response.json();
+  const handleUpdateAppearance = useCallback(
+    async (milestoneId: string, data: { color: string; icon: string }) => {
+      try {
+        const response = await fetch("/api/projects", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: milestoneId, ...data }),
+        });
+        if (!response.ok) throw new Error("Failed to update milestone");
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+        queryClient.invalidateQueries({ queryKey: ["projects"] });
+      } catch {
+        toast.error("Failed to update milestone appearance");
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
-      toast.success("Feature created");
-    },
-    onError: () => toast.error("Failed to create feature"),
-  });
+    [queryClient]
+  );
 
   const handleReorder = useCallback(
     ({
@@ -178,30 +185,80 @@ export function FeaturesTab() {
     [queryClient, reorderMutation]
   );
 
-  const handleOpenNewFeature = useCallback(() => {
-    const defaultMilestoneId = milestoneOptions[0]?.id || null;
-    let currentMilestoneId = defaultMilestoneId;
+  const handleAddFeatureForMilestone = useCallback(
+    (milestoneId: string) => {
+      setFeatureDialogMilestoneId(milestoneId);
+      setFeatureDialogOpen(true);
+    },
+    []
+  );
 
-    push(
-      "new-feature",
-      <FeatureDetailPanel
-        teams={[]}
-        onCreate={(formData) => {
-          if (!currentMilestoneId) return;
-          createFeatureMutation.mutate({
-            projectId: currentMilestoneId,
-            ...formData,
-          });
-        }}
-        isLoading={createFeatureMutation.isPending}
-        milestoneOptions={milestoneOptions}
-        selectedMilestoneId={defaultMilestoneId}
-        onMilestoneChange={(id) => {
-          currentMilestoneId = id;
-        }}
-      />
-    );
-  }, [push, milestoneOptions, createFeatureMutation]);
+  // React to create intent from the header plus button
+  const prevIntent = useRef(createIntent);
+  useEffect(() => {
+    if (createIntent > 0 && createIntent !== prevIntent.current) {
+      prevIntent.current = createIntent;
+      if (createType === "milestone") {
+        setMilestoneDialogOpen(true);
+      } else {
+        setFeatureDialogMilestoneId(null);
+        setFeatureDialogOpen(true);
+      }
+    }
+  }, [createIntent, createType, milestoneOptions, handleAddFeatureForMilestone]);
+
+  const handleEditMilestone = useCallback(
+    (milestoneId: string) => {
+      const m = milestoneOptions.find((m) => m.id === milestoneId);
+      if (!m) return;
+      // Find description from a feature's extra data or pass what we have
+      push(
+        `milestone-info-${milestoneId}`,
+        <MilestoneInfoPanel milestone={m} />
+      );
+    },
+    [push, milestoneOptions]
+  );
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch("/api/projects", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!response.ok) throw new Error("Failed to delete milestone");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["milestoneStats"] });
+      toast.success("Milestone deleted");
+    },
+    onError: () => toast.error("Failed to delete milestone"),
+  });
+
+  const handleDeleteMilestone = useCallback(
+    (milestoneId: string) => {
+      setDeletingMilestoneId(milestoneId);
+    },
+    []
+  );
+
+  const confirmDeleteMilestone = useCallback(() => {
+    if (deletingMilestoneId) {
+      deleteProjectMutation.mutate(deletingMilestoneId);
+      setDeletingMilestoneId(null);
+    }
+  }, [deletingMilestoneId, deleteProjectMutation]);
+
+  const handleToggleComplete = useCallback(
+    (featureId: string, currentStatus: string) => {
+      const newStatus: MilestoneStatus = currentStatus === "completed" ? "not_started" : "completed";
+      handleUpdateFeature({ id: featureId, status: newStatus, progress: newStatus === "completed" ? 100 : 0 });
+    },
+    [handleUpdateFeature]
+  );
 
   const handleFeatureClick = useCallback(
     (feature: Feature) => {
@@ -234,7 +291,7 @@ export function FeaturesTab() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 px-4 lg:px-6 py-4 md:py-6 space-y-4">
+      <div className="flex flex-col flex-1 min-h-0 px-6 py-8 space-y-4">
         <div className="flex items-center justify-between">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-8 w-32" />
@@ -248,15 +305,15 @@ export function FeaturesTab() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64 px-4 lg:px-6 py-4 md:py-6">
+      <div className="flex items-center justify-center h-64 px-6 py-8">
         <p className="text-destructive">Failed to load features</p>
       </div>
     );
   }
 
-  if (features.length === 0) {
+  if (features.length === 0 && milestoneOptions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4 lg:px-6 py-4 md:py-6">
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
         <Layers className="h-16 w-16 text-muted-foreground/50" />
         <h3 className="mt-4 text-lg font-semibold">No features yet</h3>
         <p className="mt-2 text-sm text-muted-foreground max-w-sm">
@@ -267,29 +324,60 @@ export function FeaturesTab() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-4 lg:px-6 py-4 md:py-6">
+    <div className="flex flex-col flex-1 min-h-0 px-6 py-8">
       <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl flex flex-col flex-1 min-h-0">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-base font-medium">Features</h1>
-          {milestoneOptions.length > 0 && (
-            <Button onClick={handleOpenNewFeature} className="h-7 text-xs">
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              New Feature
-            </Button>
-          )}
-        </div>
-
         <div className="flex-1 overflow-y-auto min-h-0">
           <FeaturesSectionList
             features={features}
             milestones={milestoneOptions}
             onFeatureClick={handleFeatureClick}
+            onToggleComplete={handleToggleComplete}
+            onAddFeature={handleAddFeatureForMilestone}
+            onEditMilestone={handleEditMilestone}
+            onDeleteMilestone={handleDeleteMilestone}
+            onUpdateAppearance={handleUpdateAppearance}
+            onAddMilestone={() => setMilestoneDialogOpen(true)}
             onReorder={handleReorder}
           />
         </div>
 
         <BulkActionBar />
       </div>
+
+      <MilestoneDialog
+        open={milestoneDialogOpen}
+        onOpenChange={setMilestoneDialogOpen}
+      />
+
+      <FeatureDialog
+        open={featureDialogOpen}
+        onOpenChange={setFeatureDialogOpen}
+        milestones={milestoneOptions}
+        defaultMilestoneId={featureDialogMilestoneId}
+      />
+
+      <AlertDialog
+        open={!!deletingMilestoneId}
+        onOpenChange={(open) => { if (!open) setDeletingMilestoneId(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete milestone?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete &quot;{milestoneOptions.find((m) => m.id === deletingMilestoneId)?.name}&quot; and all its features. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteMilestone}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
