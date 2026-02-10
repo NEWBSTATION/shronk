@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useGanttStore } from "@/store/gantt-store";
+import { useTimelineStore } from "@/store/timeline-store";
 import { ListRow } from "./list-row";
 import { ListGroupHeader } from "./list-group-header";
 import type { Milestone, Team } from "@/db/schema";
@@ -48,7 +48,7 @@ export function ListTable({
   allMilestoneIds,
 }: ListTableProps) {
   const { selectedIds, selectAll, deselectAll, groupBy, rowHeight } =
-    useGanttStore();
+    useTimelineStore();
 
   const allSelected =
     allMilestoneIds.length > 0 &&

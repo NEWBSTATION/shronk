@@ -105,6 +105,8 @@ export async function GET(request: NextRequest) {
         createdAt: milestones.createdAt,
         updatedAt: milestones.updatedAt,
         milestoneName: projects.name,
+        milestoneColor: projects.color,
+        milestoneIcon: projects.icon,
       })
       .from(milestones)
       .innerJoin(projects, eq(milestones.projectId, projects.id))
@@ -116,6 +118,8 @@ export async function GET(request: NextRequest) {
       .select({
         id: projects.id,
         name: projects.name,
+        color: projects.color,
+        icon: projects.icon,
       })
       .from(projects)
       .where(eq(projects.userId, userId))

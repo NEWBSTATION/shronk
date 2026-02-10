@@ -61,6 +61,8 @@ export const projects = pgTable("projects", {
   userId: varchar("user_id", { length: 255 }).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
+  color: varchar("color", { length: 20 }).default("blue").notNull(),
+  icon: varchar("icon", { length: 50 }).default("rocket").notNull(),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

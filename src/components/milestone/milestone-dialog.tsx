@@ -24,7 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
-import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/gantt/constants";
+import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
 
 interface MilestoneDialogProps {
   open: boolean;

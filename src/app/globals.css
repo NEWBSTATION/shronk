@@ -335,10 +335,10 @@ pre {
 
 /* Override SVAR Willow theme variables with tweakcn values
    Target both the theme wrapper and any element with willow class */
-.gantt-theme-wrapper,
-.gantt-theme-wrapper .wx-willow-theme,
-.gantt-theme-wrapper .wx-willow-dark-theme,
-.gantt-theme-wrapper [class*="wx-willow"],
+.timeline-theme-wrapper,
+.timeline-theme-wrapper .wx-willow-theme,
+.timeline-theme-wrapper .wx-willow-dark-theme,
+.timeline-theme-wrapper [class*="wx-willow"],
 [class*="wx-willow-theme"],
 [class*="wx-willow-dark-theme"] {
   /* ============================================
@@ -510,8 +510,8 @@ pre {
    overrides our parent-level vars. Force them here.
    ================================================ */
 
-.gantt-theme-wrapper .wx-willow-theme,
-.gantt-theme-wrapper .wx-willow-dark-theme {
+.timeline-theme-wrapper .wx-willow-theme,
+.timeline-theme-wrapper .wx-willow-dark-theme {
   --wx-gantt-border: 1px solid var(--border) !important;
   --wx-gantt-border-color: var(--border) !important;
   --wx-border: 1px solid var(--border) !important;
@@ -527,24 +527,24 @@ pre {
    ================================================ */
 
 /* Main layout container - set background once at top level */
-.gantt-theme-wrapper [class*="wx-layout"] {
+.timeline-theme-wrapper [class*="wx-layout"] {
   background-color: var(--background) !important;
   color: var(--foreground) !important;
 }
 
 /* Timescale/header - background only, not affecting borders */
-.gantt-theme-wrapper [class*="wx-scale"] {
+.timeline-theme-wrapper [class*="wx-scale"] {
   background-color: var(--background) !important;
   color: var(--foreground) !important;
 }
 
 /* Text colors for cells */
-.gantt-theme-wrapper [class*="wx-cell"] {
+.timeline-theme-wrapper [class*="wx-cell"] {
   color: var(--foreground) !important;
 }
 
 /* Task bars - use chart colors */
-.gantt-theme-wrapper [class*="wx-bar"][class*="wx-task"]:not([class*="wx-split"]) {
+.timeline-theme-wrapper [class*="wx-bar"][class*="wx-task"]:not([class*="wx-split"]) {
   background-color: var(--chart-2) !important;
   color: #fff !important;
   overflow: visible !important;
@@ -553,18 +553,18 @@ pre {
   border: none !important;
   outline: none !important;
 }
-.gantt-theme-wrapper [class*="wx-bar"][class*="wx-task"]:not([class*="wx-split"]) * {
+.timeline-theme-wrapper [class*="wx-bar"][class*="wx-task"]:not([class*="wx-split"]) * {
   border: none !important;
   outline: none !important;
 }
 
 /* Allow bar labels to extend beyond bar container */
-.gantt-theme-wrapper [class*="wx-bars"] {
+.timeline-theme-wrapper [class*="wx-bars"] {
   overflow: visible !important;
 }
 
 /* Bar label — positioned past the right link handle, always visible */
-.gantt-theme-wrapper .gantt-bar-label {
+.timeline-theme-wrapper .timeline-bar-label {
   position: absolute;
   left: calc(100% + 32px);
   top: 0;
@@ -580,29 +580,29 @@ pre {
 }
 
 /* Summary bars */
-.gantt-theme-wrapper [class*="wx-bar"][class*="wx-summary"] {
+.timeline-theme-wrapper [class*="wx-bar"][class*="wx-summary"] {
   background-color: var(--chart-1) !important;
   color: #fff !important;
 }
 
 /* Milestone diamond */
-.gantt-theme-wrapper [class*="wx-milestone"] [class*="wx-content"] {
+.timeline-theme-wrapper [class*="wx-milestone"] [class*="wx-content"] {
   background-color: var(--chart-5) !important;
 }
 
 /* Selected row highlight */
-.gantt-theme-wrapper [class*="wx-row"][class*="wx-selected"],
-.gantt-theme-wrapper [class*="wx-selected"]:not([class*="wx-bar"]):not([class*="wx-link"]) {
+.timeline-theme-wrapper [class*="wx-row"][class*="wx-selected"],
+.timeline-theme-wrapper [class*="wx-selected"]:not([class*="wx-bar"]):not([class*="wx-link"]) {
   background-color: var(--accent) !important;
 }
 
 /* Resizer/splitter bar between grid and chart */
-.gantt-theme-wrapper [class*="wx-resizer"] {
+.timeline-theme-wrapper [class*="wx-resizer"] {
   background-color: var(--border) !important;
 }
 
 /* Weekend/holiday columns - subtle dot stipple pattern for chart area */
-.gantt-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
+.timeline-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
   background-image: radial-gradient(
     circle,
     color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px,
@@ -613,14 +613,14 @@ pre {
   transition: none !important;
 }
 /* Weekend scale header cells - subtle label color */
-.gantt-theme-wrapper [class*="wx-cell"][class*="wx-weekend"] {
+.timeline-theme-wrapper [class*="wx-cell"][class*="wx-weekend"] {
   background-color: var(--muted) !important;
   color: color-mix(in srgb, var(--muted-foreground) 55%, transparent) !important;
 }
 
 /* Tooltip */
-.gantt-theme-wrapper .wx-gantt-tooltip,
-.gantt-theme-wrapper [class*="wx-tooltip"] {
+.timeline-theme-wrapper .wx-gantt-tooltip,
+.timeline-theme-wrapper [class*="wx-tooltip"] {
   background-color: var(--popover) !important;
   color: var(--popover-foreground) !important;
 }
@@ -631,12 +631,12 @@ pre {
    ================================================ */
 
 /* Grid body cells - right border for vertical lines */
-.gantt-theme-wrapper [class*="wx-body"] [class*="wx-cell"] {
+.timeline-theme-wrapper [class*="wx-body"] [class*="wx-cell"] {
   border-right: 1px solid var(--border) !important;
 }
 
 /* Grid body rows - bottom border for horizontal lines */
-.gantt-theme-wrapper [class*="wx-body"] [class*="wx-row"] {
+.timeline-theme-wrapper [class*="wx-body"] [class*="wx-row"] {
   border-bottom: 1px solid var(--border) !important;
 }
 
@@ -645,21 +645,21 @@ pre {
 /* Header cells - SVAR cellBorders="column" handles right borders */
 
 /* Timescale cells - right border */
-.gantt-theme-wrapper [class*="wx-scale"] [class*="wx-cell"] {
+.timeline-theme-wrapper [class*="wx-scale"] [class*="wx-cell"] {
   border-right: 1px solid var(--border) !important;
 }
 /* Timescale rows - bottom border separates header rows and chart body */
-.gantt-theme-wrapper [class*="wx-scale"] [class*="wx-row"] {
+.timeline-theme-wrapper [class*="wx-scale"] [class*="wx-row"] {
   border-bottom: 1px solid var(--border) !important;
 }
 
 /* Table container right border (divider between grid and chart) */
-.gantt-theme-wrapper [class*="wx-table-container"] {
+.timeline-theme-wrapper [class*="wx-table-container"] {
   border-right: 1px solid var(--border) !important;
 }
 
 /* Remove last cell right border to avoid double with container edge */
-.gantt-theme-wrapper [class*="wx-row"] [class*="wx-cell"]:last-child {
+.timeline-theme-wrapper [class*="wx-row"] [class*="wx-cell"]:last-child {
   border-right: none !important;
 }
 
@@ -667,7 +667,7 @@ pre {
    Layout - Ensure full height
    ================================================ */
 
-.gantt-theme-wrapper {
+.timeline-theme-wrapper {
   height: 100%;
   width: 100%;
   display: flex;
@@ -675,39 +675,39 @@ pre {
   min-height: 0;
 }
 
-.gantt-theme-wrapper .wx-gantt {
+.timeline-theme-wrapper .wx-gantt {
   height: 100% !important;
   flex: 1;
   min-height: 0;
 }
 
 /* Force SVAR to fill available height */
-.gantt-theme-wrapper [class*="wx-pseudo-rows"] {
+.timeline-theme-wrapper [class*="wx-pseudo-rows"] {
   height: 100% !important;
   min-height: 100% !important;
 }
 
-.gantt-theme-wrapper [class*="wx-stuck"] {
+.timeline-theme-wrapper [class*="wx-stuck"] {
   height: 100% !important;
   max-height: none !important;
 }
 
-.gantt-theme-wrapper [class*="wx-layout"] {
+.timeline-theme-wrapper [class*="wx-layout"] {
   height: 100% !important;
   max-height: none !important;
 }
 
 /* Force SVAR internal containers to fill available space */
-.svar-gantt-container {
-  --gantt-cell-width: 60px;
-  --gantt-row-height: 52px;
+.svar-timeline-container {
+  --timeline-cell-width: 60px;
+  --timeline-row-height: 52px;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
 
-.svar-gantt-container .gantt-theme-wrapper {
+.svar-timeline-container .timeline-theme-wrapper {
   flex: 1;
   min-height: 0;
 }
@@ -719,17 +719,17 @@ pre {
    ================================================ */
 
 /* Grid side (left panel) - background + horizontal row lines */
-.gantt-theme-wrapper .wx-body,
-.gantt-theme-wrapper [class*="wx-body"] {
+.timeline-theme-wrapper .wx-body,
+.timeline-theme-wrapper [class*="wx-body"] {
   background-color: var(--background) !important;
   background-image: repeating-linear-gradient(
     to bottom,
     transparent 0px,
-    transparent calc(var(--gantt-row-height, 52px) - 1px),
-    var(--border) calc(var(--gantt-row-height, 52px) - 1px),
-    var(--border) var(--gantt-row-height, 52px)
+    transparent calc(var(--timeline-row-height, 52px) - 1px),
+    var(--border) calc(var(--timeline-row-height, 52px) - 1px),
+    var(--border) var(--timeline-row-height, 52px)
   ) !important;
-  background-size: 100% var(--gantt-row-height, 52px) !important;
+  background-size: 100% var(--timeline-row-height, 52px) !important;
   background-position: top !important;
 }
 
@@ -739,20 +739,20 @@ pre {
    on top of .wx-area, so they MUST stay transparent to show the grid through */
 
 /* Chart area - background only (SVAR cellBorders="column" handles vertical lines) */
-.gantt-theme-wrapper [class*="wx-chart"] > [class*="wx-area"],
-.gantt-theme-wrapper [class*="wx-area"]:not([class*="wx-sidearea"]):not([class*="wx-tooltip"]) {
+.timeline-theme-wrapper [class*="wx-chart"] > [class*="wx-area"],
+.timeline-theme-wrapper [class*="wx-area"]:not([class*="wx-sidearea"]):not([class*="wx-tooltip"]) {
   background: var(--background) !important;
 }
 
 /* Overlays inside .wx-area must be transparent so grid shows through */
-.gantt-theme-wrapper [class*="wx-bars"],
-.gantt-theme-wrapper [class*="wx-gantt-holidays"],
-.gantt-theme-wrapper [class*="wx-links"] {
+.timeline-theme-wrapper [class*="wx-bars"],
+.timeline-theme-wrapper [class*="wx-gantt-holidays"],
+.timeline-theme-wrapper [class*="wx-links"] {
   background-color: transparent !important;
 }
 
 /* Weekend columns - subtle dot stipple pattern (overrides earlier rule at higher cascade position) */
-.gantt-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
+.timeline-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
   background-image: radial-gradient(
     circle,
     color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px,
@@ -796,7 +796,7 @@ pre {
    Row Hover Highlight - Full-width strip
    ================================================ */
 
-.gantt-row-hover {
+.timeline-row-hover {
   background: color-mix(in srgb, var(--foreground) 5%, transparent);
 }
 
@@ -807,7 +807,7 @@ pre {
    ================================================ */
 
 /* Outer ring — white fill, themed border, works on any bg */
-.gantt-theme-wrapper .wx-link.wx-GKbcLEGA {
+.timeline-theme-wrapper .wx-link.wx-GKbcLEGA {
   width: 14px !important;
   height: 14px !important;
   border: 2px solid color-mix(in srgb, var(--foreground) 35%, transparent) !important;
@@ -817,7 +817,7 @@ pre {
 }
 
 /* Inner dot — hidden by default, shown on hover */
-.gantt-theme-wrapper .wx-link .wx-inner.wx-GKbcLEGA {
+.timeline-theme-wrapper .wx-link .wx-inner.wx-GKbcLEGA {
   width: 6px !important;
   height: 6px !important;
   border: 3px solid color-mix(in srgb, var(--foreground) 35%, transparent) !important;
@@ -827,28 +827,28 @@ pre {
 }
 
 /* Show handles on bar hover */
-.gantt-theme-wrapper .wx-bar:hover .wx-link {
+.timeline-theme-wrapper .wx-bar:hover .wx-link {
   opacity: 1 !important;
 }
 
 /* Hover state — colored ring + show inner dot */
-.gantt-theme-wrapper .wx-link:hover {
+.timeline-theme-wrapper .wx-link:hover {
   border-color: var(--chart-2) !important;
   transform: translateY(-50%) scale(1.15) !important;
 }
 
-.gantt-theme-wrapper .wx-link:hover .wx-inner {
+.timeline-theme-wrapper .wx-link:hover .wx-inner {
   opacity: 1 !important;
   border-color: var(--chart-2) !important;
 }
 
 /* Selected state (during link creation click flow) */
-.gantt-theme-wrapper .wx-link.wx-selected {
+.timeline-theme-wrapper .wx-link.wx-selected {
   border-color: var(--chart-2) !important;
   background-color: var(--chart-2) !important;
 }
 
-.gantt-theme-wrapper .wx-link.wx-selected .wx-inner {
+.timeline-theme-wrapper .wx-link.wx-selected .wx-inner {
   opacity: 1 !important;
   border-color: #fff !important;
 }

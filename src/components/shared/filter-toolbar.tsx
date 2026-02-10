@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { useGanttStore } from "@/store/gantt-store";
+import { useTimelineStore } from "@/store/timeline-store";
 import { statusConfig, priorityConfig } from "./status-badge";
 import type { Team } from "@/db/schema";
 import {
@@ -71,7 +71,7 @@ export function FilterToolbar({ teams = [] }: FilterToolbarProps) {
     viewType,
     rowHeight,
     setRowHeight,
-  } = useGanttStore();
+  } = useTimelineStore();
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 

@@ -15,6 +15,13 @@
       "when": 1770664263768,
       "tag": "0001_skinny_golden_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770751282660,
+      "tag": "0002_magical_wendell_vaughn",
+      "breakpoints": true
     }
   ]
 }

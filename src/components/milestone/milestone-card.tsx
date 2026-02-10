@@ -1,23 +1,7 @@
 "use client";
 
 import { format, differenceInDays } from "date-fns";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import {
-  Calendar,
-  CircleCheck,
-  ChevronRight,
-  Clock,
-  Layers,
-} from "lucide-react";
 import type { Project } from "@/db/schema";
 
 interface MilestoneCardProps {
@@ -52,80 +36,95 @@ export function MilestoneCard({
   const isCompleted = progress === 100;
 
   return (
-    <Card
-      className={cn(
-        "cursor-pointer transition-all hover:shadow-md hover:border-primary/50 group",
-        isOverdue && "border-destructive/50",
-        isCompleted && "border-green-500/50"
-      )}
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onClick();
+      }}
+      className={cn(
+        "group/row relative flex items-center gap-3 px-6 py-3.5",
+        "cursor-pointer transition-colors",
+        "hover:bg-accent/40",
+        "focus-visible:outline-none focus-visible:bg-accent/40"
+      )}
     >
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
-            <CardTitle className="text-lg truncate group-hover:text-primary transition-colors">
-              {milestone.name}
-            </CardTitle>
-            {milestone.description && (
-              <CardDescription className="mt-1 line-clamp-2">
-                {milestone.description}
-              </CardDescription>
-            )}
-          </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 ml-2" />
-        </div>
-      </CardHeader>
+      {/* Status dot */}
+      <span
+        className={cn(
+          "h-2 w-2 rounded-full shrink-0",
+          isCompleted
+            ? "bg-green-500"
+            : isOverdue
+              ? "bg-destructive"
+              : progress > 0
+                ? "bg-primary"
+                : "bg-muted-foreground/40"
+        )}
+      />
 
-      <CardContent className="space-y-4">
-        {/* Date Range */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="h-4 w-4" />
-          <span>
-            {startDate ? format(startDate, "MMM d") : "No start"} -{" "}
-            {endDate ? format(endDate, "MMM d, yyyy") : "No end"}
+      {/* Content */}
+      <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium truncate">
+            {milestone.name}
           </span>
-        </div>
 
-        {/* Progress Bar */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Progress</span>
-            <span className="font-medium">{progress}%</span>
-          </div>
-          <Progress value={progress} className="h-2" />
-        </div>
-
-        {/* Stats Row */}
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex items-center gap-4">
-            {/* Feature Count */}
-            <div className="flex items-center gap-1.5 text-sm">
-              <Layers className="h-4 w-4 text-muted-foreground" />
-              <span>
-                {completedFeatureCount}/{featureCount} features
-              </span>
-            </div>
-          </div>
-
-          {/* Status Badge */}
+          {/* Status label */}
           {isCompleted ? (
-            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
-              <CircleCheck className="h-3 w-3 mr-1" fill="currentColor" />
+            <span className="text-xs font-medium text-green-600 dark:text-green-400 shrink-0">
               Complete
-            </Badge>
+            </span>
           ) : isOverdue ? (
-            <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
-              <Clock className="h-3 w-3 mr-1" />
+            <span className="text-xs font-medium text-destructive shrink-0">
               Overdue
-            </Badge>
+            </span>
           ) : daysRemaining !== null ? (
-            <Badge variant="outline" className="text-muted-foreground">
-              <Clock className="h-3 w-3 mr-1" />
-              {daysRemaining} days left
-            </Badge>
+            <span className="text-xs text-muted-foreground shrink-0">
+              {daysRemaining}d left
+            </span>
           ) : null}
         </div>
-      </CardContent>
-    </Card>
+
+        {milestone.description && (
+          <p className="text-xs text-muted-foreground truncate">
+            {milestone.description}
+          </p>
+        )}
+      </div>
+
+      {/* Right-side metadata */}
+      <div className="flex items-center gap-3 shrink-0">
+        {/* Date range */}
+        <span className="text-xs text-muted-foreground hidden sm:block">
+          {startDate ? format(startDate, "MMM d") : "—"}
+          {" – "}
+          {endDate ? format(endDate, "MMM d") : "—"}
+        </span>
+
+        {/* Feature count + progress */}
+        {featureCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {completedFeatureCount}/{featureCount}
+            </span>
+            <div className="w-10 h-1.5 bg-muted rounded-full overflow-hidden hidden sm:block">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-500 ease-out",
+                  isCompleted
+                    ? "bg-green-500"
+                    : isOverdue
+                      ? "bg-destructive"
+                      : "bg-primary"
+                )}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

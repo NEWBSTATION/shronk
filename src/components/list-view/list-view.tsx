@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
-import { useGanttStore } from "@/store/gantt-store";
+import { useTimelineStore } from "@/store/timeline-store";
 import { ListTable } from "./list-table";
 import { ListBulkActions } from "./list-bulk-actions";
 import { useReorderMilestones } from "@/hooks/use-milestones";
@@ -67,7 +67,7 @@ export function ListView({
     deselectAll,
     sortField,
     sortDirection,
-  } = useGanttStore();
+  } = useTimelineStore();
 
   const reorderMutation = useReorderMilestones();
 

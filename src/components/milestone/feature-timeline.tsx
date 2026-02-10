@@ -49,8 +49,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import type { Milestone, MilestoneStatus, Team, Project } from "@/db/schema";
-import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/gantt/constants";
-import { useHeader } from "@/components/header-context";
+import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
 
 // Constants
 const ROW_HEIGHT = 56;
@@ -145,8 +144,6 @@ export function FeatureTimeline({
   onReorder,
   onAddFeature,
 }: FeatureTimelineProps) {
-  const { setBreadcrumbs, clearBreadcrumbs, setHeaderAction, clearHeaderAction } = useHeader();
-
   // State
   const [timePeriod, setTimePeriod] = useState<TimePeriod>("month");
   const [zoomLevel, setZoomLevel] = useState(5);
@@ -158,26 +155,6 @@ export function FeatureTimeline({
   const headerRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const wheelDeltaRef = useRef(0);
-
-  // Set breadcrumbs when component mounts
-  useEffect(() => {
-    setBreadcrumbs([{ label: milestone.name, onClick: onBack }]);
-    return () => clearBreadcrumbs();
-  }, [milestone.name, onBack, setBreadcrumbs, clearBreadcrumbs]);
-
-  // Set header action for New Feature button
-  useEffect(() => {
-    setHeaderAction(
-      <Button
-        onClick={onAddFeature}
-        className="h-7 text-xs"
-      >
-        <Plus className="h-3.5 w-3.5 mr-1.5" />
-        New Feature
-      </Button>
-    );
-    return () => clearHeaderAction();
-  }, [onAddFeature, setHeaderAction, clearHeaderAction]);
 
   // Sort features by sortOrder
   const sortedFeatures = useMemo(() => {

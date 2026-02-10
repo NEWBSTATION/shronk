@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { statusConfig, priorityConfig } from "./status-badge";
-import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/gantt/constants";
+import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
 import type { Milestone, Team, MilestoneStatus, MilestonePriority } from "@/db/schema";
 
 interface ItemDialogProps {

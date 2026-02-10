@@ -57,7 +57,14 @@
       "Bash(npm uninstall:*)",
       "Bash(npx next lint:*)",
       "Bash(git stash:*)",
-      "Bash(npx patch-package:*)"
+      "Bash(npx patch-package:*)",
+      "Bash(git status:*)",
+      "Bash(cat:*)",
+      "Bash(npx drizzle-kit generate:*)",
+      "Bash(npx dotenv:*)",
+      "Bash(lsof:*)",
+      "Bash(curl:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }

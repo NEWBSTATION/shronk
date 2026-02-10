@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useGanttStore } from "@/store/gantt-store";
+import { useTimelineStore } from "@/store/timeline-store";
 import {
   StatusBadge,
   PriorityBadge,
@@ -48,7 +48,7 @@ export function ListRow({
   allMilestoneIds,
   className,
 }: ListRowProps) {
-  const { selectedIds, toggleItemSelection, selectItem } = useGanttStore();
+  const { selectedIds, toggleItemSelection, selectItem } = useTimelineStore();
 
   const {
     attributes,

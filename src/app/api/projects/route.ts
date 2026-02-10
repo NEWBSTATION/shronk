@@ -9,6 +9,8 @@ import { capitalizeWords } from "@/lib/capitalize";
 const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().optional(),
+  color: z.string().max(20).optional(),
+  icon: z.string().max(50).optional(),
   startDate: z.string().datetime().optional().nullable(),
   endDate: z.string().datetime().optional().nullable(),
 });
@@ -17,6 +19,8 @@ const updateProjectSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).max(255).optional(),
   description: z.string().optional().nullable(),
+  color: z.string().max(20).optional(),
+  icon: z.string().max(50).optional(),
   startDate: z.string().datetime().optional().nullable(),
   endDate: z.string().datetime().optional().nullable(),
 });
@@ -64,6 +68,8 @@ export async function POST(request: NextRequest) {
         userId,
         name: capitalizeWords(data.name),
         description: data.description,
+        ...(data.color && { color: data.color }),
+        ...(data.icon && { icon: data.icon }),
         startDate: data.startDate ? new Date(data.startDate) : null,
         endDate: data.endDate ? new Date(data.endDate) : null,
       })
@@ -100,6 +106,8 @@ export async function PUT(request: NextRequest) {
     };
     if (data.name !== undefined) updateData.name = capitalizeWords(data.name);
     if (data.description !== undefined) updateData.description = data.description;
+    if (data.color !== undefined) updateData.color = data.color;
+    if (data.icon !== undefined) updateData.icon = data.icon;
     if (data.startDate !== undefined) updateData.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.endDate !== undefined) updateData.endDate = data.endDate ? new Date(data.endDate) : null;
 
