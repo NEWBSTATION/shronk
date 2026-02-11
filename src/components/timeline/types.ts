@@ -28,6 +28,9 @@ export interface SVARTask {
     projectId: string;
     sortOrder: number;
     description: string | null;
+    isTeamTrack?: boolean;
+    teamColor?: string;
+    teamName?: string;
   };
 }
 

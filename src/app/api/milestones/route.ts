@@ -5,6 +5,7 @@ import {
   milestones,
   projects,
   milestoneDependencies,
+  teamMilestoneDurations,
 } from "@/db/schema";
 import { eq, and, inArray, asc, desc, sql, ilike, or } from "drizzle-orm";
 import { z } from "zod";
@@ -135,7 +136,18 @@ export async function GET(request: NextRequest) {
             )
         : [];
 
-    return NextResponse.json({ milestones: result, dependencies });
+    // Get team durations for these milestones
+    const teamDurations =
+      milestoneIds.length > 0
+        ? await db
+            .select()
+            .from(teamMilestoneDurations)
+            .where(
+              inArray(teamMilestoneDurations.milestoneId, milestoneIds)
+            )
+        : [];
+
+    return NextResponse.json({ milestones: result, dependencies, teamDurations });
   } catch (error) {
     console.error("Error fetching milestones:", error);
     return NextResponse.json(

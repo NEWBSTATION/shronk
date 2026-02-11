@@ -1,7 +1,26 @@
-import { format, endOfWeek } from 'date-fns';
+import { format, endOfWeek, startOfDay, isEqual } from 'date-fns';
 import { createElement } from 'react';
 import type { TimePeriod } from './types';
 import type { IScaleConfig } from '@svar-ui/react-gantt';
+
+const todayBadgeStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: '18px',
+  height: '18px',
+  borderRadius: '9px',
+  backgroundColor: 'var(--destructive)',
+  color: 'var(--destructive-foreground)',
+  fontSize: '11px',
+  fontWeight: 700,
+  lineHeight: 1,
+  padding: '0 4px',
+};
+
+function isToday(date: Date): boolean {
+  return isEqual(startOfDay(date), startOfDay(new Date()));
+}
 
 /**
  * Scale configurations for each time period
@@ -27,7 +46,19 @@ export const SCALE_CONFIGS: Record<TimePeriod, IScaleConfig[]> = {
     {
       unit: 'day',
       step: 1,
-      format: (date: Date) => `${format(date, 'EEEEE')} ${format(date, 'd')}`, // "Su 25"
+      format: ((date: Date) => {
+        const dayName = format(date, 'EEEEEE');
+        const dayNum = format(date, 'd');
+        if (isToday(date)) {
+          return createElement(
+            'span',
+            { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', width: '100%' } },
+            createElement('span', null, dayName),
+            createElement('span', { style: todayBadgeStyle }, dayNum),
+          );
+        }
+        return `${dayName} ${dayNum}`;
+      }) as unknown as IScaleConfig['format'],
     },
   ],
   month: [
@@ -46,10 +77,17 @@ export const SCALE_CONFIGS: Record<TimePeriod, IScaleConfig[]> = {
     {
       unit: 'week',
       step: 1,
-      format: (date: Date) => {
+      format: ((date: Date) => {
         const weekEnd = endOfWeek(date, { weekStartsOn: 0 });
-        return `${format(date, 'd')}-${format(weekEnd, 'd')}`; // "1-7"
-      },
+        const dateRange = `${format(date, 'd')}-${format(weekEnd, 'd')}`;
+        const weekNum = `W${format(date, 'w')}`;
+        return createElement(
+          'span',
+          { style: { display: 'flex', justifyContent: 'space-between', width: '100%', padding: '0 4px' } },
+          createElement('span', null, dateRange),
+          createElement('span', { style: { opacity: 0.5 } }, weekNum),
+        );
+      }) as unknown as IScaleConfig['format'],
     },
   ],
   quarter: [
@@ -97,7 +135,26 @@ export function getScaleConfig(timePeriod: TimePeriod, cellWidth: number): IScal
       base[0],
       {
         ...base[1],
-        format: (date: Date) => format(date, 'd'),
+        format: ((date: Date) => {
+          const dayNum = format(date, 'd');
+          if (isToday(date)) {
+            return createElement('span', { style: todayBadgeStyle }, dayNum);
+          }
+          return dayNum;
+        }) as unknown as IScaleConfig['format'],
+      },
+    ];
+  }
+
+  if (timePeriod === 'month' && cellWidth < 100) {
+    return [
+      base[0],
+      {
+        ...base[1],
+        format: (date: Date) => {
+          const weekEnd = endOfWeek(date, { weekStartsOn: 0 });
+          return `${format(date, 'd')}-${format(weekEnd, 'd')}`;
+        },
       },
     ];
   }
@@ -132,4 +189,4 @@ export const ROW_HEIGHT = 52;
 /**
  * Get header height for the Gantt chart
  */
-export const SCALE_HEIGHT = 56;
+export const SCALE_HEIGHT = 32;

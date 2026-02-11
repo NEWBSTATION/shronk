@@ -1,5 +1,66 @@
 import { addDays } from "date-fns";
 
+/* ========================================================================= */
+/*  Per-team reflow                                                           */
+/* ========================================================================= */
+
+export interface TeamReflowResult {
+  teamId: string;
+  updates: ReflowUpdate[];
+}
+
+/**
+ * Run reflow independently for each team that has duration overrides.
+ *
+ * For each team, builds a milestone list where durations come from the
+ * team-specific map (falling back to the milestone default) and calls
+ * the existing `reflowProject()`.
+ *
+ * @param milestones - all milestones in the project (with default dates/durations)
+ * @param dependencies - all milestone dependencies
+ * @param teamDurations - Map<teamId, Map<milestoneId, duration>>
+ * @param overrides - optional per-milestone overrides applied before reflow
+ */
+export function reflowProjectPerTeam(
+  milestones: ReflowMilestone[],
+  dependencies: ReflowDependency[],
+  teamDurations: Map<string, Map<string, number>>,
+  overrides?: Map<string, Partial<ReflowMilestone>>
+): TeamReflowResult[] {
+  const results: TeamReflowResult[] = [];
+
+  for (const [teamId, durationMap] of teamDurations) {
+    // Build team-specific milestone list: use team duration if present, else milestone default
+    const teamMilestones: ReflowMilestone[] = milestones.map((m) => {
+      const teamDuration = durationMap.get(m.id);
+      return {
+        ...m,
+        duration: teamDuration ?? m.duration,
+      };
+    });
+
+    // Merge any explicit overrides (e.g. from a drag operation on a specific team track)
+    const teamOverrides = overrides
+      ? new Map(
+          [...overrides].map(([id, ov]) => {
+            // If the override has a duration, use it directly;
+            // otherwise use the team-specific duration
+            const teamDuration = durationMap.get(id);
+            if (ov.duration === undefined && teamDuration !== undefined) {
+              return [id, { ...ov, duration: teamDuration }];
+            }
+            return [id, ov];
+          })
+        )
+      : undefined;
+
+    const updates = reflowProject(teamMilestones, dependencies, teamOverrides);
+    results.push({ teamId, updates });
+  }
+
+  return results;
+}
+
 /**
  * Minimal milestone shape needed for reflow computation.
  * Works with both server-side Milestone objects and client-side previews.

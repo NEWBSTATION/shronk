@@ -6,6 +6,7 @@ import {
   varchar,
   pgEnum,
   integer,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -127,6 +128,29 @@ export const milestoneDependencies = pgTable("milestone_dependencies", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Team milestone durations table (per-team duration overrides)
+export const teamMilestoneDurations = pgTable(
+  "team_milestone_durations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    milestoneId: uuid("milestone_id")
+      .references(() => milestones.id, { onDelete: "cascade" })
+      .notNull(),
+    teamId: uuid("team_id")
+      .references(() => teams.id, { onDelete: "cascade" })
+      .notNull(),
+    duration: integer("duration").default(1).notNull(),
+    startDate: timestamp("start_date").notNull(),
+    endDate: timestamp("end_date").notNull(),
+  },
+  (table) => [
+    uniqueIndex("team_milestone_durations_milestone_team_idx").on(
+      table.milestoneId,
+      table.teamId
+    ),
+  ]
+);
+
 // Relations
 export const projectsRelations = relations(projects, ({ many, one }) => ({
   milestones: many(milestones),
@@ -143,6 +167,7 @@ export const teamsRelations = relations(teams, ({ one, many }) => ({
     references: [projects.id],
   }),
   milestones: many(milestones),
+  teamMilestoneDurations: many(teamMilestoneDurations),
 }));
 
 export const milestonesRelations = relations(milestones, ({ one, many }) => ({
@@ -156,6 +181,7 @@ export const milestonesRelations = relations(milestones, ({ one, many }) => ({
   }),
   predecessors: many(milestoneDependencies, { relationName: "successor" }),
   successors: many(milestoneDependencies, { relationName: "predecessor" }),
+  teamMilestoneDurations: many(teamMilestoneDurations),
 }));
 
 export const dashboardLayoutsRelations = relations(dashboardLayouts, ({ one }) => ({
@@ -177,6 +203,20 @@ export const milestoneDependenciesRelations = relations(
       fields: [milestoneDependencies.successorId],
       references: [milestones.id],
       relationName: "successor",
+    }),
+  })
+);
+
+export const teamMilestoneDurationsRelations = relations(
+  teamMilestoneDurations,
+  ({ one }) => ({
+    milestone: one(milestones, {
+      fields: [teamMilestoneDurations.milestoneId],
+      references: [milestones.id],
+    }),
+    team: one(teams, {
+      fields: [teamMilestoneDurations.teamId],
+      references: [teams.id],
     }),
   })
 );
@@ -203,3 +243,5 @@ export type Invite = typeof invites.$inferSelect;
 export type NewInvite = typeof invites.$inferInsert;
 export type DashboardLayout = typeof dashboardLayouts.$inferSelect;
 export type NewDashboardLayout = typeof dashboardLayouts.$inferInsert;
+export type TeamMilestoneDuration = typeof teamMilestoneDurations.$inferSelect;
+export type NewTeamMilestoneDuration = typeof teamMilestoneDurations.$inferInsert;

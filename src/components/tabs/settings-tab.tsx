@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,12 +9,19 @@ import { ProfileTab } from "@/components/settings/profile-tab";
 import { PreferencesTab } from "@/components/settings/preferences-tab";
 import { AppearanceTab } from "@/components/settings/appearance-tab";
 import { MembersTab } from "@/components/settings/members-tab";
+import { TeamsTab } from "@/components/settings/teams-tab";
 import { useMembers } from "@/hooks/use-members";
 
-export function SettingsTab() {
+export function SettingsTab({ subTab = "profile" }: { subTab?: string }) {
+  const [activeSubTab, setActiveSubTab] = useState(subTab);
   const { isLoaded, user } = useUser();
   const { data: membersData } = useMembers();
   const isAdmin = membersData?.currentUserRole === "admin";
+
+  // Sync when parent changes the prop
+  useEffect(() => {
+    setActiveSubTab(subTab);
+  }, [subTab]);
 
   if (!isLoaded) {
     return (
@@ -52,11 +60,12 @@ export function SettingsTab() {
   return (
     <div className="flex-1 overflow-y-auto px-6 py-8">
       <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl">
-        <Tabs defaultValue="profile" className="gap-6">
+        <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="gap-6">
           <TabsList>
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="preferences">Preferences</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
+            <TabsTrigger value="teams">Teams</TabsTrigger>
             {isAdmin && <TabsTrigger value="members">Members</TabsTrigger>}
           </TabsList>
           <TabsContent value="profile">
@@ -67,6 +76,9 @@ export function SettingsTab() {
           </TabsContent>
           <TabsContent value="appearance">
             <AppearanceTab />
+          </TabsContent>
+          <TabsContent value="teams">
+            <TeamsTab />
           </TabsContent>
           {isAdmin && (
             <TabsContent value="members">

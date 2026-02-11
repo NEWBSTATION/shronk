@@ -35,9 +35,10 @@ interface AppHeaderProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
   onCreateAction?: (type: CreateAction) => void;
+  onNavigateSettings?: (subTab: string) => void;
 }
 
-export function AppHeader({ activeTab, onTabChange, onCreateAction }: AppHeaderProps) {
+export function AppHeader({ activeTab, onTabChange, onCreateAction, onNavigateSettings }: AppHeaderProps) {
   const [createOpen, setCreateOpen] = useState(false);
 
   return (
@@ -129,7 +130,7 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction }: AppHeaderP
       </div>
 
       {/* Right: User menu */}
-      <HeaderUserMenu />
+      <HeaderUserMenu onNavigateSettings={onNavigateSettings} />
     </header>
   );
 }

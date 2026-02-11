@@ -18,6 +18,8 @@ import {
   useDeleteMilestone,
   useCreateDependency,
   useDeleteDependency,
+  useUpsertTeamDuration,
+  useDeleteTeamDuration,
 } from "@/hooks/use-milestones";
 import type { CascadedUpdate } from "@/hooks/use-milestones";
 import type { Milestone, MilestoneStatus } from "@/db/schema";
@@ -181,6 +183,10 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
     () => featuresData?.milestones ?? [],
     [featuresData?.milestones]
   );
+  const teamDurations = useMemo(
+    () => featuresData?.teamDurations ?? [],
+    [featuresData?.teamDurations]
+  );
 
   const { data: teamsData } = useTeams(selectedMilestoneId || "");
   const teams = useMemo(() => teamsData?.teams ?? [], [teamsData?.teams]);
@@ -196,6 +202,8 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
   const deleteFeatureMutation = useDeleteMilestone();
   const createDependencyMutation = useCreateDependency();
   const deleteDependencyMutation = useDeleteDependency();
+  const upsertTeamDurationMutation = useUpsertTeamDuration();
+  const deleteTeamDurationMutation = useDeleteTeamDuration();
 
   const handleEditFeature = useCallback(
     (feature: Milestone) => {
@@ -306,6 +314,33 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
     [deleteDependencyMutation]
   );
 
+  const handleUpdateTeamDuration = useCallback(
+    async (milestoneId: string, teamId: string, duration: number) => {
+      try {
+        await upsertTeamDurationMutation.mutateAsync({
+          milestoneId,
+          teamId,
+          duration,
+        });
+      } catch {
+        toast.error("Failed to update team duration");
+      }
+    },
+    [upsertTeamDurationMutation]
+  );
+
+  const handleDeleteTeamDuration = useCallback(
+    async (milestoneId: string, teamId: string) => {
+      try {
+        await deleteTeamDurationMutation.mutateAsync({ milestoneId, teamId });
+        toast.success("Team track removed");
+      } catch {
+        toast.error("Failed to remove team track");
+      }
+    },
+    [deleteTeamDurationMutation]
+  );
+
   // Loading state — show skeleton while projects are being fetched
   if (isLoadingProjects) {
     return (
@@ -352,10 +387,12 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
               features={features}
               dependencies={dependencies}
               teams={teams}
+              teamDurations={teamDurations}
               onBack={() => setSelectedMilestoneId(null)}
               onEdit={handleEditFeature}
               onDelete={handleDeleteFeatureFromTimeline}
               onUpdateDates={handleUpdateDates}
+              onUpdateTeamDuration={handleUpdateTeamDuration}
               onStatusChange={handleStatusChange}
               onAddFeature={handleAddFeature}
               onCreateDependency={handleCreateDependency}
@@ -390,8 +427,11 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
                 teams={teams}
                 projectName={selectedMilestone?.name}
                 dependencies={dependencies}
+                teamDurations={teamDurations}
                 onUpdate={handleUpdateFeature}
                 onDelete={handleDeleteFeature}
+                onUpsertTeamDuration={handleUpdateTeamDuration}
+                onDeleteTeamDuration={handleDeleteTeamDuration}
                 onBack={closePanel}
               />
             ) : (

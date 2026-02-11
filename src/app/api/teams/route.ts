@@ -11,6 +11,16 @@ const createTeamSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#6366f1"),
 });
 
+const updateTeamSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(255).optional(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+});
+
+const deleteTeamSchema = z.object({
+  id: z.string().uuid(),
+});
+
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -82,6 +92,96 @@ export async function POST(request: NextRequest) {
       );
     }
     console.error("Error creating team:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const data = updateTeamSchema.parse(body);
+
+    const existingTeam = await db.query.teams.findFirst({
+      where: eq(teams.id, data.id),
+      with: { project: true },
+    });
+
+    if (!existingTeam) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+
+    if (existingTeam.project.userId !== userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.color !== undefined) updateData.color = data.color;
+
+    const [updated] = await db
+      .update(teams)
+      .set(updateData)
+      .where(eq(teams.id, data.id))
+      .returning();
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Validation error", details: error.issues },
+        { status: 400 }
+      );
+    }
+    console.error("Error updating team:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const data = deleteTeamSchema.parse(body);
+
+    const existingTeam = await db.query.teams.findFirst({
+      where: eq(teams.id, data.id),
+      with: { project: true },
+    });
+
+    if (!existingTeam) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+
+    if (existingTeam.project.userId !== userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    await db.delete(teams).where(eq(teams.id, data.id));
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Validation error", details: error.issues },
+        { status: 400 }
+      );
+    }
+    console.error("Error deleting team:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

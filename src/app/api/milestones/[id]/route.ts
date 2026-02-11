@@ -4,12 +4,13 @@ import { db } from "@/db";
 import {
   milestones,
   milestoneDependencies,
+  teamMilestoneDurations,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, or, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { addDays, differenceInDays } from "date-fns";
 import { capitalizeWords } from "@/lib/capitalize";
-import { reflowProject, type ReflowMilestone, type ReflowDependency } from "@/lib/reflow";
+import { reflowProject, reflowProjectPerTeam, type ReflowMilestone, type ReflowDependency } from "@/lib/reflow";
 
 function toLocalMidnight(date: Date | string): Date {
   const d = typeof date === "string" ? new Date(date) : date;
@@ -73,6 +74,84 @@ async function persistReflowUpdates(updates: MilestoneUpdate[]) {
       })
       .where(eq(milestones.id, update.id));
   }
+}
+
+async function fetchAndRunTeamReflow(projectId: string) {
+  const allMilestones = await db
+    .select()
+    .from(milestones)
+    .where(eq(milestones.projectId, projectId));
+
+  const milestoneIds = allMilestones.map((m) => m.id);
+  if (milestoneIds.length === 0) return [];
+
+  const allDeps = await db
+    .select()
+    .from(milestoneDependencies)
+    .where(
+      or(
+        inArray(milestoneDependencies.predecessorId, milestoneIds),
+        inArray(milestoneDependencies.successorId, milestoneIds)
+      )
+    );
+
+  const allTeamDurations = await db
+    .select()
+    .from(teamMilestoneDurations)
+    .where(inArray(teamMilestoneDurations.milestoneId, milestoneIds));
+
+  if (allTeamDurations.length === 0) return [];
+
+  const reflowMs: ReflowMilestone[] = allMilestones.map((m) => ({
+    id: m.id,
+    startDate: toLocalMidnight(m.startDate),
+    endDate: toLocalMidnight(m.endDate),
+    duration: m.duration,
+  }));
+
+  const reflowDeps: ReflowDependency[] = allDeps.map((d) => ({
+    predecessorId: d.predecessorId,
+    successorId: d.successorId,
+  }));
+
+  const teamDurationsMap = new Map<string, Map<string, number>>();
+  for (const td of allTeamDurations) {
+    if (!teamDurationsMap.has(td.teamId)) {
+      teamDurationsMap.set(td.teamId, new Map());
+    }
+    teamDurationsMap.get(td.teamId)!.set(td.milestoneId, td.duration);
+  }
+
+  const teamResults = reflowProjectPerTeam(reflowMs, reflowDeps, teamDurationsMap);
+
+  // Persist team reflow updates
+  for (const { teamId, updates } of teamResults) {
+    for (const update of updates) {
+      await db
+        .update(teamMilestoneDurations)
+        .set({
+          startDate: update.startDate,
+          endDate: update.endDate,
+          duration: update.duration,
+        })
+        .where(
+          and(
+            eq(teamMilestoneDurations.milestoneId, update.id),
+            eq(teamMilestoneDurations.teamId, teamId)
+          )
+        );
+    }
+  }
+
+  return teamResults.flatMap((r) =>
+    r.updates.map((u) => ({
+      teamId: r.teamId,
+      id: u.id,
+      startDate: u.startDate.toISOString(),
+      endDate: u.endDate.toISOString(),
+      duration: u.duration,
+    }))
+  );
 }
 
 export async function PATCH(
@@ -180,6 +259,9 @@ export async function PATCH(
     // Persist cascaded changes
     await persistReflowUpdates(cascadedUpdates);
 
+    // Run per-team reflow
+    const teamCascadedUpdates = await fetchAndRunTeamReflow(existingMilestone.projectId);
+
     return NextResponse.json({
       milestone: updatedMilestone,
       cascadedUpdates: cascadedUpdates.map((u) => ({
@@ -188,6 +270,7 @@ export async function PATCH(
         endDate: u.endDate.toISOString(),
         duration: u.duration,
       })),
+      teamCascadedUpdates,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -244,6 +327,9 @@ export async function DELETE(
 
     await persistReflowUpdates(reflowUpdates);
 
+    // Run per-team reflow
+    const teamCascadedUpdates = await fetchAndRunTeamReflow(projectId);
+
     return NextResponse.json({
       success: true,
       cascadedUpdates: reflowUpdates.map((u) => ({
@@ -252,6 +338,7 @@ export async function DELETE(
         endDate: u.endDate.toISOString(),
         duration: u.duration,
       })),
+      teamCascadedUpdates,
     });
   } catch (error) {
     console.error("Error deleting milestone:", error);

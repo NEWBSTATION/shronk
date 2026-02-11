@@ -459,7 +459,7 @@ pre {
      ============================================ */
   --wx-grid-body-font: var(--wx-font-weight) var(--wx-font-size) var(--wx-font-family);
   --wx-grid-body-font-color: var(--foreground);
-  --wx-grid-body-row-border: 1px solid var(--border);
+  --wx-grid-body-row-border: 1px solid transparent;
   --wx-grid-body-cell-border: 1px solid transparent;
 
   /* ============================================
@@ -518,7 +518,7 @@ pre {
   --wx-border: 1px solid var(--border) !important;
   --wx-border-color: var(--border) !important;
   --wx-timescale-border: 1px solid var(--border) !important;
-  --wx-grid-body-row-border: 1px solid var(--border) !important;
+  --wx-grid-body-row-border: 1px solid transparent !important;
 }
 
 /* ================================================
@@ -549,7 +549,7 @@ pre {
   background-color: var(--chart-2) !important;
   color: #fff !important;
   overflow: visible !important;
-  box-shadow: inset 0 6px 0 var(--background), inset 0 -6px 0 var(--background) !important;
+  box-shadow: inset 0 6px 0 transparent, inset 0 -6px 0 transparent !important;
   border-radius: 4px !important;
   border: none !important;
   outline: none !important;
@@ -585,10 +585,51 @@ pre {
   z-index: 1;
 }
 
-/* Summary bars */
+/* Duration badge next to bar label */
+.timeline-theme-wrapper .timeline-bar-duration {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  padding: 1px 5px;
+  border-radius: 4px;
+  line-height: 1.4;
+  margin-left: 6px;
+}
+
+/* Team track rows — no border between sibling tracks to visually group them */
+.timeline-theme-wrapper .wx-team-track-row + .wx-team-track-row {
+  border-top: none !important;
+}
+.timeline-theme-wrapper .wx-team-track-row:has(+ .wx-team-track-row) {
+  border-bottom: none !important;
+}
+
+/* Team track child bars — thinner than parent via clip-path */
+.timeline-theme-wrapper [class*="wx-bar"][class*="wx-task"].wx-team-track {
+  box-shadow: none !important;
+  clip-path: inset(10px 0 10px 0 round 4px) !important;
+}
+
+/* Team track bar label — includes team color dot */
+.timeline-theme-wrapper .timeline-bar-team-track {
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* Summary bars — prominent parent bar, same style as normal tasks */
 .timeline-theme-wrapper [class*="wx-bar"][class*="wx-summary"] {
-  background-color: var(--chart-1) !important;
+  background-color: var(--chart-2) !important;
   color: #fff !important;
+  border: none !important;
+  border-radius: 4px !important;
+  overflow: visible !important;
+  box-shadow: inset 0 6px 0 transparent, inset 0 -6px 0 transparent !important;
+}
+.timeline-theme-wrapper [class*="wx-bar"][class*="wx-summary"] * {
+  border: none !important;
+  outline: none !important;
 }
 
 /* Milestone diamond */
@@ -611,7 +652,7 @@ pre {
 .timeline-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
   background-image: radial-gradient(
     circle,
-    color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px,
+    color-mix(in srgb, var(--muted-foreground) 30%, transparent) 1px,
     transparent 1px
   ) !important;
   background-size: 5px 5px !important;
@@ -624,11 +665,15 @@ pre {
   color: color-mix(in srgb, var(--muted-foreground) 55%, transparent) !important;
 }
 
-/* Tooltip */
-.timeline-theme-wrapper .wx-gantt-tooltip,
-.timeline-theme-wrapper [class*="wx-tooltip"] {
-  background-color: var(--popover) !important;
-  color: var(--popover-foreground) !important;
+/* Solid border between Saturday and Sunday columns */
+.timeline-theme-wrapper .wx-sunday:not([class*="wx-cell"]) {
+  border-left: 1px solid var(--border) !important;
+}
+
+/* Hide SVAR's built-in progress elements and tooltips */
+[class*="wx-progress-marker"],
+[class*="wx-gantt-tooltip"] {
+  display: none !important;
 }
 
 /* ================================================
@@ -641,9 +686,9 @@ pre {
   border-right: 1px solid var(--border) !important;
 }
 
-/* Grid body rows - bottom border for horizontal lines */
+/* Grid body rows - no border; background gradient on .wx-body handles row lines */
 .timeline-theme-wrapper [class*="wx-body"] [class*="wx-row"] {
-  border-bottom: 1px solid var(--border) !important;
+  border-bottom: none !important;
 }
 
 /* Header row bottom border - rely on SVAR's own border, no extra needed */
@@ -744,10 +789,27 @@ pre {
    The overlay children (.wx-bars, .wx-holidays, etc.) are absolutely positioned
    on top of .wx-area, so they MUST stay transparent to show the grid through */
 
-/* Chart area - background only (SVAR cellBorders="column" handles vertical lines) */
+/* Chart area background */
 .timeline-theme-wrapper [class*="wx-chart"] > [class*="wx-area"],
 .timeline-theme-wrapper [class*="wx-area"]:not([class*="wx-sidearea"]):not([class*="wx-tooltip"]) {
   background: var(--background) !important;
+}
+
+/* Dashed vertical column lines — mask SVAR's grid image into a dash pattern.
+   cellBorders="column" makes SVAR render only vertical lines in its grid image,
+   so the mask only affects those. 3px visible / 3px hidden.
+   The grid div is a classless child of wx-area (not wx-gantt-holidays, wx-bars, etc.) */
+.timeline-theme-wrapper [class*="wx-area"] > div:not([class*="wx-"]):not([data-id]) {
+  -webkit-mask-image: repeating-linear-gradient(
+    to bottom,
+    black 0px 3px,
+    transparent 3px 6px
+  ) !important;
+  mask-image: repeating-linear-gradient(
+    to bottom,
+    black 0px 3px,
+    transparent 3px 6px
+  ) !important;
 }
 
 /* Overlays inside .wx-area must be transparent so grid shows through */
@@ -761,7 +823,7 @@ pre {
 .timeline-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
   background-image: radial-gradient(
     circle,
-    color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px,
+    color-mix(in srgb, var(--muted-foreground) 30%, transparent) 1px,
     transparent 1px
   ) !important;
   background-size: 5px 5px !important;
@@ -773,16 +835,6 @@ pre {
    Custom Today Marker Styling
    (SVAR's built-in markers feature is paywalled)
    ================================================ */
-
-.today-marker-container {
-  pointer-events: none;
-}
-
-.today-marker-label {
-  font-family: var(--font-sans);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
 
 /* ================================================
    Cursor Marker - Hover line + date label

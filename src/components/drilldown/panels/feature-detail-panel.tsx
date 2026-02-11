@@ -63,6 +63,7 @@ import type {
   MilestoneDependency,
   Team,
   MilestoneStatus,
+  TeamMilestoneDuration,
 } from "@/db/schema";
 
 /* -------------------------------------------------------------------------- */
@@ -79,6 +80,7 @@ interface FeatureDetailPanelProps {
   teams: Team[];
   projectName?: string;
   dependencies?: MilestoneDependency[];
+  teamDurations?: TeamMilestoneDuration[];
   onUpdate?: (data: Partial<Milestone> & { id: string; duration?: number }) => Promise<void>;
   onCreate?: (data: {
     title: string;
@@ -90,6 +92,8 @@ interface FeatureDetailPanelProps {
     teamId?: string | null;
   }) => void;
   onDelete?: (id: string) => Promise<void>;
+  onUpsertTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
+  onDeleteTeamDuration?: (milestoneId: string, teamId: string) => Promise<void>;
   isLoading?: boolean;
   milestoneOptions?: MilestoneOption[];
   selectedMilestoneId?: string | null;
@@ -107,9 +111,12 @@ export function FeatureDetailPanel({
   teams,
   projectName,
   dependencies = [],
+  teamDurations = [],
   onUpdate,
   onCreate,
   onDelete,
+  onUpsertTeamDuration,
+  onDeleteTeamDuration,
   isLoading,
   milestoneOptions,
   selectedMilestoneId,
@@ -495,6 +502,17 @@ export function FeatureDetailPanel({
 
       </div>
 
+      {/* Team Tracks Section */}
+      {isEditMode && teams.length > 0 && feature && (
+        <TeamTracksSection
+          feature={feature}
+          teams={teams}
+          teamDurations={teamDurations.filter((td) => td.milestoneId === feature.id)}
+          onUpsertTeamDuration={onUpsertTeamDuration}
+          onDeleteTeamDuration={onDeleteTeamDuration}
+        />
+      )}
+
       {/* Description — separated below properties */}
       <div className="mt-6 pt-6 border-t border-border">
         <div className="flex items-center gap-3 mb-2 px-2 -mx-2">
@@ -544,6 +562,125 @@ export function FeatureDetailPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Team Tracks Section                                                        */
+/* -------------------------------------------------------------------------- */
+
+function TeamTracksSection({
+  feature,
+  teams,
+  teamDurations,
+  onUpsertTeamDuration,
+  onDeleteTeamDuration,
+}: {
+  feature: Milestone;
+  teams: Team[];
+  teamDurations: TeamMilestoneDuration[];
+  onUpsertTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
+  onDeleteTeamDuration?: (milestoneId: string, teamId: string) => Promise<void>;
+}) {
+  const assignedTeamIds = new Set(teamDurations.map((td) => td.teamId));
+  const unassignedTeams = teams.filter((t) => !assignedTeamIds.has(t.id));
+
+  return (
+    <div className="mt-6 pt-6 border-t border-border">
+      <div className="flex items-center justify-between mb-3 px-2 -mx-2">
+        <div className="flex items-center gap-3">
+          <Users className="size-4 text-muted-foreground shrink-0" />
+          <span className="text-sm text-muted-foreground">Team Tracks</span>
+        </div>
+      </div>
+
+      {teamDurations.length === 0 && (
+        <p className="text-xs text-muted-foreground/60 mb-3 px-2">
+          No team tracks assigned. Add a team to set per-team durations.
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {teamDurations.map((td) => {
+          const team = teams.find((t) => t.id === td.teamId);
+          if (!team) return null;
+
+          return (
+            <div
+              key={td.id}
+              className="flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-accent/30 group"
+            >
+              <div
+                className="h-2.5 w-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: team.color }}
+              />
+              <span className="text-sm font-medium min-w-[80px]">{team.name}</span>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <NumberStepper
+                  value={td.duration}
+                  onChange={(v) => {
+                    const newDuration = Math.max(1, v);
+                    onUpsertTeamDuration?.(feature.id, td.teamId, newDuration);
+                  }}
+                  min={1}
+                  className="w-16"
+                />
+                <span className="text-xs text-muted-foreground w-6">
+                  {td.duration === 1 ? "day" : "days"}
+                </span>
+
+                {td.startDate && (
+                  <span className="text-[11px] text-muted-foreground/50 tabular-nums">
+                    {format(new Date(td.startDate), "MMM d")} – {format(new Date(td.endDate), "MMM d")}
+                  </span>
+                )}
+
+                <button
+                  onClick={() => onDeleteTeamDuration?.(feature.id, td.teamId)}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                  title="Remove team track"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add team track */}
+      {unassignedTeams.length > 0 && onUpsertTeamDuration && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              + Add team track
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-1" align="start">
+            {unassignedTeams.map((team) => (
+              <button
+                key={team.id}
+                onClick={() => {
+                  onUpsertTeamDuration(feature.id, team.id, feature.duration);
+                }}
+                className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
+              >
+                <div
+                  className="h-2.5 w-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: team.color }}
+                />
+                {team.name}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 }

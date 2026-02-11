@@ -1,5 +1,5 @@
 import { addDays, subDays, differenceInDays } from 'date-fns';
-import type { Milestone, MilestoneDependency } from '@/db/schema';
+import type { Milestone, MilestoneDependency, Team, TeamMilestoneDuration } from '@/db/schema';
 import type { SVARTask, SVARLink } from './types';
 
 /** Unit multipliers for duration conversion */
@@ -94,7 +94,7 @@ export function milestoneToSVARTask(milestone: Milestone): SVARTask {
     end,
     duration: days,
     durationText: formatDuration(days),
-    progress: milestone.progress,
+    progress: 0,
     type: 'task',
     // Store custom data for filtering/styling
     $custom: {
@@ -156,4 +156,129 @@ export function svarTaskToMilestoneUpdate(task: SVARTask): {
     startDate: task.start,
     endDate: svarEndDateToInclusive(task.end),
   };
+}
+
+/* ========================================================================= */
+/*  Team Track Helpers                                                        */
+/* ========================================================================= */
+
+const TEAM_TRACK_SEPARATOR = '__team__';
+
+/** Compose a team track SVAR task ID: `{milestoneId}__team__{teamId}` */
+export function makeTeamTrackId(milestoneId: string, teamId: string): string {
+  return `${milestoneId}${TEAM_TRACK_SEPARATOR}${teamId}`;
+}
+
+/** Returns true if the ID is a team track composite ID */
+export function isTeamTrackId(id: string): boolean {
+  return id.includes(TEAM_TRACK_SEPARATOR);
+}
+
+/** Parse a team track ID into milestone + team IDs, or null if not a team track */
+export function parseTeamTrackId(id: string): { milestoneId: string; teamId: string } | null {
+  const idx = id.indexOf(TEAM_TRACK_SEPARATOR);
+  if (idx === -1) return null;
+  return {
+    milestoneId: id.substring(0, idx),
+    teamId: id.substring(idx + TEAM_TRACK_SEPARATOR.length),
+  };
+}
+
+/**
+ * Build SVAR tasks with team track support.
+ *
+ * When multiple teams are visible and a milestone has team tracks:
+ * - The milestone becomes a `type: 'summary'` parent
+ * - Each team gets a `type: 'task'` child with `parent: milestoneId`
+ *
+ * When only one team is visible: flat list using that team's dates.
+ * When no team tracks exist: existing behavior unchanged.
+ */
+export function milestonesToSVARTasksWithTeamTracks(
+  milestones: Milestone[],
+  teamDurations: TeamMilestoneDuration[],
+  teams: Team[],
+  visibleTeamIds: string[]
+): SVARTask[] {
+  const tasks: SVARTask[] = [];
+
+  // Index team durations by milestoneId
+  const durationsByMilestone = new Map<string, TeamMilestoneDuration[]>();
+  for (const td of teamDurations) {
+    if (!durationsByMilestone.has(td.milestoneId)) {
+      durationsByMilestone.set(td.milestoneId, []);
+    }
+    durationsByMilestone.get(td.milestoneId)!.push(td);
+  }
+
+  const teamMap = new Map(teams.map((t) => [t.id, t]));
+
+  for (const milestone of milestones) {
+    const milestoneTDs = durationsByMilestone.get(milestone.id) || [];
+    // Filter to only visible teams
+    const visibleTDs = milestoneTDs.filter((td) =>
+      visibleTeamIds.includes(td.teamId)
+    );
+
+    if (visibleTDs.length === 0) {
+      // No team tracks visible — render as normal task
+      tasks.push(milestoneToSVARTask(milestone));
+    } else {
+      // Summary parent + child tracks (always, even with one team visible)
+      // Compute parent span as union of milestone dates and all visible team track dates
+      const parentTask = milestoneToSVARTask(milestone);
+      parentTask.type = 'summary';
+      parentTask.open = true;
+
+      let minStart = parentTask.start;
+      let maxEnd = parentTask.end;
+      for (const td of visibleTDs) {
+        const tdStart = toLocalMidnight(td.startDate);
+        const tdEnd = addDays(toLocalMidnight(td.endDate), 1); // inclusive → exclusive
+        if (tdStart < minStart) minStart = tdStart;
+        if (tdEnd > maxEnd) maxEnd = tdEnd;
+      }
+      parentTask.start = minStart;
+      parentTask.end = maxEnd;
+      parentTask.duration = computeDurationDays(minStart, subDays(maxEnd, 1));
+      parentTask.durationText = formatDuration(parentTask.duration);
+
+      tasks.push(parentTask);
+
+      for (const td of visibleTDs) {
+        const team = teamMap.get(td.teamId);
+        if (!team) continue;
+
+        const start = toLocalMidnight(td.startDate);
+        const inclusiveEnd = toLocalMidnight(td.endDate);
+        const end = addDays(inclusiveEnd, 1);
+        const days = computeDurationDays(start, inclusiveEnd);
+
+        tasks.push({
+          id: makeTeamTrackId(milestone.id, td.teamId),
+          text: team.name,
+          start,
+          end,
+          duration: days,
+          durationText: formatDuration(days),
+          progress: 0,
+          type: 'task',
+          parent: milestone.id,
+          $custom: {
+            status: milestone.status,
+            priority: milestone.priority,
+            teamId: td.teamId,
+            projectId: milestone.projectId,
+            sortOrder: milestone.sortOrder,
+            description: null,
+            isTeamTrack: true,
+            teamColor: team.color,
+            teamName: team.name,
+          },
+        });
+      }
+    }
+  }
+
+  return tasks;
 }

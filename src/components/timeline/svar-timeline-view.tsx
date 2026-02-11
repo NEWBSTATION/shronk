@@ -16,19 +16,57 @@ import {
 import { SVARThemeWrapper } from './svar-theme-wrapper';
 import { TodayMarker } from './today-marker';
 import { CursorMarker } from './cursor-marker';
-import { milestoneToSVARTask, dependencyToSVARLink, svarEndDateToInclusive, toLocalMidnight } from './transformers';
+import {
+  milestoneToSVARTask,
+  milestonesToSVARTasksWithTeamTracks,
+  dependencyToSVARLink,
+  svarEndDateToInclusive,
+  toLocalMidnight,
+  isTeamTrackId,
+  parseTeamTrackId,
+} from './transformers';
 import { getScaleConfig, ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from './constants';
 import { useTimelineStore } from '@/store/timeline-store';
 import { reflowProject, type ReflowMilestone, type ReflowDependency } from '@/lib/reflow';
 import type { CascadedUpdate } from '@/hooks/use-milestones';
 import type { TimePeriod, SVARTask, SVARLink } from './types';
-import type { Milestone, MilestoneDependency, MilestoneStatus, MilestonePriority, Team, Project } from '@/db/schema';
+import type { Milestone, MilestoneDependency, MilestoneStatus, MilestonePriority, Team, Project, TeamMilestoneDuration } from '@/db/schema';
 import { TaskBarTemplate } from './task-bar-template';
 import { useDragLink } from './use-drag-link';
 import { useLinkDelete } from './use-link-delete';
 
 const ADD_FEATURE_TASK_ID = '__add_feature__';
+
+/** Grid cell for team track rows — marks the parent row element for CSS targeting */
+function TeamTrackCell({ row }: { row: { text: string; durationText?: string; $custom?: { teamColor?: string } } }) {
+  const cellRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!cellRef.current) return;
+    // Walk up to the wx-row (grid side)
+    let el: HTMLElement | null = cellRef.current;
+    while (el && !el.className.includes('wx-row')) {
+      el = el.parentElement;
+    }
+    if (el) {
+      el.classList.add('wx-team-track-row');
+    }
+  }, []);
+
+  return (
+    <div ref={cellRef} className="flex items-center gap-1.5 w-full min-w-0 pl-4">
+      <div
+        className="h-2 w-2 rounded-full shrink-0"
+        style={{ backgroundColor: row.$custom?.teamColor }}
+      />
+      <span className="truncate min-w-0 flex-1 text-xs text-muted-foreground">{row.text}</span>
+      <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+        {row.durationText}
+      </span>
+    </div>
+  );
+}
 
 // Timeline windowing — initial padding (months each side) and expansion chunk (months)
 const WINDOW_PADDING: Record<TimePeriod, number> = {
@@ -81,10 +119,12 @@ interface SVARTimelineViewProps {
   features: Milestone[];
   dependencies: MilestoneDependency[];
   teams: Team[];
+  teamDurations?: TeamMilestoneDuration[];
   onBack: () => void;
   onEdit: (feature: Milestone) => void;
   onDelete: (id: string) => void;
   onUpdateDates: (id: string, startDate: Date, endDate: Date, duration?: number) => Promise<CascadedUpdate[]>;
+  onUpdateTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
   onStatusChange: (id: string, status: MilestoneStatus) => Promise<void>;
   onPriorityChange?: (id: string, priority: MilestonePriority) => Promise<void>;
   onAddFeature: () => void;
@@ -99,9 +139,11 @@ export function SVARTimelineView({
   features,
   dependencies,
   teams,
+  teamDurations = [],
   onBack,
   onEdit,
   onUpdateDates,
+  onUpdateTeamDuration,
   onAddFeature,
   onCreateDependency,
   onDeleteDependency,
@@ -136,12 +178,41 @@ export function SVARTimelineView({
   onCreateDependencyRef.current = onCreateDependency;
   const onDeleteDependencyRef = useRef(onDeleteDependency);
   onDeleteDependencyRef.current = onDeleteDependency;
+  const onUpdateTeamDurationRef = useRef(onUpdateTeamDuration);
+  onUpdateTeamDurationRef.current = onUpdateTeamDuration;
+
+  // Team visibility from store
+  const visibleTeamIds = useTimelineStore((s) => s.visibleTeamIds);
+  const setVisibleTeamIds = useTimelineStore((s) => s.setVisibleTeamIds);
+  const toggleTeamVisibility = useTimelineStore((s) => s.toggleTeamVisibility);
+
+  // Auto-populate visible team IDs when teams change (show all by default)
+  const prevTeamIdsRef = useRef<string[]>([]);
+  useEffect(() => {
+    const currentTeamIds = teams.map((t) => t.id);
+    const prevIds = prevTeamIdsRef.current;
+    prevTeamIdsRef.current = currentTeamIds;
+
+    // If there are teams but visibleTeamIds is empty (first load), show all
+    if (currentTeamIds.length > 0 && visibleTeamIds.length === 0) {
+      setVisibleTeamIds(currentTeamIds);
+      return;
+    }
+
+    // Add newly created teams to visible set
+    const newTeamIds = currentTeamIds.filter((id) => !prevIds.includes(id));
+    if (newTeamIds.length > 0) {
+      setVisibleTeamIds([...visibleTeamIds, ...newTeamIds]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teams]);
 
   // Drag-to-connect dependency creation
   useDragLink(ganttContainerRef, onCreateDependencyRef, ADD_FEATURE_TASK_ID);
 
   // Click-on-link delete button
   useLinkDelete(ganttContainerRef, onDeleteDependencyRef);
+
 
   // --- Timeline windowing (lazy-load columns) ---
   const [windowStart, setWindowStart] = useState<Date>(() => computeInitialWindow(features, timePeriod).start);
@@ -308,8 +379,23 @@ export function SVARTimelineView({
     return [...features].sort((a, b) => a.sortOrder - b.sortOrder);
   }, [features]);
 
+  // Check if any team tracks exist
+  const hasTeamTracks = teamDurations.length > 0;
+
   const tasks: SVARTask[] = useMemo(() => {
-    const featureTasks = sortedFeatures.map(milestoneToSVARTask);
+    let featureTasks: SVARTask[];
+
+    if (hasTeamTracks && visibleTeamIds.length > 0) {
+      featureTasks = milestonesToSVARTasksWithTeamTracks(
+        sortedFeatures,
+        teamDurations,
+        teams,
+        visibleTeamIds
+      );
+    } else {
+      featureTasks = sortedFeatures.map(milestoneToSVARTask);
+    }
+
     // Sentinel row: "+ Add feature" (like ClickUp)
     featureTasks.push({
       id: ADD_FEATURE_TASK_ID,
@@ -322,7 +408,7 @@ export function SVARTimelineView({
       type: 'task',
     });
     return featureTasks;
-  }, [sortedFeatures]);
+  }, [sortedFeatures, hasTeamTracks, teamDurations, teams, visibleTeamIds]);
 
   const links: SVARLink[] = useMemo(() => {
     if (!showDependencies) return [];
@@ -408,11 +494,12 @@ export function SVARTimelineView({
   // Scale config — adapts labels when cells are too narrow (e.g. drops day letter in week view)
   const scales = useMemo(() => getScaleConfig(timePeriod, cellWidth), [timePeriod, cellWidth]);
 
-  // Weekend highlighting — returns "wx-weekend" for Sat/Sun so SVAR renders overlay elements
+  // Weekend highlighting — returns class names for Sat/Sun so SVAR renders overlay elements
   const highlightTime = useCallback((date: Date, unit: 'day' | 'hour') => {
     if (unit === 'day') {
       const day = date.getDay();
-      if (day === 0 || day === 6) return 'wx-weekend';
+      if (day === 0) return 'wx-weekend wx-sunday';
+      if (day === 6) return 'wx-weekend wx-saturday';
     }
     return '';
   }, []);
@@ -607,7 +694,14 @@ export function SVARTimelineView({
 
       // Derive duration from the final SVAR dates
       const duration = differenceInDays(inclusiveEnd, svarStart) + 1;
-      onUpdateDatesRef.current(taskId, svarStart, inclusiveEnd, duration);
+
+      // Check if this is a team track drag
+      const teamTrack = parseTeamTrackId(taskId);
+      if (teamTrack && onUpdateTeamDurationRef.current) {
+        onUpdateTeamDurationRef.current(teamTrack.milestoneId, teamTrack.teamId, duration);
+      } else {
+        onUpdateDatesRef.current(taskId, svarStart, inclusiveEnd, duration);
+      }
     });
 
     api.on('add-link', (ev) => {
@@ -640,7 +734,11 @@ export function SVARTimelineView({
     // Open sheet on single-click (select)
     api.on('select-task', (ev) => {
       if (ev.id) {
-        const feature = featureMapRef.current.get(ev.id as string);
+        const id = ev.id as string;
+        // Resolve team track to parent milestone
+        const teamTrack = parseTeamTrackId(id);
+        const milestoneId = teamTrack ? teamTrack.milestoneId : id;
+        const feature = featureMapRef.current.get(milestoneId);
         if (feature) onEditRef.current(feature);
       }
     });
@@ -689,6 +787,7 @@ export function SVARTimelineView({
       }
     };
   }, []);
+
 
   // Row hover highlight — spans both left grid and right chart
   const rowHoverRef = useRef<HTMLDivElement | null>(null);
@@ -905,6 +1004,11 @@ export function SVARTimelineView({
             </div>
           );
         }
+        const custom = row.$custom;
+        const isTeamTrack = custom?.isTeamTrack && row.parent;
+        if (isTeamTrack) {
+          return <TeamTrackCell row={row} />;
+        }
         return (
           <div className="flex items-center gap-2 w-full min-w-0">
             <span className="truncate min-w-0 flex-1">{row.text}</span>
@@ -952,6 +1056,37 @@ export function SVARTimelineView({
             <GitBranch className="h-3.5 w-3.5 mr-1.5" />
             Dependencies
           </Button>
+
+          {/* Team visibility toggles */}
+          {teams.length > 0 && hasTeamTracks && (
+            <>
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-center gap-1">
+                {teams.map((team) => {
+                  const isVisible = visibleTeamIds.includes(team.id);
+                  return (
+                    <button
+                      key={team.id}
+                      onClick={() => toggleTeamVisibility(team.id)}
+                      className={`flex items-center gap-1.5 px-2 rounded-full text-[11px] font-medium transition-all ${
+                        isVisible
+                          ? 'bg-secondary ring-1 ring-border'
+                          : 'opacity-40 hover:opacity-70'
+                      }`}
+                      style={{ height: '24px' }}
+                      title={`${isVisible ? 'Hide' : 'Show'} ${team.name}`}
+                    >
+                      <div
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: team.color }}
+                      />
+                      {team.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Center — milestone selector */}

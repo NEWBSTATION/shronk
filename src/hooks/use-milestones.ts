@@ -6,11 +6,13 @@ import type {
   NewMilestone,
   MilestoneDependency,
   Team,
+  TeamMilestoneDuration,
 } from "@/db/schema";
 
 interface MilestonesResponse {
   milestones: Milestone[];
   dependencies: MilestoneDependency[];
+  teamDurations: TeamMilestoneDuration[];
 }
 
 export interface CascadedUpdate {
@@ -20,9 +22,18 @@ export interface CascadedUpdate {
   duration?: number;
 }
 
+export interface TeamCascadedUpdate {
+  teamId: string;
+  id: string;
+  startDate: string;
+  endDate: string;
+  duration: number;
+}
+
 interface MilestoneUpdateResponse {
   milestone: Milestone;
   cascadedUpdates: CascadedUpdate[];
+  teamCascadedUpdates?: TeamCascadedUpdate[];
 }
 
 interface FetchMilestonesParams {
@@ -165,29 +176,48 @@ export function useUpdateMilestone() {
     },
     onSuccess: (data) => {
       // Apply cascaded updates to the cache immediately (before invalidation refetch)
-      if (data.cascadedUpdates?.length) {
+      if (data.cascadedUpdates?.length || data.teamCascadedUpdates?.length) {
         queryClient.setQueriesData(
           { queryKey: ["milestones"] },
           (old: MilestonesResponse | undefined) => {
             if (!old) return old;
             const updateMap = new Map(
-              data.cascadedUpdates.map((u) => [u.id, u])
+              (data.cascadedUpdates || []).map((u) => [u.id, u])
             );
-            return {
-              ...old,
-              milestones: old.milestones.map((m) => {
-                const update = updateMap.get(m.id);
+            const newMilestones = old.milestones.map((m) => {
+              const update = updateMap.get(m.id);
+              if (update) {
+                return {
+                  ...m,
+                  startDate: update.startDate,
+                  endDate: update.endDate,
+                  ...(update.duration !== undefined ? { duration: update.duration } : {}),
+                };
+              }
+              return m;
+            });
+
+            // Apply team cascaded updates
+            let newTeamDurations = old.teamDurations || [];
+            if (data.teamCascadedUpdates?.length) {
+              const teamUpdateMap = new Map(
+                data.teamCascadedUpdates.map((u) => [`${u.id}__${u.teamId}`, u])
+              );
+              newTeamDurations = newTeamDurations.map((td) => {
+                const update = teamUpdateMap.get(`${td.milestoneId}__${td.teamId}`);
                 if (update) {
                   return {
-                    ...m,
-                    startDate: update.startDate,
-                    endDate: update.endDate,
-                    ...(update.duration !== undefined ? { duration: update.duration } : {}),
+                    ...td,
+                    startDate: new Date(update.startDate),
+                    endDate: new Date(update.endDate),
+                    duration: update.duration,
                   };
                 }
-                return m;
-              }),
-            };
+                return td;
+              });
+            }
+
+            return { ...old, milestones: newMilestones, teamDurations: newTeamDurations };
           }
         );
       }
@@ -209,6 +239,7 @@ export function useUpdateMilestone() {
 interface MilestoneDeleteResponse {
   success: boolean;
   cascadedUpdates: CascadedUpdate[];
+  teamCascadedUpdates?: TeamCascadedUpdate[];
 }
 
 export function useDeleteMilestone() {
@@ -239,6 +270,9 @@ export function useDeleteMilestone() {
             dependencies: old.dependencies.filter(
               (d) => d.predecessorId !== id && d.successorId !== id
             ),
+            teamDurations: (old.teamDurations || []).filter(
+              (td) => td.milestoneId !== id
+            ),
           };
         }
       );
@@ -247,29 +281,42 @@ export function useDeleteMilestone() {
     },
     onSuccess: (data) => {
       // Apply cascaded updates from deletion reflow
-      if (data.cascadedUpdates?.length) {
+      if (data.cascadedUpdates?.length || data.teamCascadedUpdates?.length) {
         queryClient.setQueriesData(
           { queryKey: ["milestones"] },
           (old: MilestonesResponse | undefined) => {
             if (!old) return old;
             const updateMap = new Map(
-              data.cascadedUpdates.map((u) => [u.id, u])
+              (data.cascadedUpdates || []).map((u) => [u.id, u])
             );
-            return {
-              ...old,
-              milestones: old.milestones.map((m) => {
-                const update = updateMap.get(m.id);
+            const newMilestones = old.milestones.map((m) => {
+              const update = updateMap.get(m.id);
+              if (update) {
+                return {
+                  ...m,
+                  startDate: update.startDate,
+                  endDate: update.endDate,
+                  ...(update.duration !== undefined ? { duration: update.duration } : {}),
+                };
+              }
+              return m;
+            });
+
+            let newTeamDurations = old.teamDurations || [];
+            if (data.teamCascadedUpdates?.length) {
+              const teamUpdateMap = new Map(
+                data.teamCascadedUpdates.map((u) => [`${u.id}__${u.teamId}`, u])
+              );
+              newTeamDurations = newTeamDurations.map((td) => {
+                const update = teamUpdateMap.get(`${td.milestoneId}__${td.teamId}`);
                 if (update) {
-                  return {
-                    ...m,
-                    startDate: update.startDate,
-                    endDate: update.endDate,
-                    ...(update.duration !== undefined ? { duration: update.duration } : {}),
-                  };
+                  return { ...td, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration };
                 }
-                return m;
-              }),
-            };
+                return td;
+              });
+            }
+
+            return { ...old, milestones: newMilestones, teamDurations: newTeamDurations };
           }
         );
       }
@@ -415,6 +462,7 @@ export function useDependencies(projectId: string) {
 interface DependencyCreateResponse {
   dependency: MilestoneDependency;
   cascadedUpdates: CascadedUpdate[];
+  teamCascadedUpdates?: TeamCascadedUpdate[];
 }
 
 export function useCreateDependency() {
@@ -435,29 +483,42 @@ export function useCreateDependency() {
     },
     onSuccess: (data) => {
       // Apply cascaded updates to milestones cache
-      if (data.cascadedUpdates?.length) {
+      if (data.cascadedUpdates?.length || data.teamCascadedUpdates?.length) {
         queryClient.setQueriesData(
           { queryKey: ["milestones"] },
           (old: MilestonesResponse | undefined) => {
             if (!old) return old;
             const updateMap = new Map(
-              data.cascadedUpdates.map((u) => [u.id, u])
+              (data.cascadedUpdates || []).map((u) => [u.id, u])
             );
-            return {
-              ...old,
-              milestones: old.milestones.map((m) => {
-                const update = updateMap.get(m.id);
+            const newMilestones = old.milestones.map((m) => {
+              const update = updateMap.get(m.id);
+              if (update) {
+                return {
+                  ...m,
+                  startDate: update.startDate,
+                  endDate: update.endDate,
+                  ...(update.duration !== undefined ? { duration: update.duration } : {}),
+                };
+              }
+              return m;
+            });
+
+            let newTeamDurations = old.teamDurations || [];
+            if (data.teamCascadedUpdates?.length) {
+              const teamUpdateMap = new Map(
+                data.teamCascadedUpdates.map((u) => [`${u.id}__${u.teamId}`, u])
+              );
+              newTeamDurations = newTeamDurations.map((td) => {
+                const update = teamUpdateMap.get(`${td.milestoneId}__${td.teamId}`);
                 if (update) {
-                  return {
-                    ...m,
-                    startDate: update.startDate,
-                    endDate: update.endDate,
-                    ...(update.duration !== undefined ? { duration: update.duration } : {}),
-                  };
+                  return { ...td, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration };
                 }
-                return m;
-              }),
-            };
+                return td;
+              });
+            }
+
+            return { ...old, milestones: newMilestones, teamDurations: newTeamDurations };
           }
         );
       }
@@ -470,6 +531,7 @@ export function useCreateDependency() {
 interface DependencyDeleteResponse {
   success: boolean;
   cascadedUpdates: CascadedUpdate[];
+  teamCascadedUpdates?: TeamCascadedUpdate[];
 }
 
 export function useDeleteDependency() {
@@ -507,29 +569,42 @@ export function useDeleteDependency() {
     },
     onSuccess: (data) => {
       // Apply cascaded updates from dependency removal
-      if (data.cascadedUpdates?.length) {
+      if (data.cascadedUpdates?.length || data.teamCascadedUpdates?.length) {
         queryClient.setQueriesData(
           { queryKey: ["milestones"] },
           (old: MilestonesResponse | undefined) => {
             if (!old) return old;
             const updateMap = new Map(
-              data.cascadedUpdates.map((u) => [u.id, u])
+              (data.cascadedUpdates || []).map((u) => [u.id, u])
             );
-            return {
-              ...old,
-              milestones: old.milestones.map((m) => {
-                const update = updateMap.get(m.id);
+            const newMilestones = old.milestones.map((m) => {
+              const update = updateMap.get(m.id);
+              if (update) {
+                return {
+                  ...m,
+                  startDate: update.startDate,
+                  endDate: update.endDate,
+                  ...(update.duration !== undefined ? { duration: update.duration } : {}),
+                };
+              }
+              return m;
+            });
+
+            let newTeamDurations = old.teamDurations || [];
+            if (data.teamCascadedUpdates?.length) {
+              const teamUpdateMap = new Map(
+                data.teamCascadedUpdates.map((u) => [`${u.id}__${u.teamId}`, u])
+              );
+              newTeamDurations = newTeamDurations.map((td) => {
+                const update = teamUpdateMap.get(`${td.milestoneId}__${td.teamId}`);
                 if (update) {
-                  return {
-                    ...m,
-                    startDate: update.startDate,
-                    endDate: update.endDate,
-                    ...(update.duration !== undefined ? { duration: update.duration } : {}),
-                  };
+                  return { ...td, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration };
                 }
-                return m;
-              }),
-            };
+                return td;
+              });
+            }
+
+            return { ...old, milestones: newMilestones, teamDurations: newTeamDurations };
           }
         );
       }
@@ -617,6 +692,184 @@ export function useCreateTeam() {
       queryClient.invalidateQueries({
         queryKey: ["teams", newTeam.projectId],
       });
+    },
+  });
+}
+
+export function useUpdateTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { id: string; name?: string; color?: string }) => {
+      const response = await fetch("/api/teams", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update team");
+      }
+      return response.json() as Promise<Team>;
+    },
+    onSuccess: (updatedTeam) => {
+      queryClient.invalidateQueries({
+        queryKey: ["teams", updatedTeam.projectId],
+      });
+    },
+  });
+}
+
+export function useDeleteTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: string; projectId: string }) => {
+      const response = await fetch("/api/teams", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete team");
+      }
+      return { id, projectId };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["teams", variables.projectId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    },
+  });
+}
+
+// Team duration hooks
+interface TeamDurationUpsertResponse {
+  teamDuration: TeamMilestoneDuration;
+  teamCascadedUpdates: TeamCascadedUpdate[];
+}
+
+export function useUpsertTeamDuration() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      milestoneId: string;
+      teamId: string;
+      duration: number;
+    }) => {
+      const response = await fetch("/api/team-durations", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to upsert team duration");
+      }
+      return response.json() as Promise<TeamDurationUpsertResponse>;
+    },
+    onSuccess: (data) => {
+      // Apply the upserted duration + cascaded updates to cache
+      queryClient.setQueriesData(
+        { queryKey: ["milestones"] },
+        (old: MilestonesResponse | undefined) => {
+          if (!old) return old;
+          let teamDurations = old.teamDurations || [];
+
+          // Upsert the returned team duration
+          const td = data.teamDuration;
+          const existingIdx = teamDurations.findIndex(
+            (d) => d.milestoneId === td.milestoneId && d.teamId === td.teamId
+          );
+          if (existingIdx >= 0) {
+            teamDurations = teamDurations.map((d, i) =>
+              i === existingIdx ? td : d
+            );
+          } else {
+            teamDurations = [...teamDurations, td];
+          }
+
+          // Apply cascaded updates
+          if (data.teamCascadedUpdates?.length) {
+            const updateMap = new Map(
+              data.teamCascadedUpdates.map((u) => [`${u.id}__${u.teamId}`, u])
+            );
+            teamDurations = teamDurations.map((d) => {
+              const update = updateMap.get(`${d.milestoneId}__${d.teamId}`);
+              if (update) {
+                return {
+                  ...d,
+                  startDate: new Date(update.startDate),
+                  endDate: new Date(update.endDate),
+                  duration: update.duration,
+                };
+              }
+              return d;
+            });
+          }
+
+          return { ...old, teamDurations };
+        }
+      );
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    },
+  });
+}
+
+interface TeamDurationDeleteResponse {
+  success: boolean;
+  teamCascadedUpdates: TeamCascadedUpdate[];
+}
+
+export function useDeleteTeamDuration() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { milestoneId: string; teamId: string }) => {
+      const response = await fetch("/api/team-durations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete team duration");
+      }
+      return response.json() as Promise<TeamDurationDeleteResponse>;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueriesData(
+        { queryKey: ["milestones"] },
+        (old: MilestonesResponse | undefined) => {
+          if (!old) return old;
+          let teamDurations = (old.teamDurations || []).filter(
+            (d) =>
+              !(
+                d.milestoneId === variables.milestoneId &&
+                d.teamId === variables.teamId
+              )
+          );
+
+          if (data.teamCascadedUpdates?.length) {
+            const updateMap = new Map(
+              data.teamCascadedUpdates.map((u) => [`${u.id}__${u.teamId}`, u])
+            );
+            teamDurations = teamDurations.map((d) => {
+              const update = updateMap.get(`${d.milestoneId}__${d.teamId}`);
+              if (update) {
+                return { ...d, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration };
+              }
+              return d;
+            });
+          }
+
+          return { ...old, teamDurations };
+        }
+      );
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
     },
   });
 }

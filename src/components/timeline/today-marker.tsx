@@ -10,7 +10,7 @@ interface TodayMarkerProps {
 
 export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
   const lineRef = useRef<HTMLDivElement>(null);
-  const labelRef = useRef<HTMLDivElement>(null);
+  const dotRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -28,8 +28,8 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
       if (!mounted) return;
 
       const line = lineRef.current;
-      const label = labelRef.current;
-      if (!line || !label) {
+      const dot = dotRef.current;
+      if (!line || !dot) {
         rafId = requestAnimationFrame(tick);
         return;
       }
@@ -50,7 +50,7 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
       const scales = state?._scales;
       if (!scales?.diff || !scales.start || !scales.lengthUnit || !state?.cellWidth) {
         line.style.display = 'none';
-        label.style.display = 'none';
+        dot.style.display = 'none';
         rafId = requestAnimationFrame(tick);
         return;
       }
@@ -60,7 +60,7 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
 
       if (todayX < 0) {
         line.style.display = 'none';
-        label.style.display = 'none';
+        dot.style.display = 'none';
         rafId = requestAnimationFrame(tick);
         return;
       }
@@ -75,20 +75,19 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
 
       if (visibleX < chartLeft - 2 || visibleX > chartLeft + chartWidth + 2) {
         line.style.display = 'none';
-        label.style.display = 'none';
+        dot.style.display = 'none';
       } else {
-        // Position label below the scale headers, at the start of data rows
-        const labelHeight = label.offsetHeight || 20;
-        const dataRowsTop = chartTop + scaleHeight * 2;
+        // Position dot centered on the bottom border of the timescale header
+        const headerBottom = chartTop + scaleHeight * 2;
 
-        label.style.display = 'block';
-        label.style.left = `${visibleX}px`;
-        label.style.top = `${dataRowsTop}px`;
+        dot.style.display = 'block';
+        dot.style.left = `${visibleX}px`;
+        dot.style.top = `${headerBottom}px`;
 
-        // Line starts below the label
+        // Line starts from the dot, extends down
         line.style.display = 'block';
         line.style.left = `${visibleX}px`;
-        line.style.top = `${dataRowsTop + labelHeight + 4}px`;
+        line.style.top = `${headerBottom}px`;
       }
 
       rafId = requestAnimationFrame(tick);
@@ -102,40 +101,36 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const DOT_SIZE = 7;
+
   return (
     <div ref={containerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 100 }}>
       <div
         ref={lineRef}
         style={{
           position: 'absolute',
-          width: 2,
+          width: 1.5,
           height: 9999,
           transform: 'translateX(-50%)',
           backgroundColor: 'var(--destructive)',
-          boxShadow: '0 0 8px color-mix(in srgb, var(--destructive) 40%, transparent)',
+          boxShadow: '0 0 6px color-mix(in srgb, var(--destructive) 35%, transparent)',
+          opacity: 1,
           display: 'none',
         }}
       />
       <div
-        ref={labelRef}
-        className="today-marker-label"
+        ref={dotRef}
         style={{
           position: 'absolute',
-          transform: 'translateX(-50%)',
+          width: DOT_SIZE,
+          height: DOT_SIZE,
+          borderRadius: '50%',
+          transform: `translate(-50%, -50%)`,
           backgroundColor: 'var(--destructive)',
-          color: 'var(--destructive-foreground)',
-          fontSize: 11,
-          fontWeight: 600,
-          padding: '3px 8px',
-          borderRadius: 'var(--radius, 6px)',
-          whiteSpace: 'nowrap',
-          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
           display: 'none',
           zIndex: 101,
         }}
-      >
-        Today
-      </div>
+      />
     </div>
   );
 }

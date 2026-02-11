@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import { LogOut, Settings, Check, Moon, Sun, Monitor } from "lucide-react";
+import { LogOut, User, SlidersHorizontal, Check, Moon, Sun, Monitor } from "lucide-react";
 import { usePreferencesStore } from "@/store/preferences-store";
 import { useThemeStore } from "@/store/theme-store";
 import { themePresets } from "@/config/theme-presets";
@@ -38,10 +37,9 @@ function getSortedThemeEntries() {
   return defaultEntry ? [defaultEntry, ...otherEntries] : otherEntries;
 }
 
-export function HeaderUserMenu() {
+export function HeaderUserMenu({ onNavigateSettings }: { onNavigateSettings?: (subTab: string) => void }) {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
-  const router = useRouter();
   const { showDisplayName } = usePreferencesStore();
   const { currentPresetKey, mode, setPreset, setMode, getResolvedMode } = useThemeStore();
   const resolvedMode = getResolvedMode();
@@ -102,7 +100,7 @@ export function HeaderUserMenu() {
         <DropdownMenuGroup>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
-              <ModeIcon className="h-4 w-4 mr-2" />
+              <ModeIcon />
               Theme
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-64 max-h-80 overflow-y-auto">
@@ -155,10 +153,16 @@ export function HeaderUserMenu() {
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuItem
-            onClick={() => router.push("/dashboard?tab=settings")}
+            onClick={() => onNavigateSettings?.("profile")}
           >
-            <Settings />
-            Settings
+            <User />
+            Profile
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => onNavigateSettings?.("preferences")}
+          >
+            <SlidersHorizontal />
+            Preferences
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

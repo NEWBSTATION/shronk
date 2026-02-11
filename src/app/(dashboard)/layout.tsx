@@ -21,12 +21,14 @@ function DashboardMain({
   milestoneId,
   createIntent,
   createType,
+  settingsSubTab,
 }: {
   activeTab: TabId;
   mountedTabs: Set<TabId>;
   milestoneId: string | null;
   createIntent: number;
   createType: CreateAction;
+  settingsSubTab: string;
 }) {
   const { panels, popAll } = useDrilldown();
   const depth = panels.length;
@@ -89,7 +91,7 @@ function DashboardMain({
             activeTab !== "settings" && "invisible pointer-events-none"
           )}
         >
-          {mountedTabs.has("settings") && <SettingsTab />}
+          {mountedTabs.has("settings") && <SettingsTab subTab={settingsSubTab} />}
         </div>
       </div>
 
@@ -116,6 +118,7 @@ function DashboardContent() {
   // Trigger for "create" action from header — incremented to signal tabs
   const [createIntent, setCreateIntent] = useState(0);
   const [createType, setCreateType] = useState<CreateAction>("feature");
+  const [settingsSubTab, setSettingsSubTab] = useState("profile");
 
   // Sync with external URL changes (e.g., middleware redirects, deep links)
   useEffect(() => {
@@ -151,6 +154,14 @@ function DashboardContent() {
     window.history.replaceState(null, "", url.toString());
   }, []);
 
+  const handleNavigateSettings = useCallback(
+    (subTab: string) => {
+      setSettingsSubTab(subTab);
+      handleTabChange("settings");
+    },
+    [handleTabChange]
+  );
+
   const handleCreateAction = useCallback(
     (type: CreateAction) => {
       handleTabChange("features");
@@ -164,13 +175,14 @@ function DashboardContent() {
   return (
     <DrilldownProvider>
       <div className="flex flex-col h-svh">
-        <AppHeader activeTab={activeTab} onTabChange={handleTabChange} onCreateAction={handleCreateAction} />
+        <AppHeader activeTab={activeTab} onTabChange={handleTabChange} onCreateAction={handleCreateAction} onNavigateSettings={handleNavigateSettings} />
         <DashboardMain
           activeTab={activeTab}
           mountedTabs={mountedTabs}
           milestoneId={milestoneId}
           createIntent={createIntent}
           createType={createType}
+          settingsSubTab={settingsSubTab}
         />
       </div>
     </DrilldownProvider>
