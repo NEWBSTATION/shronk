@@ -21,7 +21,7 @@ export type TabId = "features" | "timeline" | "settings";
 export type CreateAction = "milestone" | "feature";
 
 const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: "features", label: "Features", icon: Box },
+  { id: "features", label: "Features", icon: Gem },
   { id: "timeline", label: "Timeline", icon: ChartGantt },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -45,7 +45,7 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction }: AppHeaderP
       {/* Left: Logo */}
       <div className="flex items-center gap-1.5">
         <Image src="/orc-head.svg" alt="Shronk" width={20} height={20} className="dark:invert-0 invert" />
-        <span className="text-base font-semibold">Shronk</span>
+        <span className="text-base" style={{ fontFamily: "Silkscreen, cursive" }}>Shronk</span>
       </div>
 
       {/* Center: Tab pills + create button */}

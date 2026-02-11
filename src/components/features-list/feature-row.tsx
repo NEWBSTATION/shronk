@@ -55,47 +55,50 @@ export function FeatureRow({
       ref={nodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-3 px-4 py-3.5 transition-colors cursor-pointer group bg-background hover:bg-accent/50 border-b last:border-b-0",
+        "flex items-center px-4 py-3.5 transition-colors cursor-pointer group bg-background hover:bg-accent/50 border-b last:border-b-0",
         selected && "bg-accent",
         isDragging && "opacity-30",
         isOverlay && "border rounded-lg shadow-lg"
       )}
     >
-      {/* Drag handle: visible on hover, hidden in select mode */}
-      {!selectMode && (
-        <div
-          className={cn(
-            "shrink-0 w-4 flex items-center justify-center cursor-grab active:cursor-grabbing transition-opacity",
-            isOverlay ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          )}
-          {...dragHandleProps}
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-        </div>
-      )}
-
-      {/* Checkbox: always visible in select mode, hover-reveal otherwise */}
+      {/* Drag handle + Checkbox: collapsed by default, expand on hover/select */}
       <div
         className={cn(
-          "shrink-0 w-5 flex items-center justify-center",
-          selectMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          "shrink-0 flex items-center overflow-hidden transition-all duration-150",
+          selectMode || selected
+            ? "w-9 opacity-100 gap-2 mr-3"
+            : isOverlay
+              ? "w-9 opacity-100 gap-2 mr-3"
+              : "w-0 opacity-0 mr-0 group-hover:w-9 group-hover:opacity-100 group-hover:gap-2 group-hover:mr-3"
         )}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect(e);
-        }}
       >
-        <Checkbox checked={selected} className="h-4 w-4" />
+        {!selectMode && (
+          <div
+            className="flex items-center justify-center cursor-grab active:cursor-grabbing shrink-0"
+            {...dragHandleProps}
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+          </div>
+        )}
+        <div
+          className="flex items-center justify-center shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(e);
+          }}
+        >
+          <Checkbox checked={selected} className="h-4 w-4" />
+        </div>
       </div>
 
-      {/* Completion toggle */}
+      {/* Completion toggle — 32px wide to align with milestone header icon */}
       <button
         onClick={(e) => {
           e.stopPropagation();
           onToggleComplete?.();
         }}
         className={cn(
-          "shrink-0 rounded-full transition-colors",
+          "shrink-0 h-8 w-8 flex items-center justify-center rounded-full transition-colors",
           completed
             ? "text-green-500 hover:text-green-600"
             : "text-muted-foreground/40 hover:text-muted-foreground/70"
@@ -116,7 +119,7 @@ export function FeatureRow({
       {/* Feature name — click area for the row */}
       <button
         onClick={onClick}
-        className="flex flex-1 items-center gap-3 min-w-0"
+        className="flex flex-1 items-center gap-3 ml-3 min-w-0"
       >
         <span
           className={cn(

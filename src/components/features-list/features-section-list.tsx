@@ -256,9 +256,11 @@ export function FeaturesSectionList({
                   {section.features.length === 0 ? (
                     <button
                       onClick={() => onAddFeature?.(section.milestone.id)}
-                      className="w-full px-4 py-4 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer"
+                      className="w-full px-4 py-3.5 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer"
                     >
-                      <Plus className="h-4 w-4" />
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                        <Plus className="h-4 w-4" />
+                      </div>
                       <span className="text-sm">Add a feature</span>
                     </button>
                   ) : (
