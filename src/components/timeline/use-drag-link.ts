@@ -1,14 +1,12 @@
 import { useEffect, type RefObject, type MutableRefObject } from 'react';
+import { isTeamTrackId } from './transformers';
 
 /**
  * Drag-to-connect dependency creation.
  *
- * Intercepts mousedown on SVAR's `.wx-link` handles (capture phase, before SVAR
- * sees it), draws an SVG bezier overlay from source to cursor, and creates a
- * dependency when the user releases over another task's link handle.
- *
- * If the user clicks without dragging (< 5px movement), a synthetic click is
- * dispatched so SVAR's built-in click-based link flow still works.
+ * Intercepts mousedown on `.timeline-connect-handle` elements (capture phase),
+ * draws an SVG bezier overlay from source to cursor, and creates a
+ * dependency when the user releases over another task's connect handle.
  */
 export function useDragLink(
   containerRef: RefObject<HTMLDivElement | null>,
@@ -30,21 +28,17 @@ export function useDragLink(
 
     const DRAG_THRESHOLD = 5;
 
-    // --- Helpers ---
-
-    /** Walk up from a `.wx-link` handle to find the task bar's data-id */
+    /** Walk up from a handle to find the task bar's data-task-id */
     function getTaskIdFromHandle(handle: HTMLElement): string | null {
-      // SVAR renders: .wx-bar[data-id] > ... > .wx-link
       let el: HTMLElement | null = handle;
       while (el && el !== container) {
-        const id = el.getAttribute('data-id');
+        const id = el.getAttribute('data-task-id');
         if (id) return id;
         el = el.parentElement;
       }
       return null;
     }
 
-    /** Create the SVG overlay element */
     function createOverlay(): SVGSVGElement {
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.classList.add('drag-link-overlay');
@@ -58,13 +52,11 @@ export function useDragLink(
       return svg;
     }
 
-    /** Compute a cubic bezier path from (x1,y1) to (x2,y2) */
     function bezierPath(x1: number, y1: number, x2: number, y2: number): string {
       const dx = Math.abs(x2 - x1) * 0.5;
       return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
     }
 
-    /** Update the overlay path from source handle center to (cursorX, cursorY) in container coords */
     function updatePath(cursorX: number, cursorY: number) {
       if (!pathEl || !sourceHandle) return;
       const containerRect = container.getBoundingClientRect();
@@ -74,22 +66,21 @@ export function useDragLink(
       pathEl.setAttribute('d', bezierPath(sx, sy, cursorX, cursorY));
     }
 
-    /** Find the link handle under the cursor (hides SVG temporarily to see through) */
     function getTargetHandle(clientX: number, clientY: number): HTMLElement | null {
       if (svgOverlay) svgOverlay.style.display = 'none';
       const el = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
       if (svgOverlay) svgOverlay.style.display = '';
       if (!el) return null;
-      // Check if element or ancestor is a .wx-link
       let cur: HTMLElement | null = el;
       while (cur && cur !== container) {
-        if (cur.classList.contains('wx-link')) return cur;
+        if (cur.classList.contains('timeline-connect-handle') ||
+            cur.classList.contains('timeline-connect-handle-left') ||
+            cur.classList.contains('timeline-connect-handle-right')) return cur;
         cur = cur.parentElement;
       }
       return null;
     }
 
-    // --- Track currently hovered target for styling ---
     let hoveredTarget: HTMLElement | null = null;
 
     function setHoveredTarget(target: HTMLElement | null) {
@@ -99,23 +90,23 @@ export function useDragLink(
       if (hoveredTarget) hoveredTarget.classList.add('drag-link-target-hover');
     }
 
-    // --- Event handlers ---
-
     function onMouseDown(e: MouseEvent) {
       if (e.button !== 0) return;
 
-      // Check if target is a .wx-link handle
       let handle: HTMLElement | null = e.target as HTMLElement;
       while (handle && handle !== container) {
-        if (handle.classList.contains('wx-link')) break;
+        if (handle.classList.contains('timeline-connect-handle') ||
+            handle.classList.contains('timeline-connect-handle-left') ||
+            handle.classList.contains('timeline-connect-handle-right')) break;
         handle = handle.parentElement;
       }
-      if (!handle || !handle.classList.contains('wx-link')) return;
+      if (!handle || (!handle.classList.contains('timeline-connect-handle') &&
+          !handle.classList.contains('timeline-connect-handle-left') &&
+          !handle.classList.contains('timeline-connect-handle-right'))) return;
 
       const taskId = getTaskIdFromHandle(handle);
-      if (!taskId || taskId === sentinelId) return;
+      if (!taskId || taskId === sentinelId || isTeamTrackId(taskId)) return;
 
-      // Stop SVAR from starting bar drag
       e.stopPropagation();
 
       sourceTaskId = taskId;
@@ -138,7 +129,6 @@ export function useDragLink(
 
       if (!isDragging) {
         if (dist < DRAG_THRESHOLD) return;
-        // Start drag
         isDragging = true;
         hasMoved = true;
         container.classList.add('drag-link-active');
@@ -151,11 +141,10 @@ export function useDragLink(
       const cursorY = e.clientY - containerRect.top;
       updatePath(cursorX, cursorY);
 
-      // Highlight target handle
       const target = getTargetHandle(e.clientX, e.clientY);
       if (target && target !== sourceHandle) {
         const targetTaskId = getTaskIdFromHandle(target);
-        if (targetTaskId && targetTaskId !== sourceTaskId && targetTaskId !== sentinelId) {
+        if (targetTaskId && targetTaskId !== sourceTaskId && targetTaskId !== sentinelId && !isTeamTrackId(targetTaskId)) {
           setHoveredTarget(target);
         } else {
           setHoveredTarget(null);
@@ -169,38 +158,23 @@ export function useDragLink(
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
 
-      if (!hasMoved && sourceHandle) {
-        // User just clicked — dispatch synthetic click so SVAR's click-based link flow works
-        const syntheticClick = new MouseEvent('click', {
-          bubbles: true,
-          cancelable: true,
-          clientX: e.clientX,
-          clientY: e.clientY,
-        });
-        sourceHandle.dispatchEvent(syntheticClick);
-      }
-
       if (isDragging) {
-        // Check if we're over a valid target
         const target = getTargetHandle(e.clientX, e.clientY);
         if (target && target !== sourceHandle) {
           const targetTaskId = getTaskIdFromHandle(target);
-          if (targetTaskId && targetTaskId !== sourceTaskId && targetTaskId !== sentinelId && sourceTaskId) {
+          if (targetTaskId && targetTaskId !== sourceTaskId && targetTaskId !== sentinelId && !isTeamTrackId(targetTaskId) && sourceTaskId) {
             onCreateDependencyRef.current(sourceTaskId, targetTaskId);
           }
         }
 
-        // Suppress the next click event that the browser fires after mouseup
         const suppressClick = (ev: MouseEvent) => {
           ev.stopPropagation();
           ev.preventDefault();
         };
         document.addEventListener('click', suppressClick, { capture: true, once: true });
-        // Safety: remove the suppressor after a tick in case no click fires
         setTimeout(() => document.removeEventListener('click', suppressClick, { capture: true }), 0);
       }
 
-      // Cleanup
       cleanup();
     }
 
@@ -223,7 +197,6 @@ export function useDragLink(
       }
     }
 
-    // Attach in capture phase so we see the event before SVAR
     container.addEventListener('mousedown', onMouseDown, { capture: true });
 
     return () => {

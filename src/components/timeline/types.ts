@@ -4,23 +4,22 @@ import type { Milestone, MilestoneStatus, MilestonePriority, MilestoneDependency
 export type TimePeriod = 'week' | 'month' | 'quarter' | 'year';
 
 // ================================================
-// SVAR React Gantt Types
+// Timeline Types (custom renderer)
 // ================================================
 
 /**
- * SVAR Task type - the format expected by @svar-ui/react-gantt
+ * TimelineTask — our internal task format.
+ * Uses inclusive start/end dates (no SVAR exclusive-end conversion).
  */
-export interface SVARTask {
+export interface TimelineTask {
   id: string;
   text: string;
-  start: Date;
-  end: Date;
-  duration: number;
+  startDate: Date;   // inclusive start
+  endDate: Date;     // inclusive end
+  duration: number;  // days (inclusive)
   durationText: string;
-  progress: number;
-  type: 'task' | 'summary' | 'milestone';
+  type: 'task' | 'summary';
   parent?: string;
-  open?: boolean;
   $custom?: {
     status: MilestoneStatus;
     priority: MilestonePriority;
@@ -34,31 +33,17 @@ export interface SVARTask {
 }
 
 /**
- * SVAR Link type - for dependencies
+ * TimelineLink — dependency between two tasks (end-to-start only).
  */
-export interface SVARLink {
+export interface TimelineLink {
   id: string;
-  source: string;
-  target: string;
-  type: 'e2s' | 's2s' | 'e2e' | 's2e'; // end-to-start, start-to-start, end-to-end, start-to-end
+  sourceId: string;
+  targetId: string;
 }
 
-/**
- * SVAR Scale configuration
- */
-export interface SVARScale {
-  unit: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
-  step: number;
-  format: string | ((date: Date) => string);
-}
-
-/**
- * SVAR Action event data
- */
-export interface SVARActionEvent {
-  action: string;
-  data: SVARTask | SVARLink | { id: string } | Record<string, unknown>;
-}
+// Legacy aliases for backward compat during migration
+export type SVARTask = TimelineTask;
+export type SVARLink = TimelineLink;
 export type ZoomLevel = number; // 1-10
 export type DragType = 'move' | 'resize-start' | 'resize-end' | null;
 

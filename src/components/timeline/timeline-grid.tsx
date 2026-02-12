@@ -79,28 +79,19 @@ export function TimelineGrid({
         </span>
       </div>
 
-      {/* Scrollable row body */}
+      {/* Scrollable row body — overflow hidden, synced via translateY from chart scroll */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none"
-        style={{
-          backgroundImage: `repeating-linear-gradient(
-            to bottom,
-            transparent 0px,
-            transparent ${ROW_HEIGHT - 1}px,
-            var(--border) ${ROW_HEIGHT - 1}px,
-            var(--border) ${ROW_HEIGHT}px
-          )`,
-          backgroundSize: `100% ${ROW_HEIGHT}px`,
-        }}
+        className="flex-1 overflow-hidden"
       >
+        <div>
         {tasks.map((task) => {
           if (task.id === ADD_FEATURE_TASK_ID) {
             return (
               <div
                 key={task.id}
                 style={{ height: ROW_HEIGHT }}
-                className="flex items-center gap-1.5 px-3 text-muted-foreground cursor-pointer transition-colors"
+                className="flex items-center gap-1.5 px-3 text-muted-foreground cursor-pointer transition-colors border-b border-border"
                 onClick={onAddFeature}
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -117,7 +108,7 @@ export function TimelineGrid({
               <div
                 key={task.id}
                 style={{ height: ROW_HEIGHT }}
-                className="flex items-center gap-1.5 min-w-0 pl-7 pr-3 cursor-pointer transition-colors"
+                className="flex items-center gap-1.5 min-w-0 pl-7 pr-3 cursor-pointer transition-colors border-b border-border"
                 onClick={() => onRowClick(task)}
               >
                 <div
@@ -139,7 +130,7 @@ export function TimelineGrid({
             <div
               key={task.id}
               style={{ height: ROW_HEIGHT }}
-              className="flex items-center gap-1.5 min-w-0 px-3 cursor-pointer transition-colors"
+              className="flex items-center gap-1.5 min-w-0 px-3 cursor-pointer transition-colors border-b border-border"
               onClick={() => onRowClick(task)}
             >
               <StatusToggle
@@ -162,6 +153,7 @@ export function TimelineGrid({
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );

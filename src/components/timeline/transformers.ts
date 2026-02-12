@@ -1,6 +1,6 @@
-import { addDays, subDays, differenceInDays } from 'date-fns';
+import { addDays, differenceInDays } from 'date-fns';
 import type { Milestone, MilestoneDependency, Team, TeamMilestoneDuration } from '@/db/schema';
-import type { SVARTask, SVARLink } from './types';
+import type { TimelineTask, TimelineLink } from './types';
 
 /** Unit multipliers for duration conversion */
 export const DURATION_UNIT_MULTIPLIERS = {
@@ -75,28 +75,22 @@ export function toLocalMidnight(date: Date | string): Date {
 }
 
 /**
- * Convert a Milestone to SVAR Task format
- *
- * SVAR uses exclusive end dates (end = day after last visible day).
- * Our DB stores inclusive end dates. We add 1 day when converting to SVAR
- * and subtract 1 day when converting back (see svarEndDateToInclusive).
+ * Convert a Milestone to TimelineTask format.
+ * Uses inclusive dates — no +1/-1 day conversion needed.
  */
-export function milestoneToSVARTask(milestone: Milestone): SVARTask {
-  const start = toLocalMidnight(milestone.startDate);
-  const inclusiveEnd = toLocalMidnight(milestone.endDate);
-  const end = addDays(inclusiveEnd, 1); // inclusive → exclusive for SVAR
-  const days = computeDurationDays(start, inclusiveEnd);
+export function milestoneToTimelineTask(milestone: Milestone): TimelineTask {
+  const startDate = toLocalMidnight(milestone.startDate);
+  const endDate = toLocalMidnight(milestone.endDate);
+  const days = computeDurationDays(startDate, endDate);
 
   return {
     id: milestone.id,
     text: milestone.title,
-    start,
-    end,
+    startDate,
+    endDate,
     duration: days,
     durationText: formatDuration(days),
-    progress: 0,
     type: 'task',
-    // Store custom data for filtering/styling
     $custom: {
       status: milestone.status,
       priority: milestone.priority,
@@ -108,52 +102,47 @@ export function milestoneToSVARTask(milestone: Milestone): SVARTask {
 }
 
 /**
- * Convert an array of Milestones to SVAR Tasks
+ * Convert a TeamMilestoneDuration to a child TimelineTask.
  */
-export function milestonesToSVARTasks(milestones: Milestone[]): SVARTask[] {
-  return milestones.map(milestoneToSVARTask);
-}
+export function teamDurationToTimelineTask(
+  milestone: Milestone,
+  td: TeamMilestoneDuration,
+  team: Team
+): TimelineTask {
+  const startDate = toLocalMidnight(td.startDate);
+  const endDate = toLocalMidnight(td.endDate);
+  const days = computeDurationDays(startDate, endDate);
 
-/**
- * Convert a MilestoneDependency to SVAR Link format
- */
-export function dependencyToSVARLink(dep: MilestoneDependency): SVARLink {
   return {
-    id: dep.id,
-    source: dep.predecessorId,
-    target: dep.successorId,
-    type: 'e2s', // end-to-start (finish-to-start)
+    id: makeTeamTrackId(milestone.id, td.teamId),
+    text: team.name,
+    startDate,
+    endDate,
+    duration: days,
+    durationText: formatDuration(days),
+    type: 'task',
+    parent: milestone.id,
+    $custom: {
+      status: milestone.status,
+      priority: milestone.priority,
+      projectId: milestone.projectId,
+      sortOrder: milestone.sortOrder,
+      description: null,
+      isTeamTrack: true,
+      teamColor: team.color,
+      teamName: team.name,
+    },
   };
 }
 
 /**
- * Convert an array of MilestoneDependencies to SVAR Links
+ * Convert a MilestoneDependency to TimelineLink format.
  */
-export function dependenciesToSVARLinks(dependencies: MilestoneDependency[]): SVARLink[] {
-  return dependencies.map(dependencyToSVARLink);
-}
-
-/**
- * Convert SVAR's exclusive end date back to our inclusive end date.
- * SVAR returns end = day after the last visible day of the task.
- */
-export function svarEndDateToInclusive(end: Date): Date {
-  return subDays(end, 1);
-}
-
-/**
- * Convert SVAR Task back to Milestone update data
- * Used when SVAR fires update events (drag, resize, etc.)
- */
-export function svarTaskToMilestoneUpdate(task: SVARTask): {
-  id: string;
-  startDate: Date;
-  endDate: Date;
-} {
+export function dependencyToTimelineLink(dep: MilestoneDependency): TimelineLink {
   return {
-    id: task.id,
-    startDate: task.start,
-    endDate: svarEndDateToInclusive(task.end),
+    id: dep.id,
+    sourceId: dep.predecessorId,
+    targetId: dep.successorId,
   };
 }
 
@@ -163,7 +152,7 @@ export function svarTaskToMilestoneUpdate(task: SVARTask): {
 
 const TEAM_TRACK_SEPARATOR = '__team__';
 
-/** Compose a team track SVAR task ID: `{milestoneId}__team__{teamId}` */
+/** Compose a team track task ID: `{milestoneId}__team__{teamId}` */
 export function makeTeamTrackId(milestoneId: string, teamId: string): string {
   return `${milestoneId}${TEAM_TRACK_SEPARATOR}${teamId}`;
 }
@@ -184,22 +173,19 @@ export function parseTeamTrackId(id: string): { milestoneId: string; teamId: str
 }
 
 /**
- * Build SVAR tasks with team track support.
+ * Build TimelineTasks with team track support.
  *
  * When multiple teams are visible and a milestone has team tracks:
  * - The milestone becomes a `type: 'summary'` parent
  * - Each team gets a `type: 'task'` child with `parent: milestoneId`
- *
- * When only one team is visible: flat list using that team's dates.
- * When no team tracks exist: existing behavior unchanged.
  */
-export function milestonesToSVARTasksWithTeamTracks(
+export function milestonesToTimelineTasksWithTeamTracks(
   milestones: Milestone[],
   teamDurations: TeamMilestoneDuration[],
   teams: Team[],
   visibleTeamIds: string[]
-): SVARTask[] {
-  const tasks: SVARTask[] = [];
+): TimelineTask[] {
+  const tasks: TimelineTask[] = [];
 
   // Index team durations by milestoneId
   const durationsByMilestone = new Map<string, TeamMilestoneDuration[]>();
@@ -214,56 +200,21 @@ export function milestonesToSVARTasksWithTeamTracks(
 
   for (const milestone of milestones) {
     const milestoneTDs = durationsByMilestone.get(milestone.id) || [];
-    // Filter to only visible teams
     const visibleTDs = milestoneTDs
       .filter((td) => visibleTeamIds.includes(td.teamId))
       .sort((a, b) => a.teamId.localeCompare(b.teamId));
 
     if (visibleTDs.length === 0) {
-      // No team tracks visible — render as normal task
-      tasks.push(milestoneToSVARTask(milestone));
+      tasks.push(milestoneToTimelineTask(milestone));
     } else {
-      // Summary parent + child tracks (always, even with one team visible)
-      // Parent dates already encompass all team tracks (unified reflow ensures this)
-      const parentTask = milestoneToSVARTask(milestone);
+      const parentTask = milestoneToTimelineTask(milestone);
       parentTask.type = 'summary';
-      // NOTE: Do NOT set open=true here — SVAR has an internal race condition
-      // where toArray() traverses data before parse() builds the tree, causing
-      // a crash when node.open===true && node.data===null. Instead, we open
-      // summary tasks after init via the SVAR API in svar-timeline-view.tsx.
-
       tasks.push(parentTask);
 
       for (const td of visibleTDs) {
         const team = teamMap.get(td.teamId);
         if (!team) continue;
-
-        const start = toLocalMidnight(td.startDate);
-        const inclusiveEnd = toLocalMidnight(td.endDate);
-        const end = addDays(inclusiveEnd, 1);
-        const days = computeDurationDays(start, inclusiveEnd);
-
-        tasks.push({
-          id: makeTeamTrackId(milestone.id, td.teamId),
-          text: team.name,
-          start,
-          end,
-          duration: days,
-          durationText: formatDuration(days),
-          progress: 0,
-          type: 'task',
-          parent: milestone.id,
-          $custom: {
-            status: milestone.status,
-            priority: milestone.priority,
-            projectId: milestone.projectId,
-            sortOrder: milestone.sortOrder,
-            description: null,
-            isTeamTrack: true,
-            teamColor: team.color,
-            teamName: team.name,
-          },
-        });
+        tasks.push(teamDurationToTimelineTask(milestone, td, team));
       }
     }
   }

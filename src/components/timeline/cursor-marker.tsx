@@ -1,71 +1,56 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, type RefObject } from 'react';
 import { format } from 'date-fns';
-import type { IApi } from '@svar-ui/react-gantt';
+import { pixelToDate as pixelToDateFn } from './date-math';
 
 interface CursorMarkerProps {
-  ganttApiRef: React.RefObject<IApi | null>;
+  scrollRef: RefObject<HTMLDivElement | null>;
+  pixelsPerDay: number;
+  timelineStart: Date;
   scaleHeight: number;
-  /** Called with the absolute pixel X in the content area and the viewport-relative X on each mousemove. Null on mouseleave. */
   onCursorMove?: (info: { absoluteX: number; viewportX: number } | null) => void;
 }
 
-/**
- * Cursor Marker component for SVAR Gantt chart.
- *
- * Renders a subtle vertical line that follows the mouse across the chart area,
- * with a date label at the top showing the hovered date.
- * Uses the same DOM-injection pattern as TodayMarker.
- */
-export function CursorMarker({ ganttApiRef, scaleHeight, onCursorMove }: CursorMarkerProps) {
+export function CursorMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeight, onCursorMove }: CursorMarkerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const lineRef = useRef<HTMLDivElement | null>(null);
   const labelRef = useRef<HTMLDivElement | null>(null);
 
   const pixelToDate = useCallback(
     (absoluteX: number): Date | null => {
-      const api = ganttApiRef.current;
-      if (!api) return null;
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const state = api.getState() as any;
-      const scales = state?._scales;
-      if (!scales?.start || !scales.lengthUnit || !scales.add) return null;
-
-      // absoluteX / cellWidth = fractional units from scales.start
-      const fractionalUnits = absoluteX / state.cellWidth;
-      // Use SVAR's add function to convert fractional units back to a date
-      const date = scales.add(scales.start, fractionalUnits, scales.lengthUnit);
-      return date instanceof Date ? date : null;
+      if (pixelsPerDay <= 0) return null;
+      return pixelToDateFn(absoluteX, timelineStart, pixelsPerDay);
     },
-    [ganttApiRef]
+    [pixelsPerDay, timelineStart]
   );
 
   useEffect(() => {
-    const ganttContainer = containerRef.current?.closest('.svar-timeline-container') as HTMLElement | null;
-    if (!ganttContainer) return;
+    let mounted = true;
+    let cleanupFn: (() => void) | null = null;
 
-    let line: HTMLDivElement | null = null;
-    let label: HTMLDivElement | null = null;
-    let chartArea: HTMLElement | null = null;
-    let scrollContainer: HTMLElement | null = null;
+    function trySetup() {
+      if (!mounted) return;
 
-    const setup = () => {
-      const wxArea = ganttContainer.querySelector('.wx-area') as HTMLElement;
-      if (!wxArea) return false;
+      const ganttContainer = containerRef.current?.closest('.svar-timeline-container') as HTMLElement | null;
+      const scrollEl = scrollRef.current;
+      if (!ganttContainer || !scrollEl) {
+        requestAnimationFrame(trySetup);
+        return;
+      }
 
-      scrollContainer = wxArea.parentElement;
-      chartArea = wxArea;
-      if (!scrollContainer) return false;
+      const scrollContent = scrollEl.firstChild as HTMLElement;
+      if (!scrollContent) {
+        requestAnimationFrame(trySetup);
+        return;
+      }
 
-      // Create the line (lives inside .wx-area, scrolls with content)
-      line = document.createElement('div');
+      const line = document.createElement('div');
       line.className = 'cursor-marker-line';
       line.style.cssText = `
         position: absolute;
         top: 0;
-        bottom: 0;
+        height: 9999px;
         width: 1px;
         pointer-events: none;
         z-index: 90;
@@ -73,11 +58,10 @@ export function CursorMarker({ ganttApiRef, scaleHeight, onCursorMove }: CursorM
         display: none;
         background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
       `;
-      wxArea.appendChild(line);
+      scrollContent.appendChild(line);
       lineRef.current = line;
 
-      // Create the label (lives inside the svar-timeline-container, clipped by overflow:hidden)
-      label = document.createElement('div');
+      const label = document.createElement('div');
       label.className = 'cursor-marker-label';
       label.style.cssText = `
         position: absolute;
@@ -97,103 +81,73 @@ export function CursorMarker({ ganttApiRef, scaleHeight, onCursorMove }: CursorM
       ganttContainer.appendChild(label);
       labelRef.current = label;
 
-      return true;
-    };
+      function handleMouseMove(e: MouseEvent) {
+        if (!scrollEl || !line || !label) return;
 
-    // Try setup immediately, poll if SVAR hasn't rendered yet
-    let ready = setup();
-    let pollInterval: ReturnType<typeof setInterval> | null = null;
-    if (!ready) {
-      pollInterval = setInterval(() => {
-        ready = setup();
-        if (ready && pollInterval) {
-          clearInterval(pollInterval);
-          pollInterval = null;
-          attachListeners();
+        const rect = scrollEl.getBoundingClientRect();
+        const viewportX = e.clientX - rect.left;
+
+        if (viewportX < 0 || viewportX > rect.width) {
+          hide();
+          return;
         }
-      }, 100);
-      const pollTimeout = setTimeout(() => {
-        if (pollInterval) clearInterval(pollInterval);
-      }, 5000);
 
-      return () => {
-        clearTimeout(pollTimeout);
-        if (pollInterval) clearInterval(pollInterval);
-        cleanup();
+        const absoluteX = viewportX + scrollEl.scrollLeft;
+
+        line.style.left = `${absoluteX}px`;
+        line.style.display = '';
+
+        const date = pixelToDate(absoluteX);
+        if (date) {
+          label.textContent = format(date, 'MMM d, yyyy');
+        }
+
+        if (!ganttContainer) return;
+        const containerRect = ganttContainer.getBoundingClientRect();
+        label.style.left = `${e.clientX - containerRect.left}px`;
+        label.style.top = `${rect.top - containerRect.top + 4}px`;
+        label.style.transform = 'translateX(-50%)';
+        label.style.display = '';
+          // First small movement — start delay
+        onCursorMove?.({ absoluteX, viewportX });
+      }
+
+      function handleMouseLeave() {
+        hide();
+        onCursorMove?.(null);
+      }
+
+      function handleScroll() {
+        hide();
+      }
+
+      function hide() {
+        if (line) line.style.display = 'none';
+        if (label) label.style.display = 'none';
+      }
+
+      scrollEl.addEventListener('mousemove', handleMouseMove);
+      scrollEl.addEventListener('mouseleave', handleMouseLeave);
+      scrollEl.addEventListener('scroll', handleScroll);
+
+      cleanupFn = () => {
+        scrollEl.removeEventListener('mousemove', handleMouseMove);
+        scrollEl.removeEventListener('mouseleave', handleMouseLeave);
+        scrollEl.removeEventListener('scroll', handleScroll);
+        line?.remove();
+        label?.remove();
+        lineRef.current = null;
+        labelRef.current = null;
       };
     }
 
-    function handleMouseMove(e: MouseEvent) {
-      if (!scrollContainer || !chartArea || !line || !label) return;
+    requestAnimationFrame(trySetup);
 
-      const rect = scrollContainer.getBoundingClientRect();
-      const viewportX = e.clientX - rect.left;
-
-      // Skip if cursor is outside the chart viewport
-      if (viewportX < 0 || viewportX > rect.width) {
-        hide();
-        return;
-      }
-
-      const absoluteX = viewportX + scrollContainer.scrollLeft;
-
-      // Position the line at absoluteX within .wx-area
-      line.style.left = `${absoluteX}px`;
-      line.style.display = '';
-
-      // Convert pixel to date for the label
-      const date = pixelToDate(absoluteX);
-      if (date) {
-        label.textContent = format(date, 'MMM d, yyyy');
-      }
-
-      // Position label at top of chart area, following cursor horizontally
-      if (!ganttContainer) return;
-      const containerRect = ganttContainer.getBoundingClientRect();
-      label.style.left = `${e.clientX - containerRect.left}px`;
-      label.style.top = `${rect.top - containerRect.top + 4}px`;
-      label.style.transform = 'translateX(-50%)';
-      label.style.display = '';
-
-      onCursorMove?.({ absoluteX, viewportX });
-    }
-
-    function handleMouseLeave() {
-      hide();
-      onCursorMove?.(null);
-    }
-
-    function hide() {
-      if (line) line.style.display = 'none';
-      if (label) label.style.display = 'none';
-    }
-
-    function attachListeners() {
-      if (!scrollContainer) return;
-      scrollContainer.addEventListener('mousemove', handleMouseMove);
-      scrollContainer.addEventListener('mouseleave', handleMouseLeave);
-    }
-
-    function detachListeners() {
-      if (!scrollContainer) return;
-      scrollContainer.removeEventListener('mousemove', handleMouseMove);
-      scrollContainer.removeEventListener('mouseleave', handleMouseLeave);
-    }
-
-    function cleanup() {
-      detachListeners();
-      line?.remove();
-      label?.remove();
-      lineRef.current = null;
-      labelRef.current = null;
-    }
-
-    if (ready) {
-      attachListeners();
-    }
-
-    return cleanup;
-  }, [pixelToDate, scaleHeight, onCursorMove]);
+    return () => {
+      mounted = false;
+      cleanupFn?.();
+    };
+  }, [pixelToDate, scaleHeight, onCursorMove, scrollRef]);
 
   return (
     <div

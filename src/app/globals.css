@@ -325,266 +325,144 @@ pre {
 }
 
 /* ================================================
-   SVAR React Gantt - Theme Integration
-   Maps tweakcn theme variables to SVAR's --wx- variables
-
-   IMPORTANT: We must override the .wx-willow-theme and
-   .wx-willow-dark-theme classes directly because SVAR's
-   theme components apply these classes which set their
-   own --wx-* variable values.
+   Custom Timeline - Container
    ================================================ */
 
-/* Override SVAR Willow theme variables with tweakcn values
-   Target both the theme wrapper and any element with willow class */
-.timeline-theme-wrapper,
-.timeline-theme-wrapper .wx-willow-theme,
-.timeline-theme-wrapper .wx-willow-dark-theme,
-.timeline-theme-wrapper [class*="wx-willow"],
-[class*="wx-willow-theme"],
-[class*="wx-willow-dark-theme"] {
-  /* ============================================
-     Core Colors - Base theme mapping
-     ============================================ */
-  --wx-background: var(--background);
-  --wx-background-alt: var(--muted);
-  --wx-color-font: var(--foreground);
-  --wx-color-secondary-font: var(--muted-foreground);
-  --wx-color-primary: var(--primary);
-  --wx-color-danger: var(--destructive);
-  --wx-color-link: var(--primary);
-  --wx-color-font-disabled: var(--muted-foreground);
-  --wx-icon-color: var(--muted-foreground);
-
-  /* ============================================
-     Typography - Font settings
-     ============================================ */
-  --wx-font-family: var(--font-sans);
-  --wx-font-size: 14px;
-  --wx-font-size-sm: 12px;
-  --wx-font-weight: 400;
-  --wx-font-weight-md: 500;
-  --wx-icon-size: 16px;
-
-  /* ============================================
-     Borders - Global border settings
-     ============================================ */
-  --wx-border: 1px solid var(--border);
-  --wx-border-color: var(--border);
-  --wx-gantt-border: 1px solid var(--border);
-  --wx-gantt-border-color: var(--border);
-
-  /* ============================================
-     Radius - Rounded corners using theme radius
-     ============================================ */
-  --wx-gantt-bar-border-radius: calc(var(--radius) - 4px);
-  --wx-gantt-milestone-border-radius: calc(var(--radius) - 6px);
-  --wx-gantt-baseline-border-radius: calc(var(--radius) - 6px);
-
-  /* ============================================
-     Shadows - Using theme shadow values
-     ============================================ */
-  --wx-box-shadow: var(--shadow-offset-x) var(--shadow-offset-y) var(--shadow-blur) var(--shadow-spread) color-mix(in srgb, var(--shadow-color) calc(var(--shadow-opacity) * 100%), transparent);
-  --wx-gantt-bar-shadow: 0px 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent), 0px 3px 10px color-mix(in srgb, var(--foreground) 12%, transparent);
-
-  /* ============================================
-     Task Bars - Primary task styling using chart colors
-     Note: Font colors are fixed white/light since chart colors
-     maintain their hue across light/dark themes
-     ============================================ */
-  --wx-gantt-task-color: var(--chart-2);
-  --wx-gantt-task-font-color: #fff;
-  --wx-gantt-task-fill-color: var(--chart-4);
-  --wx-gantt-task-border-color: var(--chart-4);
-  --wx-gantt-task-border: 1px solid transparent;
-
-  /* Critical path tasks */
-  --wx-gantt-critical-color: var(--destructive);
-  --wx-gantt-task-critical-color: var(--destructive);
-  --wx-gantt-task-critical-fill-color: color-mix(in srgb, var(--destructive) 80%, black);
-
-  /* ============================================
-     Summary Bars - Parent/group task styling
-     ============================================ */
-  --wx-gantt-summary-color: var(--chart-1);
-  --wx-gantt-summary-font-color: #fff;
-  --wx-gantt-summary-fill-color: var(--chart-3);
-  --wx-gantt-summary-border-color: var(--chart-3);
-  --wx-gantt-summary-border: 1px solid transparent;
-  --wx-gantt-summary-critical-color: var(--destructive);
-  --wx-gantt-summary-critical-fill-color: color-mix(in srgb, var(--destructive) 80%, black);
-
-  /* ============================================
-     Milestones - Diamond marker styling
-     ============================================ */
-  --wx-gantt-milestone-color: var(--chart-5);
-
-  /* ============================================
-     Selection & Hover States
-     ============================================ */
-  --wx-gantt-select-color: var(--accent);
-  --wx-gantt-selected-row-background: var(--accent);
-  --wx-gantt-hover-row-background: var(--muted);
-
-  /* ============================================
-     Links - Dependency line styling
-     ============================================ */
-  --wx-gantt-link-color: var(--muted-foreground);
-  --wx-gantt-link-color-hovered: var(--foreground);
-  --wx-gantt-link-critical-color: var(--destructive);
-  --wx-gantt-link-critical-color-hovered: color-mix(in srgb, var(--destructive) 80%, black);
-  --wx-gantt-link-marker-background: var(--background);
-  --wx-gantt-link-marker-color: var(--muted-foreground);
-
-  /* ============================================
-     Progress Marker - Drag handle styling
-     ============================================ */
-  --wx-gantt-progress-marker-height: 26px;
-  --wx-gantt-progress-border-color: var(--border);
-
-  /* ============================================
-     Icons - UI icon styling
-     ============================================ */
-  --wx-gantt-icon-color: var(--muted-foreground);
-
-  /* ============================================
-     Grid Header - Column header styling
-     ============================================ */
-  --wx-grid-header-font: var(--wx-font-weight-md) var(--wx-font-size) var(--wx-font-family);
-  --wx-grid-header-font-color: var(--foreground);
-  --wx-grid-header-text-transform: capitalize;
-  --wx-grid-header-shadow: none;
-
-  /* ============================================
-     Grid Body - Row and cell styling
-     ============================================ */
-  --wx-grid-body-font: var(--wx-font-weight) var(--wx-font-size) var(--wx-font-family);
-  --wx-grid-body-font-color: var(--foreground);
-  --wx-grid-body-row-border: 1px solid transparent;
-  --wx-grid-body-cell-border: 1px solid transparent;
-
-  /* ============================================
-     Timescale - Header timeline styling
-     ============================================ */
-  --wx-timescale-font: var(--wx-font-weight-md) var(--wx-font-size-sm) var(--wx-font-family);
-  --wx-timescale-font-color: var(--foreground);
-  --wx-timescale-shadow: none;
-  --wx-timescale-border: 1px solid var(--border);
-
-  /* ============================================
-     Holidays/Weekends - Non-working day styling
-     ============================================ */
-  --wx-gantt-holiday-background: transparent;
-  --wx-gantt-holiday-color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
-
-  /* ============================================
-     Markers - Today line and custom markers
-     ============================================ */
-  --wx-gantt-marker-font: var(--wx-font-weight-md) var(--wx-font-size-sm) var(--wx-font-family);
-  --wx-gantt-marker-font-color: #fff;
-  --wx-gantt-marker-color: var(--chart-2);
-
-  /* ============================================
-     Tooltip - Hover information popup
-     ============================================ */
-  --wx-tooltip-font: var(--wx-font-weight) var(--wx-font-size) var(--wx-font-family);
-  --wx-tooltip-font-color: var(--popover-foreground);
-  --wx-tooltip-background: var(--popover);
-
-  /* ============================================
-     Sidebar/Editor - Side panel styling
-     ============================================ */
-  --wx-sidebar-close-icon: var(--muted-foreground);
-
-  /* ============================================
-     Input Fields - Form element styling
-     ============================================ */
-  --wx-input-font-family: var(--font-sans);
-  --wx-input-font-size: var(--wx-font-size);
-  --wx-input-font-weigth: var(--wx-font-weight);
-  --wx-input-font-color: var(--foreground);
+.svar-timeline-container {
+  --timeline-cell-width: 60px;
+  --timeline-row-height: 52px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  position: relative;
 }
 
 /* ================================================
-   SVAR Theme Border Overrides
-   The Willow theme sets border vars on its own class
-   (e.g. --wx-gantt-border: 1px solid #1d1e261a) which
-   overrides our parent-level vars. Force them here.
+   Scale Headers
    ================================================ */
 
-.timeline-theme-wrapper .wx-willow-theme,
-.timeline-theme-wrapper .wx-willow-dark-theme {
-  --wx-gantt-border: 1px solid var(--border) !important;
-  --wx-gantt-border-color: var(--border) !important;
-  --wx-border: 1px solid var(--border) !important;
-  --wx-border-color: var(--border) !important;
-  --wx-timescale-border: 1px solid var(--border) !important;
-  --wx-grid-body-row-border: 1px solid transparent !important;
+.timeline-scale-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--foreground);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.timeline-scale-weekend {
+  background-color: color-mix(in srgb, var(--muted) 50%, transparent);
+  color: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
 }
 
 /* ================================================
-   Direct Style Overrides for SVAR Elements
-   Apply theme colors directly where CSS variables
-   don't cascade through SVAR's component boundaries
+   Weekend Columns - Stipple pattern in chart area
    ================================================ */
 
-/* Main layout container - set background once at top level */
-.timeline-theme-wrapper [class*="wx-layout"] {
-  background-color: var(--background) !important;
-  color: var(--foreground) !important;
+.timeline-weekend-column {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--muted-foreground) 12%, transparent) 0px,
+    color-mix(in srgb, var(--muted-foreground) 12%, transparent) 1px,
+    transparent 1px,
+    transparent 5px,
+    color-mix(in srgb, var(--muted-foreground) 7%, transparent) 5px,
+    color-mix(in srgb, var(--muted-foreground) 7%, transparent) 5.5px,
+    transparent 5.5px,
+    transparent 8px
+  );
+  pointer-events: none;
 }
 
-/* Timescale/header - background only, not affecting borders */
-.timeline-theme-wrapper [class*="wx-scale"] {
-  background-color: var(--background) !important;
-  color: var(--foreground) !important;
+/* ================================================
+   Task Bars
+   ================================================ */
+
+.timeline-bar {
+  border-radius: 4px;
+  background-color: var(--chart-2);
+  color: #fff;
+  cursor: grab;
+  user-select: none;
+  overflow: visible;
+  z-index: 10;
+  transition: box-shadow 0.15s ease;
 }
 
-/* Text colors for cells */
-.timeline-theme-wrapper [class*="wx-cell"] {
-  color: var(--foreground) !important;
+.timeline-bar:hover {
+  box-shadow: 0px 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent),
+              0px 3px 10px color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
-/* Hide SVAR's built-in grid and resizer — we render our own left panel */
-.timeline-theme-wrapper .wx-table-container,
-.timeline-theme-wrapper [class*="wx-table-container"] {
-  width: 0 !important;
-  min-width: 0 !important;
-  flex: 0 0 0px !important;
-  overflow: hidden !important;
-  border: none !important;
-}
-.timeline-theme-wrapper .wx-resizer,
-.timeline-theme-wrapper [class*="wx-resizer"] {
-  display: none !important;
+.timeline-bar:active {
+  cursor: grabbing;
 }
 
-/* Task bars - use chart colors */
-.timeline-theme-wrapper [class*="wx-bar"][class*="wx-task"]:not([class*="wx-split"]) {
-  background-color: var(--chart-2) !important;
-  color: #fff !important;
-  overflow: visible !important;
-  box-shadow: inset 0 6px 0 transparent, inset 0 -6px 0 transparent !important;
-  border-radius: 4px !important;
-  border: none !important;
-  outline: none !important;
-}
-.timeline-theme-wrapper [class*="wx-bar"][class*="wx-task"]:not([class*="wx-split"]) * {
-  border: none !important;
-  outline: none !important;
+/* Resize handles (left/right edges) */
+.timeline-bar-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 2;
 }
 
-/* Hide progress fill overlay — not used, and it bypasses the inset box-shadow height trick */
-.timeline-theme-wrapper [class*="wx-progress-wrapper"] {
-  display: none !important;
+.timeline-bar-handle-left {
+  left: -2px;
+  border-radius: 4px 0 0 4px;
 }
 
-/* Allow bar labels to extend beyond bar container */
-.timeline-theme-wrapper [class*="wx-bars"] {
-  overflow: visible !important;
+.timeline-bar-handle-right {
+  right: -2px;
+  border-radius: 0 4px 4px 0;
 }
 
-/* Bar label — positioned past the right link handle, always visible */
-.timeline-theme-wrapper .timeline-bar-label {
+/* Connection handles (radio-button style) */
+.timeline-connect-handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #fff;
+  border: 2px solid color-mix(in srgb, var(--foreground) 35%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 10%, transparent);
+  transform: translateY(-50%);
+  cursor: crosshair;
+  z-index: 3;
+  opacity: 0;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+
+.timeline-connect-handle-left {
+  left: -20px;
+}
+
+.timeline-connect-handle-right {
+  right: -20px;
+}
+
+/* Show connection handles on bar hover */
+.timeline-bar:hover .timeline-connect-handle {
+  opacity: 1;
+}
+
+/* Connection handle hover state */
+.timeline-connect-handle:hover {
+  border-color: var(--chart-2);
+  transform: translateY(-50%) scale(1.15);
+}
+
+/* Bar label — positioned past the right connection handle */
+.timeline-bar-label {
   position: absolute;
   left: calc(100% + 32px);
   top: 0;
@@ -600,7 +478,7 @@ pre {
 }
 
 /* Duration badge next to bar label */
-.timeline-theme-wrapper .timeline-bar-duration {
+.timeline-bar-duration {
   font-size: 10px;
   font-weight: 500;
   color: var(--muted-foreground);
@@ -611,229 +489,12 @@ pre {
   margin-left: 6px;
 }
 
-
-/* Team track child bars — thinner than parent via clip-path */
-.timeline-theme-wrapper [class*="wx-bar"][class*="wx-task"].wx-team-track {
-  box-shadow: none !important;
-  clip-path: inset(10px 0 10px 0 round 4px) !important;
-}
-
-/* Team track bar label — includes team color dot */
-.timeline-theme-wrapper .timeline-bar-team-track {
+/* Team track bar label variant */
+.timeline-bar-label-team {
   gap: 4px;
   font-size: 11px;
   color: var(--muted-foreground);
 }
-
-/* Summary bars — prominent parent bar, same style as normal tasks */
-.timeline-theme-wrapper [class*="wx-bar"][class*="wx-summary"] {
-  background-color: var(--chart-2) !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 4px !important;
-  overflow: visible !important;
-  box-shadow: inset 0 6px 0 transparent, inset 0 -6px 0 transparent !important;
-}
-.timeline-theme-wrapper [class*="wx-bar"][class*="wx-summary"] * {
-  border: none !important;
-  outline: none !important;
-}
-
-/* Milestone diamond */
-.timeline-theme-wrapper [class*="wx-milestone"] [class*="wx-content"] {
-  background-color: var(--chart-5) !important;
-}
-
-/* Selected row highlight */
-.timeline-theme-wrapper [class*="wx-row"][class*="wx-selected"],
-.timeline-theme-wrapper [class*="wx-selected"]:not([class*="wx-bar"]):not([class*="wx-link"]) {
-  background-color: var(--accent) !important;
-}
-
-
-/* Weekend/holiday columns - subtle dot stipple pattern for chart area */
-.timeline-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
-  background-image: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--muted-foreground) 30%, transparent) 1px,
-    transparent 1px
-  ) !important;
-  background-size: 5px 5px !important;
-  background-color: transparent !important;
-  transition: none !important;
-}
-/* Weekend scale header cells - subtle label color */
-.timeline-theme-wrapper [class*="wx-cell"][class*="wx-weekend"] {
-  background-color: var(--muted) !important;
-  color: color-mix(in srgb, var(--muted-foreground) 55%, transparent) !important;
-}
-
-/* Solid border between Saturday and Sunday columns */
-.timeline-theme-wrapper .wx-sunday:not([class*="wx-cell"]) {
-  border-left: 1px solid var(--border) !important;
-}
-
-/* Hide SVAR's built-in progress elements and tooltips */
-[class*="wx-progress-marker"],
-[class*="wx-gantt-tooltip"] {
-  display: none !important;
-}
-
-/* ================================================
-   Grid Lines - Cell borders for the chart grid
-   Use border-right and border-bottom to avoid doubles
-   ================================================ */
-
-/* Grid body cells - right border for vertical lines */
-.timeline-theme-wrapper [class*="wx-body"] [class*="wx-cell"] {
-  border-right: 1px solid var(--border) !important;
-}
-
-/* Grid body rows - no border by default (chart area) */
-.timeline-theme-wrapper [class*="wx-body"] [class*="wx-row"] {
-  border-bottom: none !important;
-}
-
-/* Header row bottom border - rely on SVAR's own border, no extra needed */
-
-/* Header cells - SVAR cellBorders="column" handles right borders */
-
-/* Timescale cells - right border */
-.timeline-theme-wrapper [class*="wx-scale"] [class*="wx-cell"] {
-  border-right: 1px solid var(--border) !important;
-}
-/* Timescale rows - bottom border separates header rows and chart body */
-.timeline-theme-wrapper [class*="wx-scale"] [class*="wx-row"] {
-  border-bottom: 1px solid var(--border) !important;
-}
-
-
-/* Remove last cell right border to avoid double with container edge */
-.timeline-theme-wrapper [class*="wx-row"] [class*="wx-cell"]:last-child {
-  border-right: none !important;
-}
-
-/* ================================================
-   Layout - Ensure full height
-   ================================================ */
-
-.timeline-theme-wrapper {
-  height: 100%;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.timeline-theme-wrapper .wx-gantt {
-  height: 100% !important;
-  flex: 1;
-  min-height: 0;
-}
-
-/* Force SVAR to fill available height */
-.timeline-theme-wrapper [class*="wx-pseudo-rows"] {
-  height: 100% !important;
-  min-height: 100% !important;
-}
-
-.timeline-theme-wrapper [class*="wx-stuck"] {
-  height: 100% !important;
-  max-height: none !important;
-}
-
-.timeline-theme-wrapper [class*="wx-layout"] {
-  height: 100% !important;
-  max-height: none !important;
-}
-
-/* Force SVAR internal containers to fill available space */
-.svar-timeline-container {
-  --timeline-cell-width: 60px;
-  --timeline-row-height: 52px;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.svar-timeline-container .timeline-theme-wrapper {
-  flex: 1;
-  min-height: 0;
-}
-
-/* ================================================
-   SVAR Empty Rows - Fill remaining vertical space
-   Uses repeating background to simulate empty rows
-   Grid pattern: horizontal lines for rows, vertical for columns
-   ================================================ */
-
-/* Grid side (left panel) - background + horizontal row lines */
-.timeline-theme-wrapper .wx-body,
-.timeline-theme-wrapper [class*="wx-body"] {
-  background-color: var(--background) !important;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0px,
-    transparent calc(var(--timeline-row-height, 52px) - 1px),
-    var(--border) calc(var(--timeline-row-height, 52px) - 1px),
-    var(--border) var(--timeline-row-height, 52px)
-  ) !important;
-  background-size: 100% var(--timeline-row-height, 52px) !important;
-  background-position: top !important;
-}
-
-/* Chart area grid pattern
-   Structure: .wx-chart > .wx-area > (.wx-gantt-holidays, .wx-bars, .wx-links)
-   The overlay children (.wx-bars, .wx-holidays, etc.) are absolutely positioned
-   on top of .wx-area, so they MUST stay transparent to show the grid through */
-
-/* Chart area background */
-.timeline-theme-wrapper [class*="wx-chart"] > [class*="wx-area"],
-.timeline-theme-wrapper [class*="wx-area"]:not([class*="wx-sidearea"]):not([class*="wx-tooltip"]) {
-  background: var(--background) !important;
-}
-
-/* Dashed vertical column lines — mask SVAR's grid image into a dash pattern.
-   cellBorders="column" makes SVAR render only vertical lines in its grid image,
-   so the mask only affects those. 3px visible / 3px hidden.
-   The grid div is a classless child of wx-area (not wx-gantt-holidays, wx-bars, etc.) */
-.timeline-theme-wrapper [class*="wx-area"] > div:not([class*="wx-"]):not([data-id]):not(.cursor-marker-line) {
-  -webkit-mask-image: repeating-linear-gradient(
-    to bottom,
-    black 0px 3px,
-    transparent 3px 6px
-  ) !important;
-  mask-image: repeating-linear-gradient(
-    to bottom,
-    black 0px 3px,
-    transparent 3px 6px
-  ) !important;
-}
-
-/* Overlays inside .wx-area must be transparent so grid shows through */
-.timeline-theme-wrapper [class*="wx-bars"],
-.timeline-theme-wrapper [class*="wx-gantt-holidays"],
-.timeline-theme-wrapper [class*="wx-links"] {
-  background-color: transparent !important;
-}
-
-/* Weekend columns - subtle dot stipple pattern (overrides earlier rule at higher cascade position) */
-.timeline-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
-  background-image: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--muted-foreground) 30%, transparent) 1px,
-    transparent 1px
-  ) !important;
-  background-size: 5px 5px !important;
-  background-color: transparent !important;
-  transition: none !important;
-}
-
-/* ================================================
-   Custom Today Marker Styling
-   (SVAR's built-in markers feature is paywalled)
-   ================================================ */
 
 /* ================================================
    Cursor Marker - Hover line + date label
@@ -842,8 +503,6 @@ pre {
 .cursor-marker-line {
   pointer-events: none;
   background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
-  -webkit-mask-image: none !important;
-  mask-image: none !important;
 }
 
 .cursor-marker-label {
@@ -857,59 +516,6 @@ pre {
 
 .timeline-row-hover {
   background: color-mix(in srgb, var(--foreground) 5%, transparent);
-}
-
-/* ================================================
-   Dependency Handle Styling - Radio-button style
-   ClickUp-inspired: ring outline, white center, colored
-   dot on hover. Outer = border ring, inner = center dot.
-   ================================================ */
-
-/* Outer ring — white fill, themed border, works on any bg */
-.timeline-theme-wrapper .wx-link.wx-GKbcLEGA {
-  width: 14px !important;
-  height: 14px !important;
-  border: 2px solid color-mix(in srgb, var(--foreground) 35%, transparent) !important;
-  background-color: #fff !important;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 10%, transparent);
-  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
-}
-
-/* Inner dot — hidden by default, shown on hover */
-.timeline-theme-wrapper .wx-link .wx-inner.wx-GKbcLEGA {
-  width: 6px !important;
-  height: 6px !important;
-  border: 3px solid color-mix(in srgb, var(--foreground) 35%, transparent) !important;
-  border-radius: 50%;
-  opacity: 0;
-  transition: opacity 0.15s ease, border-color 0.15s ease;
-}
-
-/* Show handles on bar hover */
-.timeline-theme-wrapper .wx-bar:hover .wx-link {
-  opacity: 1 !important;
-}
-
-/* Hover state — colored ring + show inner dot */
-.timeline-theme-wrapper .wx-link:hover {
-  border-color: var(--chart-2) !important;
-  transform: translateY(-50%) scale(1.15) !important;
-}
-
-.timeline-theme-wrapper .wx-link:hover .wx-inner {
-  opacity: 1 !important;
-  border-color: var(--chart-2) !important;
-}
-
-/* Selected state (during link creation click flow) */
-.timeline-theme-wrapper .wx-link.wx-selected {
-  border-color: var(--chart-2) !important;
-  background-color: var(--chart-2) !important;
-}
-
-.timeline-theme-wrapper .wx-link.wx-selected .wx-inner {
-  opacity: 1 !important;
-  border-color: #fff !important;
 }
 
 /* ================================================
@@ -967,9 +573,9 @@ pre {
   fill: none;
 }
 
-/* During drag: show all link handles */
-.drag-link-active .wx-link {
-  opacity: 1 !important;
+/* During drag: show all connection handles */
+.drag-link-active .timeline-connect-handle {
+  opacity: 1;
 }
 
 /* Crosshair cursor while dragging */
@@ -978,28 +584,18 @@ pre {
 }
 
 /* Source handle — filled accent */
-.drag-link-active .wx-link.drag-link-source {
+.drag-link-active .drag-link-source {
   border-color: var(--chart-2) !important;
   background-color: var(--chart-2) !important;
   transform: translateY(-50%) scale(1.2) !important;
 }
 
-.drag-link-active .wx-link.drag-link-source .wx-inner {
-  opacity: 1 !important;
-  border-color: #fff !important;
-}
-
 /* Valid drop target — pulsing accent ring */
-.drag-link-active .wx-link.drag-link-target-hover {
+.drag-link-active .drag-link-target-hover {
   border-color: var(--chart-2) !important;
   background-color: #fff !important;
   transform: translateY(-50%) scale(1.3) !important;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--chart-2) 30%, transparent) !important;
-}
-
-.drag-link-active .wx-link.drag-link-target-hover .wx-inner {
-  opacity: 1 !important;
-  border-color: var(--chart-2) !important;
 }
 
 /* ================================================

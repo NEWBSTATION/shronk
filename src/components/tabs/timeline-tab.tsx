@@ -26,7 +26,7 @@ import type { Milestone, MilestoneStatus } from "@/db/schema";
 
 const SVARTimelineView = dynamic(
   () =>
-    import("@/components/timeline/svar-timeline-view").then((m) => m.SVARTimelineView),
+    import("@/components/timeline/timeline-view").then((m) => m.TimelineView),
   { ssr: false, loading: () => <TimelineSkeleton /> }
 );
 

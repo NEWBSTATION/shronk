@@ -3,9 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
-// IMPORTANT: SVAR CSS must load BEFORE globals.css
-// so our theme overrides in globals.css take precedence
-import "@svar-ui/react-gantt/all.css";
 import "./globals.css";
 
 const geistSans = Geist({

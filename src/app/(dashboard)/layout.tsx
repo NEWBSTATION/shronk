@@ -66,7 +66,7 @@ function DashboardMain({
         <div
           className={cn(
             "absolute inset-0 flex flex-col",
-            activeTab !== "dashboard" && "invisible pointer-events-none"
+            activeTab !== "dashboard" && "invisible opacity-0 pointer-events-none"
           )}
         >
           {mountedTabs.has("dashboard") && <DashboardTab />}
@@ -74,7 +74,7 @@ function DashboardMain({
         <div
           className={cn(
             "absolute inset-0 flex flex-col",
-            activeTab !== "features" && "invisible pointer-events-none"
+            activeTab !== "features" && "invisible opacity-0 pointer-events-none"
           )}
         >
           {mountedTabs.has("features") && (
@@ -87,7 +87,7 @@ function DashboardMain({
         <div
           className={cn(
             "absolute inset-0 flex flex-col",
-            activeTab !== "timeline" && "invisible pointer-events-none"
+            activeTab !== "timeline" && "invisible opacity-0 pointer-events-none"
           )}
         >
           {mountedTabs.has("timeline") && (
@@ -97,7 +97,7 @@ function DashboardMain({
         <div
           className={cn(
             "absolute inset-0 flex flex-col",
-            activeTab !== "settings" && "invisible pointer-events-none"
+            activeTab !== "settings" && "invisible opacity-0 pointer-events-none"
           )}
         >
           {mountedTabs.has("settings") && <SettingsTab subTab={settingsSubTab} />}
@@ -144,9 +144,9 @@ function DashboardContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // Preload SVAR timeline bundle so it's cached before user visits the tab
+  // Preload timeline bundle so it's cached before user visits the tab
   useEffect(() => {
-    import("@/components/timeline/svar-timeline-view");
+    import("@/components/timeline/timeline-view");
   }, []);
 
   const handleTabChange = useCallback((tab: TabId) => {

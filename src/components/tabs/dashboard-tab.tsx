@@ -10,10 +10,12 @@ import {
   Minus,
   Calendar,
 } from "lucide-react";
-import { format, isBefore, startOfDay, differenceInDays } from "date-fns";
+import { format, isBefore, startOfDay, differenceInDays, addDays, eachWeekOfInterval, isAfter } from "date-fns";
 import {
   BarChart,
   Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -22,6 +24,8 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Badge } from "@/components/ui/badge";
@@ -286,10 +290,54 @@ function useComputedDashboard(
       ? differenceInDays(milestoneEnd, milestoneStart) + 1
       : 0;
 
+    // Burndown chart data
+    const burndownData: Array<{ date: string; planned: number; actual: number }> = [];
+    if (milestoneStart && milestoneEnd && total > 0) {
+      const today = startOfDay(new Date());
+      const chartEnd = isAfter(today, milestoneEnd) ? today : milestoneEnd;
+      const weeks = eachWeekOfInterval(
+        { start: milestoneStart, end: addDays(chartEnd, 6) },
+        { weekStartsOn: 1 }
+      );
+
+      // Sort features by endDate for planned burndown
+      const sortedByEnd = [...computed].sort(
+        (a, b) => a.endDate.getTime() - b.endDate.getTime()
+      );
+
+      // For actual burndown: use completedAt if available, else endDate for completed features
+      const completedFeatures = computed
+        .filter((f) => f.rawStatus === "completed")
+        .map((f) => {
+          const ms = milestones.find((m) => m.id === f.id);
+          const completedDate = ms?.completedAt
+            ? startOfDay(new Date(ms.completedAt))
+            : f.endDate;
+          return { ...f, completedDate };
+        })
+        .sort((a, b) => a.completedDate.getTime() - b.completedDate.getTime());
+
+      for (const weekDate of weeks) {
+        const weekEnd = startOfDay(weekDate);
+        const plannedDone = sortedByEnd.filter(
+          (f) => !isAfter(startOfDay(f.endDate), weekEnd)
+        ).length;
+        const actualDone = completedFeatures.filter(
+          (f) => !isAfter(f.completedDate, weekEnd)
+        ).length;
+
+        burndownData.push({
+          date: format(weekEnd, "yyyy-MM-dd"),
+          planned: total - plannedDone,
+          actual: total - actualDone,
+        });
+      }
+    }
+
     return {
       computed, total, completed, overdue, inProgress, completionPct, avgDuration,
       bottleneckTeam, durationByTeam, criticalByTeam, teamTimelines, upcoming, hasTeamData,
-      milestoneStart, milestoneEnd, milestoneSpanDays,
+      milestoneStart, milestoneEnd, milestoneSpanDays, burndownData,
     };
   }, [milestones, teamDurations, teams]);
 }
@@ -411,6 +459,129 @@ function CriticalPathChart({ data }: { data: Array<{ name: string; color: string
           />
         </BarChart>
       </ChartContainer>
+    </div>
+  );
+}
+
+const burndownConfig = {
+  planned: {
+    label: "Planned",
+    color: "var(--chart-1)",
+  },
+  actual: {
+    label: "Actual",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig;
+
+function BurndownChart({ data }: { data: Array<{ date: string; planned: number; actual: number }> }) {
+  const [timeRange, setTimeRange] = useState("all");
+
+  const filteredData = useMemo(() => {
+    if (timeRange === "all") return data;
+    const now = new Date();
+    let daysToSubtract = 0;
+    if (timeRange === "4w") daysToSubtract = 28;
+    else if (timeRange === "8w") daysToSubtract = 56;
+    else if (timeRange === "3m") daysToSubtract = 90;
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - daysToSubtract);
+    return data.filter((item) => new Date(item.date) >= cutoff);
+  }, [data, timeRange]);
+
+  if (filteredData.length < 2) return null;
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-card pt-0 overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-border/50 px-5 py-4 sm:flex-row">
+        <div className="grid flex-1 gap-1">
+          <h3 className="text-sm font-medium text-foreground">Burndown</h3>
+          <p className="text-xs text-muted-foreground">Features remaining over time</p>
+        </div>
+        <Select value={timeRange} onValueChange={setTimeRange}>
+          <SelectTrigger
+            className="hidden w-[140px] rounded-lg sm:ml-auto sm:flex"
+            aria-label="Select time range"
+          >
+            <SelectValue placeholder="All time" />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            <SelectItem value="all" className="rounded-lg">All time</SelectItem>
+            <SelectItem value="3m" className="rounded-lg">Last 3 months</SelectItem>
+            <SelectItem value="8w" className="rounded-lg">Last 8 weeks</SelectItem>
+            <SelectItem value="4w" className="rounded-lg">Last 4 weeks</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="px-2 pt-4 pb-1 sm:px-5 sm:pt-5">
+        <ChartContainer config={burndownConfig} className="h-[240px] w-full aspect-auto">
+          <AreaChart data={filteredData}>
+            <defs>
+              <linearGradient id="fillPlanned" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--color-planned)" stopOpacity={0.8} />
+                <stop offset="95%" stopColor="var(--color-planned)" stopOpacity={0.1} />
+              </linearGradient>
+              <linearGradient id="fillActual" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--color-actual)" stopOpacity={0.8} />
+                <stop offset="95%" stopColor="var(--color-actual)" stopOpacity={0.1} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              minTickGap={32}
+              tickFormatter={(value) => {
+                const date = new Date(value);
+                return date.toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                });
+              }}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              allowDecimals={false}
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+              width={28}
+            />
+            <ChartTooltip
+              cursor={false}
+              content={
+                <ChartTooltipContent
+                  labelFormatter={(value) => {
+                    return new Date(value).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    });
+                  }}
+                  indicator="dot"
+                />
+              }
+            />
+            <Area
+              dataKey="planned"
+              type="natural"
+              fill="url(#fillPlanned)"
+              stroke="var(--color-planned)"
+              strokeWidth={2}
+              strokeDasharray="6 3"
+            />
+            <Area
+              dataKey="actual"
+              type="natural"
+              fill="url(#fillActual)"
+              stroke="var(--color-actual)"
+              strokeWidth={2}
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+          </AreaChart>
+        </ChartContainer>
+      </div>
     </div>
   );
 }
@@ -613,7 +784,7 @@ export function DashboardTab() {
   const {
     total, completed, overdue, inProgress, completionPct, avgDuration,
     bottleneckTeam, durationByTeam, criticalByTeam, teamTimelines, upcoming, hasTeamData,
-    milestoneStart, milestoneEnd, milestoneSpanDays,
+    milestoneStart, milestoneEnd, milestoneSpanDays, burndownData,
   } = useComputedDashboard(milestones, teamDurations, teams);
 
   if (isLoadingProjects) return <DashboardSkeleton />;
@@ -723,6 +894,11 @@ export function DashboardTab() {
                 </div>
               </div>
             </section>
+
+            {/* Burndown Chart */}
+            {burndownData.length >= 2 && (
+              <BurndownChart data={burndownData} />
+            )}
 
             {/* Team Timelines */}
             {hasTeamData ? (

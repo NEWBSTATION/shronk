@@ -2,13 +2,16 @@
 
 import { useLayoutEffect, useRef, type RefObject } from 'react';
 import { startOfDay } from 'date-fns';
+import { dateToPixel } from './date-math';
 
 interface TodayMarkerProps {
-  ganttApiRef: RefObject<any>;
+  scrollRef: RefObject<HTMLDivElement | null>;
+  pixelsPerDay: number;
+  timelineStart: Date;
   scaleHeight: number;
 }
 
-export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
+export function TodayMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeight }: TodayMarkerProps) {
   const lineRef = useRef<HTMLDivElement>(null);
   const dotRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -17,46 +20,22 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
     const wrapper = containerRef.current;
     if (!wrapper) return;
 
-    const ganttContainer = wrapper.closest('.svar-timeline-container');
-    if (!ganttContainer) return;
-
     let mounted = true;
     let rafId: number;
-    let scrollEl: HTMLElement | null = null;
 
     const tick = () => {
       if (!mounted) return;
 
       const line = lineRef.current;
       const dot = dotRef.current;
-      if (!line || !dot) {
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
-
-      // Lazily find scroll container
-      if (!scrollEl) {
-        const wxArea = ganttContainer.querySelector('[class*="wx-area"]') as HTMLElement | null;
-        if (wxArea) scrollEl = wxArea.parentElement as HTMLElement;
-      }
-      if (!scrollEl) {
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
-
-      // Use SVAR's internal scales for pixel-perfect position
-      const api = ganttApiRef.current;
-      const state = api?.getState?.() as any;
-      const scales = state?._scales;
-      if (!scales?.diff || !scales.start || !scales.lengthUnit || !state?.cellWidth) {
-        line.style.display = 'none';
-        dot.style.display = 'none';
+      const scrollEl = scrollRef.current;
+      if (!line || !dot || !scrollEl) {
         rafId = requestAnimationFrame(tick);
         return;
       }
 
       const today = startOfDay(new Date());
-      const todayX = Math.round(scales.diff(today, scales.start, scales.lengthUnit) * state.cellWidth);
+      const todayX = dateToPixel(today, timelineStart, pixelsPerDay);
 
       if (todayX < 0) {
         line.style.display = 'none';
@@ -65,29 +44,31 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
         return;
       }
 
-      // Convert content position to screen position
+      const ganttContainer = wrapper.parentElement;
+      if (!ganttContainer) {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+
       const ganttRect = ganttContainer.getBoundingClientRect();
       const scrollRect = scrollEl.getBoundingClientRect();
       const chartLeft = scrollRect.left - ganttRect.left;
-      const chartTop = scrollRect.top - ganttRect.top;
       const chartWidth = scrollRect.width;
+      const chartTop = scrollRect.top - ganttRect.top;
       const visibleX = chartLeft + todayX - scrollEl.scrollLeft;
 
       if (visibleX < chartLeft - 2 || visibleX > chartLeft + chartWidth + 2) {
         line.style.display = 'none';
         dot.style.display = 'none';
       } else {
-        // Position dot centered on the bottom border of the timescale header
-        const headerBottom = chartTop + scaleHeight * 2;
-
         dot.style.display = 'block';
         dot.style.left = `${visibleX}px`;
-        dot.style.top = `${headerBottom}px`;
+        dot.style.top = `${chartTop}px`;
 
-        // Line starts from the dot, extends down
+        // Line starts where the dot is (scale/chart boundary)
         line.style.display = 'block';
         line.style.left = `${visibleX}px`;
-        line.style.top = `${headerBottom}px`;
+        line.style.top = `${chartTop}px`;
       }
 
       rafId = requestAnimationFrame(tick);
@@ -99,7 +80,7 @@ export function TodayMarker({ ganttApiRef, scaleHeight }: TodayMarkerProps) {
       mounted = false;
       cancelAnimationFrame(rafId);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scrollRef, pixelsPerDay, timelineStart, scaleHeight]);
 
   const DOT_SIZE = 7;
 
