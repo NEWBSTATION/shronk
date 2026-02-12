@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { milestones, milestoneDependencies, projects } from "@/db/schema";
+import { milestones, milestoneDependencies, projects, teamMilestoneDurations, teams } from "@/db/schema";
 import { eq, and, inArray, asc, desc, ilike, or } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       conditions.push(
         inArray(
           milestones.priority,
-          priority as ("low" | "medium" | "high" | "critical")[]
+          priority as ("none" | "low" | "medium" | "high" | "critical")[]
         )
       );
     }
@@ -140,10 +140,24 @@ export async function GET(request: NextRequest) {
             )
         : [];
 
+    // Get all team durations for these features
+    const allTeamDurations =
+      allMilestoneIds.length > 0
+        ? await db
+            .select()
+            .from(teamMilestoneDurations)
+            .where(inArray(teamMilestoneDurations.milestoneId, allMilestoneIds))
+        : [];
+
+    // Get all teams (workspace-level)
+    const allTeams = await db.select().from(teams);
+
     return NextResponse.json({
       features,
       milestones: allMilestones,
       dependencies,
+      teamDurations: allTeamDurations,
+      teams: allTeams,
     });
   } catch (error) {
     console.error("Error fetching features:", error);

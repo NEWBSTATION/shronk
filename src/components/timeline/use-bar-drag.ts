@@ -44,6 +44,7 @@ export function useBarDrag({
   sentinelId,
 }: UseBarDragOptions) {
   const isDraggingRef = useRef(false);
+  const justDraggedRef = useRef(false);
   const dragTypeRef = useRef<DragType | null>(null);
   const dragTaskIdRef = useRef<string | null>(null);
   const startMouseXRef = useRef(0);
@@ -276,6 +277,12 @@ export function useBarDrag({
         onDragEnd(taskId, startDate, endDate, duration, !!teamTrack, teamTrack);
       }
 
+      if (hasMovedRef.current) {
+        // Suppress the click event that fires after pointerup from a drag
+        justDraggedRef.current = true;
+        requestAnimationFrame(() => { justDraggedRef.current = false; });
+      }
+
       isDraggingRef.current = false;
       dragTypeRef.current = null;
       dragTaskIdRef.current = null;
@@ -283,9 +290,18 @@ export function useBarDrag({
       hasMovedRef.current = false;
     }
 
+    function onClickCapture(e: MouseEvent) {
+      if (justDraggedRef.current) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }
+
     container.addEventListener('pointerdown', onPointerDown);
+    container.addEventListener('click', onClickCapture, true);
     return () => {
       container.removeEventListener('pointerdown', onPointerDown);
+      container.removeEventListener('click', onClickCapture, true);
       document.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerup', onPointerUp);
     };

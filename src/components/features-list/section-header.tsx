@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { format, getYear } from "date-fns";
 import { ChevronDown, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { MilestoneIcon } from "@/lib/milestone-icon";
 import { getColorStyles } from "@/lib/milestone-theme";
@@ -28,6 +29,8 @@ interface SectionHeaderProps {
   featureCount: number;
   completedCount: number;
   totalDuration: number;
+  startDate?: Date;
+  endDate?: Date;
   collapsed: boolean;
   isDropTarget?: boolean;
   onToggle: () => void;
@@ -44,6 +47,8 @@ export function SectionHeader({
   featureCount,
   completedCount,
   totalDuration,
+  startDate,
+  endDate,
   collapsed,
   isDropTarget,
   onToggle,
@@ -74,6 +79,23 @@ export function SectionHeader({
       }
     }
   };
+
+  const dateRangeLabel = useMemo(() => {
+    if (!startDate || !endDate) return null;
+    const now = new Date();
+    const currentYear = getYear(now);
+    const startYear = getYear(startDate);
+    const endYear = getYear(endDate);
+
+    const startStr = startYear === currentYear
+      ? format(startDate, "MMM d")
+      : format(startDate, "MMM d, yyyy");
+    const endStr = endYear === currentYear
+      ? format(endDate, "MMM d")
+      : format(endDate, "MMM d, yyyy");
+
+    return `${startStr} – ${endStr}`;
+  }, [startDate, endDate]);
 
   const styles = getColorStyles(localColor);
   const progress =
@@ -125,7 +147,13 @@ export function SectionHeader({
               </span>
               {totalDuration > 0 && (
                 <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground tabular-nums">
-                  {totalDuration}d
+                  {dateRangeLabel ? (
+                    <>
+                      {dateRangeLabel}{"\u00A0\u00A0"}({totalDuration}d)
+                    </>
+                  ) : (
+                    <>{totalDuration}d</>
+                  )}
                 </span>
               )}
             </div>

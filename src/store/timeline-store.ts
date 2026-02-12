@@ -38,6 +38,7 @@ interface TimelineStore {
 
   // Per-milestone view preferences (keyed by project/milestone ID)
   milestoneTimePeriods: Record<string, TimePeriod>;
+  milestoneZoomLevels: Record<string, number>;
 
   // List view preferences
   rowHeight: RowHeight;
@@ -69,8 +70,8 @@ interface TimelineStore {
   // Grid column width (left panel)
   gridColumnWidth: number;
 
-  // Team visibility
-  visibleTeamIds: string[];
+  // Team visibility (null = uninitialized, [] = user explicitly hid all)
+  visibleTeamIds: string[] | null;
 
   // Actions
   setViewType: (viewType: ViewType) => void;
@@ -78,6 +79,8 @@ interface TimelineStore {
   getMilestoneTimePeriod: (milestoneId: string) => TimePeriod;
   setMilestoneTimePeriod: (milestoneId: string, period: TimePeriod) => void;
   setZoomLevel: (level: number) => void;
+  getMilestoneZoomLevel: (milestoneId: string) => number;
+  setMilestoneZoomLevel: (milestoneId: string, level: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
   setShowDependencies: (show: boolean) => void;
@@ -112,7 +115,7 @@ interface TimelineStore {
   setTimelineScrollLeft: (left: number) => void;
   setGridColumnWidth: (width: number) => void;
 
-  setVisibleTeamIds: (ids: string[]) => void;
+  setVisibleTeamIds: (ids: string[] | null) => void;
   toggleTeamVisibility: (teamId: string) => void;
 }
 
@@ -132,6 +135,7 @@ export const useTimelineStore = create<TimelineStore>()(
       showDependencies: true,
       sidebarCollapsed: false,
       milestoneTimePeriods: {},
+      milestoneZoomLevels: {},
       rowHeight: "default",
       groupBy: "none",
       collapsedGroups: [],
@@ -148,7 +152,7 @@ export const useTimelineStore = create<TimelineStore>()(
       contextMenuItemId: null,
       timelineScrollLeft: 0,
       gridColumnWidth: 200,
-      visibleTeamIds: [],
+      visibleTeamIds: null,
 
       // Actions
       setViewType: (viewType) => set({ viewType }),
@@ -171,6 +175,19 @@ export const useTimelineStore = create<TimelineStore>()(
 
       setZoomLevel: (zoomLevel) =>
         set({ zoomLevel: Math.min(10, Math.max(1, zoomLevel)) }),
+
+      getMilestoneZoomLevel: (milestoneId) => {
+        const stored = get().milestoneZoomLevels[milestoneId];
+        return stored != null ? stored : 5;
+      },
+
+      setMilestoneZoomLevel: (milestoneId, level) =>
+        set((state) => ({
+          milestoneZoomLevels: {
+            ...state.milestoneZoomLevels,
+            [milestoneId]: Math.min(9, Math.max(1, level)),
+          },
+        })),
 
       zoomIn: () => {
         const { zoomLevel } = get();
@@ -279,11 +296,14 @@ export const useTimelineStore = create<TimelineStore>()(
       setVisibleTeamIds: (visibleTeamIds) => set({ visibleTeamIds }),
 
       toggleTeamVisibility: (teamId) =>
-        set((state) => ({
-          visibleTeamIds: state.visibleTeamIds.includes(teamId)
-            ? state.visibleTeamIds.filter((id) => id !== teamId)
-            : [...state.visibleTeamIds, teamId],
-        })),
+        set((state) => {
+          const current = state.visibleTeamIds ?? [];
+          return {
+            visibleTeamIds: current.includes(teamId)
+              ? current.filter((id) => id !== teamId)
+              : [...current, teamId],
+          };
+        }),
     }),
     {
       name: "shronk-timeline-storage",
@@ -298,6 +318,7 @@ export const useTimelineStore = create<TimelineStore>()(
         sortField: state.sortField,
         sortDirection: state.sortDirection,
         milestoneTimePeriods: state.milestoneTimePeriods,
+        milestoneZoomLevels: state.milestoneZoomLevels,
         visibleTeamIds: state.visibleTeamIds,
         gridColumnWidth: state.gridColumnWidth,
       }),

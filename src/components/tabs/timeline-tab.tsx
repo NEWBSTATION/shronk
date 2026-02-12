@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { differenceInDays } from "date-fns";
 import { ChartGantt } from "lucide-react";
@@ -141,6 +142,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
   const [panelContent, setPanelContent] = useState<PanelContent | null>(null);
   const [panelVisible, setPanelVisible] = useState(false);
   const panelTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const openPanel = useCallback((content: PanelContent) => {
     clearTimeout(panelTimerRef.current);
@@ -175,6 +177,18 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
     return () => document.removeEventListener("keydown", handler);
   }, [panelContent, closePanel]);
 
+  // Close panel on click outside
+  useEffect(() => {
+    if (!panelVisible) return;
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        closePanel();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [panelVisible, closePanel]);
+
   // Auto-select first milestone when projects load and nothing is selected
   useEffect(() => {
     if (!selectedMilestoneId && projects.length > 0) {
@@ -198,7 +212,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
     [featuresData?.teamDurations]
   );
 
-  const { data: teamsData } = useTeams(selectedMilestoneId || "");
+  const { data: teamsData } = useTeams();
   const teams = useMemo(() => teamsData?.teams ?? [], [teamsData?.teams]);
 
   const { data: depsData } = useDependencies(selectedMilestoneId || "");
@@ -249,6 +263,38 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
       }
     },
     [deleteFeatureMutation, closePanel]
+  );
+
+  const queryClient = useQueryClient();
+
+  const milestoneOptions = useMemo(
+    () => projects.map((p) => ({ id: p.id, name: p.name })),
+    [projects]
+  );
+
+  const handleMoveFeature = useCallback(
+    async (featureId: string, targetProjectId: string) => {
+      try {
+        const response = await fetch("/api/features/move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ featureId, targetProjectId }),
+        });
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || "Failed to move feature");
+        }
+        queryClient.invalidateQueries({ queryKey: ["milestones"] });
+        queryClient.invalidateQueries({ queryKey: ["dependencies"] });
+        queryClient.invalidateQueries({ queryKey: ["projects"] });
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+        closePanel();
+        toast.success("Feature moved");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to move feature");
+      }
+    },
+    [queryClient, closePanel]
   );
 
   const handleDeleteFeatureFromTimeline = useCallback(
@@ -339,6 +385,27 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
     [upsertTeamDurationMutation]
   );
 
+  const handleQuickCreate = useCallback(
+    async (name: string, startDate: Date, endDate: Date, duration: number) => {
+      if (!selectedMilestoneId) return;
+      try {
+        await createFeatureMutation.mutateAsync({
+          projectId: selectedMilestoneId,
+          title: name,
+          startDate,
+          endDate,
+          duration,
+          status: 'not_started',
+          sortOrder: features.length,
+        });
+        toast.success("Feature created");
+      } catch {
+        toast.error("Failed to create feature");
+      }
+    },
+    [selectedMilestoneId, createFeatureMutation, features.length]
+  );
+
   const handleDeleteTeamDuration = useCallback(
     async (milestoneId: string, teamId: string) => {
       try {
@@ -406,6 +473,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
               onUpdateTeamDuration={handleUpdateTeamDuration}
               onStatusChange={handleStatusChange}
               onAddFeature={handleAddFeature}
+              onQuickCreate={handleQuickCreate}
               onCreateDependency={handleCreateDependency}
               onDeleteDependency={handleDeleteDependency}
             />
@@ -416,6 +484,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
       {/* Right-side detail panel — floating island within timeline bounds */}
       {panelContent && (
         <div
+          ref={panelRef}
           className={cn(
             "feature-island-panel absolute top-10 bottom-10 right-10 z-50 w-[calc(100%-2.5rem)] md:w-[480px] min-w-[320px] max-w-[calc(100%-5rem)] overflow-hidden bg-background rounded-2xl border border-border shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15),0_0_0_1px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)] transition-all duration-300 ease-out",
             panelVisible
@@ -431,6 +500,13 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
                 projectName={selectedMilestone?.name}
                 dependencies={dependencies}
                 teamDurations={teamDurations}
+                milestoneOptions={milestoneOptions}
+                selectedMilestoneId={panelContent.feature.projectId}
+                onMilestoneChange={(targetId) => {
+                  if (targetId && targetId !== panelContent.feature.projectId) {
+                    handleMoveFeature(panelContent.feature.id, targetId);
+                  }
+                }}
                 onUpdate={handleUpdateFeature}
                 onDelete={handleDeleteFeature}
                 onUpsertTeamDuration={handleUpdateTeamDuration}
@@ -442,17 +518,29 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
                 teams={teams}
                 projectName={selectedMilestone?.name}
                 onBack={closePanel}
-                onCreate={(formData) => {
+                onCreate={async (formData) => {
                   if (!selectedMilestoneId) return;
-                  createFeatureMutation.mutate(
-                    { projectId: selectedMilestoneId, ...formData },
-                    {
-                      onSuccess: () => {
-                        toast.success("Feature added");
-                      },
-                      onError: () => toast.error("Failed to add feature"),
+                  const { teamTracks, ...milestoneData } = formData;
+                  try {
+                    const newMilestone = await createFeatureMutation.mutateAsync({
+                      projectId: selectedMilestoneId,
+                      ...milestoneData,
+                    });
+                    if (teamTracks && teamTracks.length > 0) {
+                      await Promise.all(
+                        teamTracks.map((tt) =>
+                          upsertTeamDurationMutation.mutateAsync({
+                            milestoneId: newMilestone.id,
+                            teamId: tt.teamId,
+                            duration: tt.duration,
+                          })
+                        )
+                      );
                     }
-                  );
+                    toast.success("Feature added");
+                  } catch {
+                    toast.error("Failed to add feature");
+                  }
                 }}
                 isLoading={createFeatureMutation.isPending}
               />

@@ -20,7 +20,7 @@ const createMilestoneSchema = z.object({
   endDate: z.string().datetime(),
   duration: z.number().int().min(1).optional(),
   status: z.enum(["not_started", "in_progress", "on_hold", "completed", "cancelled"]).default("not_started"),
-  priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
+  priority: z.enum(["none", "low", "medium", "high", "critical"]).default("none"),
   progress: z.number().min(0).max(100).default(0),
   sortOrder: z.number().default(0),
 });
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       conditions.push(
         inArray(
           milestones.priority,
-          priority as ("low" | "medium" | "high" | "critical")[]
+          priority as ("none" | "low" | "medium" | "high" | "critical")[]
         )
       );
     }

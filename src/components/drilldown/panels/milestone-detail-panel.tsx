@@ -18,6 +18,7 @@ import {
   useCreateMilestone,
   useUpdateMilestone,
   useDeleteMilestone,
+  useProjects,
 } from "@/hooks/use-milestones";
 import type { Project, Milestone, MilestoneStatus } from "@/db/schema";
 
@@ -41,13 +42,19 @@ export function MilestoneDetailPanel({
     [featuresData?.milestones]
   );
 
-  const { data: teamsData } = useTeams(milestone.id);
+  const { data: teamsData } = useTeams();
   const teams = useMemo(() => teamsData?.teams ?? [], [teamsData?.teams]);
 
   const { data: depsData } = useDependencies(milestone.id);
   const dependencies = useMemo(
     () => depsData?.dependencies ?? [],
     [depsData?.dependencies]
+  );
+
+  const { data: projectsData } = useProjects();
+  const milestoneOptions = useMemo(
+    () => (projectsData?.projects ?? []).map((p) => ({ id: p.id, name: p.name })),
+    [projectsData?.projects]
   );
 
   const createMutation = useCreateMilestone();
@@ -70,6 +77,31 @@ export function MilestoneDetailPanel({
       queryClient.invalidateQueries({ queryKey: ["milestoneStats"] });
     },
   });
+
+  const handleMoveFeature = useCallback(
+    async (featureId: string, targetProjectId: string) => {
+      try {
+        const response = await fetch("/api/features/move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ featureId, targetProjectId }),
+        });
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || "Failed to move feature");
+        }
+        queryClient.invalidateQueries({ queryKey: ["milestones"] });
+        queryClient.invalidateQueries({ queryKey: ["dependencies"] });
+        queryClient.invalidateQueries({ queryKey: ["projects"] });
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+        toast.success("Feature moved");
+        pop();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to move feature");
+      }
+    },
+    [queryClient, pop]
+  );
 
   const handleColorChange = useCallback(
     (color: string) => {
@@ -104,6 +136,13 @@ export function MilestoneDetailPanel({
           teams={teams}
           projectName={milestone.name}
           dependencies={dependencies}
+          milestoneOptions={milestoneOptions}
+          selectedMilestoneId={feature.projectId}
+          onMilestoneChange={(targetId) => {
+            if (targetId && targetId !== feature.projectId) {
+              handleMoveFeature(feature.id, targetId);
+            }
+          }}
           onUpdate={async (data) => {
             try {
               await updateMutation.mutateAsync(data);
@@ -123,7 +162,7 @@ export function MilestoneDetailPanel({
         />
       );
     },
-    [push, teams, milestone.name, dependencies, updateMutation, deleteMutation]
+    [push, teams, milestone.name, dependencies, milestoneOptions, handleMoveFeature, updateMutation, deleteMutation]
   );
 
   const handleAddFeature = useCallback(() => {

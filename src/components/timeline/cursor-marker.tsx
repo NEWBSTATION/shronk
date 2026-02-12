@@ -39,18 +39,11 @@ export function CursorMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeig
         return;
       }
 
-      const scrollContent = scrollEl.firstChild as HTMLElement;
-      if (!scrollContent) {
-        requestAnimationFrame(trySetup);
-        return;
-      }
-
       const line = document.createElement('div');
       line.className = 'cursor-marker-line';
       line.style.cssText = `
         position: absolute;
         top: 0;
-        height: 9999px;
         width: 1px;
         pointer-events: none;
         z-index: 90;
@@ -58,7 +51,7 @@ export function CursorMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeig
         display: none;
         background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
       `;
-      scrollContent.appendChild(line);
+      ganttContainer.appendChild(line);
       lineRef.current = line;
 
       const label = document.createElement('div');
@@ -84,17 +77,28 @@ export function CursorMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeig
       function handleMouseMove(e: MouseEvent) {
         if (!scrollEl || !line || !label) return;
 
-        const rect = scrollEl.getBoundingClientRect();
-        const viewportX = e.clientX - rect.left;
+        const scrollRect = scrollEl.getBoundingClientRect();
+        const viewportX = e.clientX - scrollRect.left;
 
-        if (viewportX < 0 || viewportX > rect.width) {
+        if (viewportX < 0 || viewportX > scrollRect.width) {
           hide();
           return;
         }
 
         const absoluteX = viewportX + scrollEl.scrollLeft;
 
-        line.style.left = `${absoluteX}px`;
+        // Position line in ganttContainer using viewport-relative coords (like today marker)
+        const containerRect = ganttContainer.getBoundingClientRect();
+        const chartLeft = scrollRect.left - containerRect.left;
+        const visibleX = chartLeft + viewportX;
+        const chartTop = scrollRect.top - containerRect.top;
+
+        const scrollbarHeight = scrollEl.offsetHeight - scrollEl.clientHeight;
+        const lineHeight = scrollRect.height - scrollbarHeight;
+
+        line.style.left = `${visibleX}px`;
+        line.style.top = `${chartTop}px`;
+        line.style.height = `${lineHeight}px`;
         line.style.display = '';
 
         const date = pixelToDate(absoluteX);
@@ -102,13 +106,12 @@ export function CursorMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeig
           label.textContent = format(date, 'MMM d, yyyy');
         }
 
-        if (!ganttContainer) return;
-        const containerRect = ganttContainer.getBoundingClientRect();
+        const chartBottom = scrollRect.bottom - containerRect.top - scrollbarHeight;
+
         label.style.left = `${e.clientX - containerRect.left}px`;
-        label.style.top = `${rect.top - containerRect.top + 4}px`;
-        label.style.transform = 'translateX(-50%)';
+        label.style.top = `${chartBottom - 4}px`;
+        label.style.transform = 'translate(-50%, -100%)';
         label.style.display = '';
-          // First small movement — start delay
         onCursorMove?.({ absoluteX, viewportX });
       }
 

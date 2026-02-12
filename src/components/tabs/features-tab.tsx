@@ -39,7 +39,7 @@ interface Feature {
   startDate: Date;
   endDate: Date;
   status: "not_started" | "in_progress" | "on_hold" | "completed" | "cancelled";
-  priority: "low" | "medium" | "high" | "critical";
+  priority: "none" | "low" | "medium" | "high" | "critical";
   progress: number;
   duration: number;
   sortOrder: number;
@@ -65,10 +65,34 @@ interface FeaturesDepEntry {
   successorId: string;
 }
 
+interface TeamDurationEntry {
+  id: string;
+  milestoneId: string;
+  teamId: string;
+  duration: number;
+  startDate: string;
+  endDate: string;
+}
+
+interface TeamEntry {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface TeamDurationInfo {
+  teamId: string;
+  teamName: string;
+  teamColor: string;
+  duration: number;
+}
+
 interface FeaturesResponse {
   features: Feature[];
   milestones: MilestoneOption[];
   dependencies: FeaturesDepEntry[];
+  teamDurations: TeamDurationEntry[];
+  teams: TeamEntry[];
 }
 
 async function fetchFeatures(): Promise<FeaturesResponse> {
@@ -98,7 +122,27 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
   const features = data?.features || [];
   const milestoneOptions = data?.milestones || [];
 
-  const { data: teamsData } = useTeams(activeProjectId || "");
+  // Build per-feature team duration map for display in feature rows
+  const teamDurationsMap = useMemo(() => {
+    if (!data?.teamDurations || !data?.teams) return new Map<string, TeamDurationInfo[]>();
+    const teamsById = new Map(data.teams.map((t) => [t.id, t]));
+    const map = new Map<string, TeamDurationInfo[]>();
+    for (const td of data.teamDurations) {
+      const team = teamsById.get(td.teamId);
+      if (!team) continue;
+      const arr = map.get(td.milestoneId) ?? [];
+      arr.push({
+        teamId: td.teamId,
+        teamName: team.name,
+        teamColor: team.color,
+        duration: td.duration,
+      });
+      map.set(td.milestoneId, arr);
+    }
+    return map;
+  }, [data?.teamDurations, data?.teams]);
+
+  const { data: teamsData } = useTeams();
   const teams = useMemo(() => teamsData?.teams ?? [], [teamsData?.teams]);
 
   const { data: depsData } = useDependencies(activeProjectId || "");
@@ -250,6 +294,17 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
     [handleUpdateFeature]
   );
 
+  const handleStatusChange = useCallback(
+    (featureId: string, newStatus: string) => {
+      handleUpdateFeature({
+        id: featureId,
+        status: newStatus as MilestoneStatus,
+        progress: newStatus === "completed" ? 100 : 0,
+      });
+    },
+    [handleUpdateFeature]
+  );
+
   const handleFeatureClick = useCallback(
     (feature: Feature) => {
       setActiveProjectId(feature.projectId);
@@ -262,6 +317,13 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
           dependencies={dependencies}
           onUpdate={handleUpdateFeature}
           onDelete={handleDeleteFeature}
+          milestoneOptions={milestoneOptions}
+          selectedMilestoneId={feature.projectId}
+          onMilestoneChange={(targetId) => {
+            if (targetId && targetId !== feature.projectId) {
+              handleMoveFeature(feature.id, targetId);
+            }
+          }}
         />
       );
     },
@@ -321,8 +383,10 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
             features={features}
             milestones={milestoneOptions}
             dependencies={data?.dependencies}
+            teamDurationsMap={teamDurationsMap}
             onFeatureClick={handleFeatureClick}
             onToggleComplete={handleToggleComplete}
+            onStatusChange={handleStatusChange}
             onAddFeature={handleAddFeatureForMilestone}
             onEditMilestone={handleEditMilestone}
             onDeleteMilestone={handleDeleteMilestone}
@@ -345,6 +409,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
         onOpenChange={setFeatureDialogOpen}
         milestones={milestoneOptions}
         defaultMilestoneId={featureDialogMilestoneId}
+        teams={teams}
       />
 
       <AlertDialog

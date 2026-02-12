@@ -11,10 +11,19 @@ import { DrilldownStack } from "@/components/drilldown/drilldown-stack";
 import { DashboardTab } from "@/components/tabs/dashboard-tab";
 import { FeaturesTab } from "@/components/tabs/features-tab";
 import { TimelineTab } from "@/components/tabs/timeline-tab";
-import { SettingsTab } from "@/components/tabs/settings-tab";
+import {
+  SettingsDialog,
+  type SettingsSection,
+} from "@/components/settings/settings-panel";
 import { cn } from "@/lib/utils";
 
-const VALID_TABS: TabId[] = ["dashboard", "features", "timeline", "settings"];
+const VALID_TABS: TabId[] = ["dashboard", "features", "timeline"];
+const VALID_SETTINGS_SECTIONS: SettingsSection[] = [
+  "profile",
+  "preferences",
+  "teams",
+  "members",
+];
 
 function DashboardMain({
   activeTab,
@@ -22,17 +31,30 @@ function DashboardMain({
   milestoneId,
   createIntent,
   createType,
-  settingsSubTab,
 }: {
   activeTab: TabId;
   mountedTabs: Set<TabId>;
   milestoneId: string | null;
   createIntent: number;
   createType: CreateAction;
-  settingsSubTab: string;
 }) {
   const { panels, popAll } = useDrilldown();
   const depth = panels.length;
+
+  // Hide scrollbar while drilldown is open; show only after close animation finishes
+  const [hideScroll, setHideScroll] = useState(false);
+  const prevDepth = useRef(depth);
+  useEffect(() => {
+    if (depth > 0) {
+      setHideScroll(true);
+    } else if (prevDepth.current > 0) {
+      // Depth went from >0 to 0 — wait for the 300ms slide-back animation
+      const timer = setTimeout(() => setHideScroll(false), 300);
+      prevDepth.current = depth;
+      return () => clearTimeout(timer);
+    }
+    prevDepth.current = depth;
+  }, [depth]);
 
   // Close all drilldown panels when the active tab changes
   const prevTab = useRef(activeTab);
@@ -47,6 +69,8 @@ function DashboardMain({
     <main className="flex-1 relative overflow-hidden">
       {/* Tab content area — slides left like Dougly's Panel 0 when drilldown opens */}
       <div
+        data-drilldown-bg={depth > 0 ? "" : undefined}
+        data-hide-scroll={hideScroll || undefined}
         className={cn(
           "absolute inset-0 transition-all duration-300 ease-out",
           // No panels open — normal position
@@ -94,14 +118,6 @@ function DashboardMain({
             <TimelineTab initialMilestoneId={milestoneId} isActive={activeTab === "timeline"} />
           )}
         </div>
-        <div
-          className={cn(
-            "absolute inset-0 flex flex-col",
-            activeTab !== "settings" && "invisible opacity-0 pointer-events-none"
-          )}
-        >
-          {mountedTabs.has("settings") && <SettingsTab subTab={settingsSubTab} />}
-        </div>
       </div>
 
       <DrilldownStack />
@@ -116,6 +132,17 @@ function DashboardContent() {
     tabParam && VALID_TABS.includes(tabParam) ? tabParam : "dashboard";
   const milestoneId = searchParams.get("milestone");
 
+  // Settings overlay state
+  const settingsParam = searchParams.get("settings") as SettingsSection | null;
+  const initialSettings: SettingsSection | null =
+    settingsParam && VALID_SETTINGS_SECTIONS.includes(settingsParam)
+      ? settingsParam
+      : null;
+
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection>(initialSettings ?? "profile");
+  const [settingsOpen, setSettingsOpen] = useState(initialSettings !== null);
+
   // Local state for instant tab switching (bypasses Next.js router overhead)
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
 
@@ -127,7 +154,6 @@ function DashboardContent() {
   // Trigger for "create" action from header — incremented to signal tabs
   const [createIntent, setCreateIntent] = useState(0);
   const [createType, setCreateType] = useState<CreateAction>("feature");
-  const [settingsSubTab, setSettingsSubTab] = useState("profile");
 
   // Sync with external URL changes (e.g., middleware redirects, deep links)
   useEffect(() => {
@@ -149,6 +175,56 @@ function DashboardContent() {
     import("@/components/timeline/timeline-view");
   }, []);
 
+  // --- Settings dialog handlers ---
+
+  const handleOpenSettings = useCallback((section: SettingsSection) => {
+    setSettingsSection(section);
+    setSettingsOpen(true);
+    // Push a history entry so browser back closes settings
+    const url = new URL(window.location.href);
+    url.searchParams.set("settings", section);
+    window.history.pushState({ settings: section }, "", url.toString());
+  }, []);
+
+  const handleSettingsOpenChange = useCallback((open: boolean) => {
+    setSettingsOpen(open);
+    if (!open) {
+      // Remove ?settings= from URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete("settings");
+      window.history.replaceState(null, "", url.toString());
+    }
+  }, []);
+
+  const handleSettingsSectionChange = useCallback(
+    (section: SettingsSection) => {
+      setSettingsSection(section);
+      // Update URL without new history entry
+      const url = new URL(window.location.href);
+      url.searchParams.set("settings", section);
+      window.history.replaceState(null, "", url.toString());
+    },
+    []
+  );
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const onPopState = () => {
+      const url = new URL(window.location.href);
+      const s = url.searchParams.get("settings") as SettingsSection | null;
+      if (s && VALID_SETTINGS_SECTIONS.includes(s)) {
+        setSettingsSection(s);
+        setSettingsOpen(true);
+      } else if (settingsOpen) {
+        setSettingsOpen(false);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [settingsOpen]);
+
+  // --- Tab handlers ---
+
   const handleTabChange = useCallback((tab: TabId) => {
     setActiveTab(tab);
     setMountedTabs((prev) => {
@@ -163,14 +239,6 @@ function DashboardContent() {
     window.history.replaceState(null, "", url.toString());
   }, []);
 
-  const handleNavigateSettings = useCallback(
-    (subTab: string) => {
-      setSettingsSubTab(subTab);
-      handleTabChange("settings");
-    },
-    [handleTabChange]
-  );
-
   const handleCreateAction = useCallback(
     (type: CreateAction) => {
       handleTabChange("features");
@@ -184,14 +252,26 @@ function DashboardContent() {
   return (
     <DrilldownProvider>
       <div className="flex flex-col h-svh">
-        <AppHeader activeTab={activeTab} onTabChange={handleTabChange} onCreateAction={handleCreateAction} onNavigateSettings={handleNavigateSettings} />
+        <AppHeader
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          onCreateAction={handleCreateAction}
+          onOpenSettings={handleOpenSettings}
+        />
         <DashboardMain
           activeTab={activeTab}
           mountedTabs={mountedTabs}
           milestoneId={milestoneId}
           createIntent={createIntent}
           createType={createType}
-          settingsSubTab={settingsSubTab}
+        />
+
+        {/* Settings dialog */}
+        <SettingsDialog
+          open={settingsOpen}
+          onOpenChange={handleSettingsOpenChange}
+          activeSection={settingsSection}
+          onSectionChange={handleSettingsSectionChange}
         />
       </div>
     </DrilldownProvider>

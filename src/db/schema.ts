@@ -29,6 +29,7 @@ export const milestoneStatusEnum = pgEnum("milestone_status", [
 ]);
 
 export const milestonePriorityEnum = pgEnum("milestone_priority", [
+  "none",
   "low",
   "medium",
   "high",
@@ -70,12 +71,9 @@ export const projects = pgTable("projects", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Teams table
+// Teams table (workspace-level — not scoped to a project)
 export const teams = pgTable("teams", {
   id: uuid("id").defaultRandom().primaryKey(),
-  projectId: uuid("project_id")
-    .references(() => projects.id, { onDelete: "cascade" })
-    .notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   color: varchar("color", { length: 7 }).default("#6366f1").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -92,7 +90,7 @@ export const milestones = pgTable("milestones", {
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date").notNull(),
   status: milestoneStatusEnum("status").default("not_started").notNull(),
-  priority: milestonePriorityEnum("priority").default("medium").notNull(),
+  priority: milestonePriorityEnum("priority").default("none").notNull(),
   progress: integer("progress").default(0).notNull(),
   duration: integer("duration").default(1).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
@@ -153,18 +151,13 @@ export const teamMilestoneDurations = pgTable(
 // Relations
 export const projectsRelations = relations(projects, ({ many, one }) => ({
   milestones: many(milestones),
-  teams: many(teams),
   dashboardLayout: one(dashboardLayouts, {
     fields: [projects.id],
     references: [dashboardLayouts.projectId],
   }),
 }));
 
-export const teamsRelations = relations(teams, ({ one, many }) => ({
-  project: one(projects, {
-    fields: [teams.projectId],
-    references: [projects.id],
-  }),
+export const teamsRelations = relations(teams, ({ many }) => ({
   teamMilestoneDurations: many(teamMilestoneDurations),
 }));
 
@@ -230,7 +223,7 @@ export type MilestoneStatus =
   | "on_hold"
   | "completed"
   | "cancelled";
-export type MilestonePriority = "low" | "medium" | "high" | "critical";
+export type MilestonePriority = "none" | "low" | "medium" | "high" | "critical";
 export type Member = typeof members.$inferSelect;
 export type NewMember = typeof members.$inferInsert;
 export type Invite = typeof invites.$inferSelect;

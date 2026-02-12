@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import {
   Gem,
   Users,
@@ -42,7 +42,14 @@ import {
   useProjects,
   useMilestones,
   useTeams,
+  useDependencies,
+  useUpdateMilestone,
+  useDeleteMilestone,
 } from "@/hooks/use-milestones";
+import { useDrilldown } from "@/components/drilldown/drilldown-context";
+import { FeatureDetailPanel } from "@/components/drilldown/panels/feature-detail-panel";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import type {
   Milestone,
   Team,
@@ -588,7 +595,7 @@ function BurndownChart({ data }: { data: Array<{ date: string; planned: number; 
 
 /* ─── Team Timelines ─────────────────────────────────────────────────────── */
 
-function TeamTimelineCard({ team, totalFeatures }: { team: TeamTimeline; totalFeatures: number }) {
+function TeamTimelineCard({ team, totalFeatures, onFeatureClick }: { team: TeamTimeline; totalFeatures: number; onFeatureClick?: (featureId: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const assigned = team.assignedFeatures.length;
   const unassigned = team.unassignedFeatures.length;
@@ -598,25 +605,17 @@ function TeamTimelineCard({ team, totalFeatures }: { team: TeamTimeline; totalFe
       {/* Header — always visible */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full text-left px-5 py-4 flex items-start gap-4 hover:bg-accent/30 transition-colors"
+        className="w-full text-left px-5 py-4 flex items-center gap-4 hover:bg-accent/30 transition-colors"
       >
         <div
-          className="h-3 w-3 rounded-full mt-1 shrink-0"
+          className="h-3 w-3 rounded-full shrink-0"
           style={{ backgroundColor: team.color }}
         />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-3">
-            <h4 className="text-sm font-semibold truncate">{team.name}</h4>
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 text-muted-foreground shrink-0 transition-transform",
-                expanded && "rotate-180"
-              )}
-            />
-          </div>
+          <h4 className="text-sm font-semibold truncate">{team.name}</h4>
 
           {/* Stats row */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
             {team.startDate && team.endDate && (
               <span className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
@@ -629,6 +628,12 @@ function TeamTimelineCard({ team, totalFeatures }: { team: TeamTimeline; totalFe
             </span>
           </div>
         </div>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 text-muted-foreground shrink-0 transition-transform",
+            expanded && "rotate-180"
+          )}
+        />
       </button>
 
       {/* Expanded detail */}
@@ -644,7 +649,16 @@ function TeamTimelineCard({ team, totalFeatures }: { team: TeamTimeline; totalFe
                 {team.assignedFeatures.map((f) => (
                   <div
                     key={f.id}
-                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm bg-accent/20"
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm bg-accent/20",
+                      onFeatureClick && "cursor-pointer hover:bg-accent/40 transition-colors"
+                    )}
+                    onClick={(e) => {
+                      if (onFeatureClick) {
+                        e.stopPropagation();
+                        onFeatureClick(f.id);
+                      }
+                    }}
                   >
                     <Check className="h-3 w-3 text-emerald-500 shrink-0" />
                     <span className="flex-1 truncate">{f.title}</span>
@@ -671,7 +685,16 @@ function TeamTimelineCard({ team, totalFeatures }: { team: TeamTimeline; totalFe
                 {team.unassignedFeatures.map((f) => (
                   <div
                     key={f.id}
-                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground"
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground",
+                      onFeatureClick && "cursor-pointer hover:bg-accent/30 transition-colors"
+                    )}
+                    onClick={(e) => {
+                      if (onFeatureClick) {
+                        e.stopPropagation();
+                        onFeatureClick(f.id);
+                      }
+                    }}
                   >
                     <Minus className="h-3 w-3 shrink-0" />
                     <span className="flex-1 truncate">{f.title}</span>
@@ -687,7 +710,7 @@ function TeamTimelineCard({ team, totalFeatures }: { team: TeamTimeline; totalFe
   );
 }
 
-function TeamTimelinesPanel({ teams, totalFeatures }: { teams: TeamTimeline[]; totalFeatures: number }) {
+function TeamTimelinesPanel({ teams, totalFeatures, onFeatureClick }: { teams: TeamTimeline[]; totalFeatures: number; onFeatureClick?: (featureId: string) => void }) {
   if (teams.length === 0) return null;
 
   return (
@@ -695,14 +718,14 @@ function TeamTimelinesPanel({ teams, totalFeatures }: { teams: TeamTimeline[]; t
       <h2 className="text-sm font-medium text-foreground mb-4">Team Timelines</h2>
       <div className="space-y-3">
         {teams.map((t) => (
-          <TeamTimelineCard key={t.id} team={t} totalFeatures={totalFeatures} />
+          <TeamTimelineCard key={t.id} team={t} totalFeatures={totalFeatures} onFeatureClick={onFeatureClick} />
         ))}
       </div>
     </section>
   );
 }
 
-function UpcomingPanel({ features }: { features: ComputedFeature[] }) {
+function UpcomingPanel({ features, onFeatureClick }: { features: ComputedFeature[]; onFeatureClick?: (featureId: string) => void }) {
   if (features.length === 0) return null;
 
   return (
@@ -712,7 +735,11 @@ function UpcomingPanel({ features }: { features: ComputedFeature[] }) {
         {features.map((f) => (
           <div
             key={f.id}
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 -mx-1 hover:bg-accent/30 transition-colors"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 -mx-1 hover:bg-accent/30 transition-colors",
+              onFeatureClick && "cursor-pointer"
+            )}
+            onClick={() => onFeatureClick?.(f.id)}
           >
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{f.title}</p>
@@ -778,7 +805,7 @@ export function DashboardTab() {
   const milestones = useMemo(() => milestonesData?.milestones ?? [], [milestonesData?.milestones]);
   const teamDurations = useMemo(() => milestonesData?.teamDurations ?? [], [milestonesData?.teamDurations]);
 
-  const { data: teamsData } = useTeams(selectedProjectId || "");
+  const { data: teamsData } = useTeams();
   const teams = useMemo(() => teamsData?.teams ?? [], [teamsData?.teams]);
 
   const {
@@ -786,6 +813,58 @@ export function DashboardTab() {
     bottleneckTeam, durationByTeam, criticalByTeam, teamTimelines, upcoming, hasTeamData,
     milestoneStart, milestoneEnd, milestoneSpanDays, burndownData,
   } = useComputedDashboard(milestones, teamDurations, teams);
+
+  const { push } = useDrilldown();
+  const queryClient = useQueryClient();
+  const { data: depsData } = useDependencies(selectedProjectId || "");
+  const dependencies = useMemo(() => depsData?.dependencies ?? [], [depsData?.dependencies]);
+  const updateMutation = useUpdateMilestone();
+  const deleteMutation = useDeleteMilestone();
+
+  const handleUpdateFeature = useCallback(
+    async (data: Partial<Milestone> & { id: string; duration?: number }) => {
+      try {
+        await updateMutation.mutateAsync(data);
+        toast.success("Feature updated");
+      } catch {
+        toast.error("Failed to update feature");
+      }
+    },
+    [updateMutation]
+  );
+
+  const handleDeleteFeature = useCallback(
+    async (id: string) => {
+      try {
+        await deleteMutation.mutateAsync(id);
+        toast.success("Feature deleted");
+      } catch {
+        toast.error("Failed to delete feature");
+      }
+    },
+    [deleteMutation]
+  );
+
+  const handleFeatureClick = useCallback(
+    (featureId: string) => {
+      const feature = milestones.find((m) => m.id === featureId);
+      if (!feature) return;
+      const project = projects.find((p) => p.id === feature.projectId);
+      push(
+        `feature-${feature.id}`,
+        <FeatureDetailPanel
+          feature={feature}
+          teams={teams}
+          projectName={project?.name}
+          dependencies={dependencies}
+          teamDurations={teamDurations}
+          onUpdate={handleUpdateFeature}
+          onDelete={handleDeleteFeature}
+        />
+      );
+    },
+    [milestones, projects, teams, dependencies, teamDurations, push, handleUpdateFeature, handleDeleteFeature]
+  );
 
   if (isLoadingProjects) return <DashboardSkeleton />;
 
@@ -902,7 +981,7 @@ export function DashboardTab() {
 
             {/* Team Timelines */}
             {hasTeamData ? (
-              <TeamTimelinesPanel teams={teamTimelines} totalFeatures={total} />
+              <TeamTimelinesPanel teams={teamTimelines} totalFeatures={total} onFeatureClick={handleFeatureClick} />
             ) : (
               <div className="rounded-xl border border-dashed border-border/50 bg-muted/30 p-6 text-center">
                 <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
@@ -926,7 +1005,7 @@ export function DashboardTab() {
             {/* Upcoming Features */}
             {upcoming.length > 0 && (
               <section className="pb-8">
-                <UpcomingPanel features={upcoming} />
+                <UpcomingPanel features={upcoming} onFeatureClick={handleFeatureClick} />
               </section>
             )}
           </>

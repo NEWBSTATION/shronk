@@ -654,17 +654,16 @@ export function useMilestoneStats() {
 }
 
 // Teams hooks
-export function useTeams(projectId: string) {
+export function useTeams() {
   return useQuery({
-    queryKey: ["teams", projectId],
+    queryKey: ["teams"],
     queryFn: async () => {
-      const response = await fetch(`/api/teams?projectId=${projectId}`);
+      const response = await fetch("/api/teams");
       if (!response.ok) {
         throw new Error("Failed to fetch teams");
       }
       return response.json() as Promise<{ teams: Team[] }>;
     },
-    enabled: !!projectId,
   });
 }
 
@@ -672,7 +671,7 @@ export function useCreateTeam() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { projectId: string; name: string; color?: string }) => {
+    mutationFn: async (data: { name: string; color?: string }) => {
       const response = await fetch("/api/teams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -684,10 +683,8 @@ export function useCreateTeam() {
       }
       return response.json() as Promise<Team>;
     },
-    onSuccess: (newTeam) => {
-      queryClient.invalidateQueries({
-        queryKey: ["teams", newTeam.projectId],
-      });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
     },
   });
 }
@@ -708,10 +705,8 @@ export function useUpdateTeam() {
       }
       return response.json() as Promise<Team>;
     },
-    onSuccess: (updatedTeam) => {
-      queryClient.invalidateQueries({
-        queryKey: ["teams", updatedTeam.projectId],
-      });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
     },
   });
 }
@@ -720,7 +715,7 @@ export function useDeleteTeam() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, projectId }: { id: string; projectId: string }) => {
+    mutationFn: async (id: string) => {
       const response = await fetch("/api/teams", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -730,12 +725,10 @@ export function useDeleteTeam() {
         const error = await response.json();
         throw new Error(error.error || "Failed to delete team");
       }
-      return { id, projectId };
+      return { id };
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["teams", variables.projectId],
-      });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
       queryClient.invalidateQueries({ queryKey: ["milestones"] });
     },
   });

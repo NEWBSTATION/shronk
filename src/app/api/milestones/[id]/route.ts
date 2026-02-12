@@ -15,7 +15,7 @@ const updateMilestoneSchema = z.object({
   endDate: z.string().datetime().optional(),
   duration: z.number().int().min(1).optional(),
   status: z.enum(["not_started", "in_progress", "on_hold", "completed", "cancelled"]).optional(),
-  priority: z.enum(["low", "medium", "high", "critical"]).optional(),
+  priority: z.enum(["none", "low", "medium", "high", "critical"]).optional(),
   progress: z.number().min(0).max(100).optional(),
   sortOrder: z.number().optional(),
 });

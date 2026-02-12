@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, Timer, Layers3 } from "lucide-react";
+import { CalendarIcon, Timer, Layers3, Users, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -42,12 +42,20 @@ interface MilestoneOption {
   icon: string;
 }
 
+interface TeamOption {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface FeatureDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   milestones: MilestoneOption[];
   /** Pre-select a milestone when opening */
   defaultMilestoneId?: string | null;
+  /** Available teams for team track assignment */
+  teams?: TeamOption[];
 }
 
 export function FeatureDialog({
@@ -55,6 +63,7 @@ export function FeatureDialog({
   onOpenChange,
   milestones,
   defaultMilestoneId,
+  teams = [],
 }: FeatureDialogProps) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
@@ -67,6 +76,7 @@ export function FeatureDialog({
   const [durationOpen, setDurationOpen] = useState(false);
   const [localDurationValue, setLocalDurationValue] = useState(2);
   const [localDurationUnit, setLocalDurationUnit] = useState<DurationUnit>("weeks");
+  const [pendingTeamTracks, setPendingTeamTracks] = useState<Map<string, number>>(new Map());
 
   // Sync default milestone when dialog opens
   useEffect(() => {
@@ -81,6 +91,7 @@ export function FeatureDialog({
     setStartDate(new Date());
     setDurationValue(2);
     setDurationUnit("weeks");
+    setPendingTeamTracks(new Map());
     setError(null);
   };
 
@@ -108,10 +119,30 @@ export function FeatureDialog({
 
       if (!response.ok) throw new Error("Failed to create feature");
 
+      const newMilestone = await response.json();
+
+      // Upsert pending team tracks
+      if (pendingTeamTracks.size > 0) {
+        await Promise.all(
+          Array.from(pendingTeamTracks).map(([teamId, duration]) =>
+            fetch("/api/team-durations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                milestoneId: newMilestone.id,
+                teamId,
+                duration,
+              }),
+            })
+          )
+        );
+      }
+
       toast.success("Feature created");
       onOpenChange(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
     } catch (err) {
       setError((err as Error).message || "Failed to create feature");
     } finally {
@@ -261,6 +292,28 @@ export function FeatureDialog({
           </PropertyRow>
         </div>
 
+        {/* Team Tracks */}
+        {teams.length > 0 && (
+          <DialogTeamTracksSection
+            teams={teams}
+            pendingTracks={pendingTeamTracks}
+            defaultDuration={totalDays}
+            onAdd={(teamId, duration) => {
+              setPendingTeamTracks((prev) => new Map(prev).set(teamId, duration));
+            }}
+            onUpdateDuration={(teamId, duration) => {
+              setPendingTeamTracks((prev) => new Map(prev).set(teamId, duration));
+            }}
+            onRemove={(teamId) => {
+              setPendingTeamTracks((prev) => {
+                const next = new Map(prev);
+                next.delete(teamId);
+                return next;
+              });
+            }}
+          />
+        )}
+
         <DialogFooter className="mt-4">
           <Button
             variant="outline"
@@ -280,5 +333,164 @@ export function FeatureDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Dialog Team Tracks (local state for create mode)                           */
+/* -------------------------------------------------------------------------- */
+
+function DialogTeamTracksSection({
+  teams,
+  pendingTracks,
+  defaultDuration,
+  onAdd,
+  onUpdateDuration,
+  onRemove,
+}: {
+  teams: TeamOption[];
+  pendingTracks: Map<string, number>;
+  defaultDuration: number;
+  onAdd: (teamId: string, duration: number) => void;
+  onUpdateDuration: (teamId: string, duration: number) => void;
+  onRemove: (teamId: string) => void;
+}) {
+  const assignedTeamIds = new Set(pendingTracks.keys());
+  const unassignedTeams = teams.filter((t) => !assignedTeamIds.has(t.id));
+
+  return (
+    <div className="mt-4 pt-4 border-t border-border">
+      <div className="flex items-center gap-3 mb-2 px-2 -mx-2">
+        <Users className="size-4 text-muted-foreground shrink-0" />
+        <span className="text-sm text-muted-foreground">Team Tracks</span>
+      </div>
+
+      {pendingTracks.size === 0 && (
+        <p className="text-xs text-muted-foreground/60 mb-2 px-2">
+          No team tracks assigned.
+        </p>
+      )}
+
+      <div className="space-y-0.5">
+        {Array.from(pendingTracks).map(([teamId, duration]) => {
+          const team = teams.find((t) => t.id === teamId);
+          if (!team) return null;
+          return (
+            <DialogTeamTrackRow
+              key={teamId}
+              team={team}
+              duration={duration}
+              onUpdateDuration={(d) => onUpdateDuration(teamId, d)}
+              onRemove={() => onRemove(teamId)}
+            />
+          );
+        })}
+      </div>
+
+      {unassignedTeams.length > 0 && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              + Add team track
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-1" align="start">
+            {unassignedTeams.map((team) => (
+              <button
+                key={team.id}
+                onClick={() => onAdd(team.id, defaultDuration)}
+                className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
+              >
+                <div
+                  className="h-2.5 w-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: team.color }}
+                />
+                {team.name}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
+  );
+}
+
+function DialogTeamTrackRow({
+  team,
+  duration,
+  onUpdateDuration,
+  onRemove,
+}: {
+  team: TeamOption;
+  duration: number;
+  onUpdateDuration: (duration: number) => void;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [localDuration, setLocalDuration] = useState(duration);
+
+  useEffect(() => {
+    if (open) setLocalDuration(duration);
+  }, [open, duration]);
+
+  const handleClose = useCallback(
+    (newOpen: boolean) => {
+      if (!newOpen && localDuration !== duration) {
+        onUpdateDuration(Math.max(1, localDuration));
+      }
+      setOpen(newOpen);
+    },
+    [localDuration, duration, onUpdateDuration]
+  );
+
+  return (
+    <div className="flex items-center gap-3 min-h-8 py-1 rounded-md px-2 -mx-2 hover:bg-accent/30 group">
+      <div className="size-4 shrink-0 flex items-center justify-center">
+        <div
+          className="h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: team.color }}
+        />
+      </div>
+
+      <span className="text-sm font-medium truncate min-w-0 flex-1">{team.name}</span>
+
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Popover open={open} onOpenChange={handleClose}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="text-xs tabular-nums font-medium px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors"
+            >
+              {duration}d
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-3" align="end">
+            <div className="flex items-center gap-2">
+              <NumberStepper
+                value={localDuration}
+                onChange={(v) => setLocalDuration(Math.max(1, v))}
+                min={1}
+                className="w-20"
+              />
+              <span className="text-sm text-muted-foreground">
+                {localDuration === 1 ? "day" : "days"}
+              </span>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <button
+        onClick={onRemove}
+        className="shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+        title="Remove team track"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 }

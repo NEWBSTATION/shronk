@@ -61,6 +61,9 @@ export function TodayMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeigh
         line.style.display = 'none';
         dot.style.display = 'none';
       } else {
+        const scrollbarHeight = scrollEl.offsetHeight - scrollEl.clientHeight;
+        const lineHeight = scrollRect.height - scrollbarHeight;
+
         dot.style.display = 'block';
         dot.style.left = `${visibleX}px`;
         dot.style.top = `${chartTop}px`;
@@ -69,6 +72,7 @@ export function TodayMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeigh
         line.style.display = 'block';
         line.style.left = `${visibleX}px`;
         line.style.top = `${chartTop}px`;
+        line.style.height = `${lineHeight}px`;
       }
 
       rafId = requestAnimationFrame(tick);
@@ -91,7 +95,6 @@ export function TodayMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeigh
         style={{
           position: 'absolute',
           width: 1.5,
-          height: 9999,
           transform: 'translateX(-50%)',
           backgroundColor: 'var(--destructive)',
           boxShadow: '0 0 6px color-mix(in srgb, var(--destructive) 35%, transparent)',

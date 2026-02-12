@@ -62,7 +62,7 @@ export function ItemDialog({
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [status, setStatus] = useState<MilestoneStatus>("not_started");
-  const [priority, setPriority] = useState<MilestonePriority>("medium");
+  const [priority, setPriority] = useState<MilestonePriority>("none");
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {

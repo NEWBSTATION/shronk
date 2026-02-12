@@ -11,16 +11,7 @@ import {
   useRevokeInvite,
 } from "@/hooks/use-members";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -38,20 +29,140 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, X, Mail, Clock } from "lucide-react";
+import { Loader2, Plus, X, Mail, Clock, ShieldCheck, Trash2, Check } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { formatDistanceToNow } from "date-fns";
+import { getColorStyles } from "@/lib/milestone-theme";
+
+const HEADER_STYLES = getColorStyles("slate");
+
+function MemberRow({
+  member,
+  isCurrentUser,
+  onRoleChange,
+  onRemove,
+}: {
+  member: { id: string; userId: string; name: string; email: string; role: string; imageUrl: string | null };
+  isCurrentUser: boolean;
+  onRoleChange: (id: string, role: "admin" | "member") => void;
+  onRemove: (id: string, name: string) => void;
+}) {
+  const initials = member.name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  return (
+    <div className="flex items-center px-4 py-3.5 transition-colors group bg-background hover:bg-accent/50 border-b last:border-b-0">
+      <Avatar className="size-8 shrink-0">
+        <AvatarImage src={member.imageUrl || undefined} alt={member.name} />
+        <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+      </Avatar>
+
+      <div className="flex flex-1 ml-3 min-w-0 items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium truncate">
+            {member.name}
+            {isCurrentUser && (
+              <span className="ml-1.5 text-muted-foreground font-normal">(you)</span>
+            )}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          {isCurrentUser ? (
+            <span className="text-xs text-muted-foreground capitalize px-1">
+              {member.role}
+            </span>
+          ) : (
+            <>
+              <Select
+                value={member.role}
+                onValueChange={(value) =>
+                  onRoleChange(member.id, value as "admin" | "member")
+                }
+              >
+                <SelectTrigger className="h-7 w-[90px] text-xs border-0 bg-transparent shadow-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="member">Member</SelectItem>
+                </SelectContent>
+              </Select>
+              <button
+                onClick={() => onRemove(member.id, member.name)}
+                className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
+                title="Remove member"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InviteRow({
+  invite,
+  onRevoke,
+  isRevoking,
+}: {
+  invite: { id: string; email: string; role: string; createdAt: Date | string };
+  onRevoke: (id: string) => void;
+  isRevoking: boolean;
+}) {
+  return (
+    <div className="flex items-center px-4 py-3.5 transition-colors group bg-background hover:bg-accent/50 border-b last:border-b-0">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
+        <Mail className="size-3.5 text-muted-foreground" />
+      </div>
+
+      <div className="flex flex-1 ml-3 min-w-0 items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium truncate">{invite.email}</p>
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock className="size-3" />
+            Sent{" "}
+            {formatDistanceToNow(new Date(invite.createdAt), {
+              addSuffix: true,
+            })}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-xs text-muted-foreground capitalize px-1">
+            {invite.role}
+          </span>
+          <button
+            onClick={() => onRevoke(invite.id)}
+            disabled={isRevoking}
+            className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
+            title="Revoke invite"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function MembersTab() {
   const { user } = useUser();
   const { data: membersData, isLoading: membersLoading } = useMembers();
-  const { data: invitesData, isLoading: invitesLoading } = useInvites();
+  const { data: invitesData } = useInvites();
   const updateRole = useUpdateMemberRole();
   const removeMember = useRemoveMember();
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
 
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("admin");
   const [removeTarget, setRemoveTarget] = useState<{
@@ -72,7 +183,7 @@ export function MembersTab() {
           toast.success(`Invite sent to ${inviteEmail}`);
           setInviteEmail("");
           setInviteRole("admin");
-          setInviteDialogOpen(false);
+          setShowInviteForm(false);
         },
         onError: (error) => {
           toast.error(error.message);
@@ -113,204 +224,141 @@ export function MembersTab() {
 
   if (membersLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      <div className="space-y-4">
+        <div className="rounded-2xl border overflow-hidden">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b last:border-b-0">
+              <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
+              <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Members Section */}
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Members ({members.length})
-          </h3>
-          <Button
-            size="sm"
-            onClick={() => setInviteDialogOpen(true)}
-          >
-            <Plus className="mr-1.5 size-3.5" />
-            Invite
-          </Button>
-        </div>
-        <div className="rounded-lg border">
-          {members.map((member, i) => {
-            const isCurrentUser = member.userId === user?.id;
-            const initials = member.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase()
-              .slice(0, 2);
-
-            return (
-              <div
-                key={member.id}
-                className={`flex items-center gap-3 px-4 py-3${
-                  i < members.length - 1 ? " border-b" : ""
-                }`}
-              >
-                <Avatar className="size-8 shrink-0">
-                  <AvatarImage src={member.imageUrl || undefined} alt={member.name} />
-                  <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">
-                    {member.name}
-                    {isCurrentUser && (
-                      <span className="ml-1.5 text-muted-foreground font-normal">
-                        (you)
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {member.email}
-                  </p>
-                </div>
-                {isCurrentUser ? (
-                  <Badge variant="secondary" className="shrink-0 capitalize">
-                    {member.role}
-                  </Badge>
-                ) : (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Select
-                      value={member.role}
-                      onValueChange={(value) =>
-                        handleRoleChange(member.id, value as "admin" | "member")
-                      }
-                    >
-                      <SelectTrigger className="h-8 w-[100px] text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="member">Member</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() =>
-                        setRemoveTarget({ id: member.id, name: member.name })
-                      }
-                    >
-                      <X className="size-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Pending Invites Section */}
-      {pendingInvites.length > 0 && (
-        <div>
-          <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Pending Invites ({pendingInvites.length})
-          </h3>
-          <div className="rounded-lg border">
-            {pendingInvites.map((invite, i) => (
-              <div
-                key={invite.id}
-                className={`flex items-center gap-3 px-4 py-3${
-                  i < pendingInvites.length - 1 ? " border-b" : ""
-                }`}
-              >
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                  <Mail className="size-3.5 text-muted-foreground" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{invite.email}</p>
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="size-3" />
-                    Sent{" "}
-                    {formatDistanceToNow(new Date(invite.createdAt), {
-                      addSuffix: true,
-                    })}
-                  </p>
-                </div>
-                <Badge variant="outline" className="shrink-0 capitalize">
-                  {invite.role}
-                </Badge>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => handleRevoke(invite.id)}
-                  disabled={revokeInvite.isPending}
-                >
-                  <X className="size-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Invite Dialog */}
-      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Invite Member</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label htmlFor="invite-email" className="text-sm font-medium">
-                Email address
-              </label>
-              <Input
-                id="invite-email"
-                type="email"
-                placeholder="name@example.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleInvite();
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="invite-role" className="text-sm font-medium">
-                Role
-              </label>
-              <Select
-                value={inviteRole}
-                onValueChange={(v) => setInviteRole(v as "admin" | "member")}
-              >
-                <SelectTrigger id="invite-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="member">Member</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setInviteDialogOpen(false)}
+    <div className="space-y-4">
+      {/* Members card */}
+      <div className="rounded-2xl overflow-hidden border">
+        {/* Header — mirrors teams tab */}
+        <div className="w-full text-left group relative overflow-hidden px-4 py-3 rounded-t-2xl border-b">
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: `linear-gradient(to right, transparent 30%, ${HEADER_STYLES.gradient} 100%)`,
+            }}
+          />
+          <div className="relative flex items-center gap-3">
+            <div
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+              style={{ backgroundColor: HEADER_STYLES.iconBg, color: HEADER_STYLES.hex }}
             >
-              Cancel
-            </Button>
-            <Button
+              <ShieldCheck className="h-4 w-4" />
+            </div>
+            <div className="flex flex-1 items-center gap-2 min-w-0">
+              <span className="text-sm font-medium truncate">Members</span>
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                {members.length}
+              </span>
+            </div>
+
+            <button
+              onClick={() => setShowInviteForm(true)}
+              className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent/50 transition-all"
+              title="Invite member"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Member rows */}
+        {members.map((member) => (
+          <MemberRow
+            key={member.id}
+            member={member}
+            isCurrentUser={member.userId === user?.id}
+            onRoleChange={handleRoleChange}
+            onRemove={(id, name) => setRemoveTarget({ id, name })}
+          />
+        ))}
+
+        {/* Pending invites — inline in the same card */}
+        {pendingInvites.map((invite) => (
+          <InviteRow
+            key={invite.id}
+            invite={invite}
+            onRevoke={handleRevoke}
+            isRevoking={revokeInvite.isPending}
+          />
+        ))}
+
+        {/* Invite form — inline at bottom like teams add form */}
+        {showInviteForm ? (
+          <div className="flex items-center gap-3 px-4 py-3.5 border-t bg-background">
+            <Input
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              type="email"
+              placeholder="name@example.com"
+              className="h-8 flex-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleInvite();
+                if (e.key === "Escape") {
+                  setShowInviteForm(false);
+                  setInviteEmail("");
+                }
+              }}
+              autoFocus
+            />
+            <Select
+              value={inviteRole}
+              onValueChange={(v) => setInviteRole(v as "admin" | "member")}
+            >
+              <SelectTrigger className="h-8 w-[90px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="member">Member</SelectItem>
+              </SelectContent>
+            </Select>
+            <button
               onClick={handleInvite}
               disabled={!inviteEmail.trim() || createInvite.isPending}
+              className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all disabled:opacity-50"
             >
-              {createInvite.isPending && (
-                <Loader2 className="mr-2 size-4 animate-spin" />
+              {createInvite.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Check className="h-3.5 w-3.5" />
               )}
-              Send Invite
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </button>
+            <button
+              onClick={() => {
+                setShowInviteForm(false);
+                setInviteEmail("");
+              }}
+              className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowInviteForm(true)}
+            className="w-full px-4 py-3.5 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer border-t"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+              <Plus className="h-4 w-4" />
+            </div>
+            <span className="text-sm">Invite a member</span>
+          </button>
+        )}
+      </div>
 
-      {/* Remove Confirmation */}
+      {/* Remove confirmation */}
       <AlertDialog
         open={!!removeTarget}
         onOpenChange={(open) => !open && setRemoveTarget(null)}

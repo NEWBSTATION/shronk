@@ -24,13 +24,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useFeaturesListStore } from "@/store/features-list-store";
 import { SectionHeader } from "./section-header";
-import { FeatureRow, DraggableFeatureRow } from "./feature-row";
+import { FeatureRow, DraggableFeatureRow, type TeamDurationInfo } from "./feature-row";
 
 interface Feature {
   id: string;
   projectId: string;
   title: string;
   startDate: Date | string;
+  endDate: Date | string;
   status: string;
   priority: string;
   duration: number;
@@ -57,8 +58,10 @@ interface FeaturesSectionListProps {
   features: Feature[];
   milestones: MilestoneOption[];
   dependencies?: Dependency[];
+  teamDurationsMap?: Map<string, TeamDurationInfo[]>;
   onFeatureClick: (feature: any) => void;
   onToggleComplete?: (featureId: string, currentStatus: string) => void;
+  onStatusChange?: (featureId: string, newStatus: string) => void;
   onAddFeature?: (milestoneId: string) => void;
   onEditMilestone?: (milestoneId: string) => void;
   onDeleteMilestone?: (milestoneId: string) => void;
@@ -72,6 +75,8 @@ interface Section {
   features: Feature[];
   completedCount: number;
   totalDuration: number;
+  startDate?: Date;
+  endDate?: Date;
 }
 
 interface PendingMove {
@@ -106,8 +111,10 @@ export function FeaturesSectionList({
   features,
   milestones,
   dependencies = [],
+  teamDurationsMap,
   onFeatureClick,
   onToggleComplete,
+  onStatusChange,
   onAddFeature,
   onEditMilestone,
   onDeleteMilestone,
@@ -159,6 +166,14 @@ export function FeaturesSectionList({
         const bDate = new Date(b.startDate).getTime();
         return aDate - bDate;
       });
+      let minStart: Date | undefined;
+      let maxEnd: Date | undefined;
+      for (const f of sectionFeatures) {
+        const s = new Date(f.startDate);
+        const e = new Date(f.endDate);
+        if (!minStart || s < minStart) minStart = s;
+        if (!maxEnd || e > maxEnd) maxEnd = e;
+      }
       return {
         milestone: m,
         features: sectionFeatures,
@@ -169,6 +184,8 @@ export function FeaturesSectionList({
           (sum, f) => sum + (f.duration || 0),
           0
         ),
+        startDate: minStart,
+        endDate: maxEnd,
       };
     });
   }, [features, milestones]);
@@ -344,6 +361,8 @@ export function FeaturesSectionList({
                       featureCount={section.features.length}
                       completedCount={section.completedCount}
                       totalDuration={section.totalDuration}
+                      startDate={section.startDate}
+                      endDate={section.endDate}
                       collapsed={isCollapsed}
                       isDropTarget={isOver}
                       onToggle={() => toggleSection(section.milestone.id)}
@@ -380,11 +399,15 @@ export function FeaturesSectionList({
                               status={feature.status}
                               priority={feature.priority}
                               duration={feature.duration}
+                              startDate={feature.startDate}
+                              endDate={feature.endDate}
+                              teamDurations={teamDurationsMap?.get(feature.id)}
                               selected={selectedIds.has(feature.id)}
                               selectMode={selectMode}
                               onSelect={(e) => handleSelect(feature.id, e)}
                               onClick={() => onFeatureClick(feature)}
                               onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}
+                              onStatusChange={(newStatus) => onStatusChange?.(feature.id, newStatus)}
                             />
                           ))
                         )}
@@ -418,6 +441,9 @@ export function FeaturesSectionList({
               status={activeFeature.status}
               priority={activeFeature.priority}
               duration={activeFeature.duration}
+              startDate={activeFeature.startDate}
+              endDate={activeFeature.endDate}
+              teamDurations={teamDurationsMap?.get(activeFeature.id)}
               selected={false}
               selectMode={false}
               isOverlay

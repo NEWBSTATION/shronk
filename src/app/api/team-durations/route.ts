@@ -107,12 +107,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Verify team exists and belongs to same project
+    // Verify team exists
     const team = await db.query.teams.findFirst({
-      where: and(
-        eq(teams.id, data.teamId),
-        eq(teams.projectId, milestone.projectId)
-      ),
+      where: eq(teams.id, data.teamId),
     });
 
     if (!team) {

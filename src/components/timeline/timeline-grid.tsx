@@ -1,10 +1,12 @@
 'use client';
 
-import { useRef, useEffect, type RefObject } from 'react';
-import { Plus } from 'lucide-react';
+import { type RefObject } from 'react';
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
+import { MilestoneIcon } from '@/lib/milestone-icon';
+import { getColorStyles } from '@/lib/milestone-theme';
 import type { SVARTask } from './types';
-import type { Milestone, MilestoneStatus } from '@/db/schema';
+import type { Milestone, MilestoneStatus, Project } from '@/db/schema';
 
 const ADD_FEATURE_TASK_ID = '__add_feature__';
 
@@ -33,11 +35,11 @@ function StatusToggle({
       title={isComplete ? 'Mark incomplete' : 'Mark complete'}
     >
       {isComplete ? (
-        <svg className="h-4 w-4" viewBox="0 -960 960 960" fill="currentColor">
+        <svg className="h-5 w-5" viewBox="0 -960 960 960" fill="currentColor">
           <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Z" />
         </svg>
       ) : (
-        <svg className="h-4 w-4" viewBox="0 -960 960 960" fill="currentColor">
+        <svg className="h-5 w-5" viewBox="0 -960 960 960" fill="currentColor">
           <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Zm0-72q130 0 221-91t91-221q0-130-91-221t-221-91q-130 0-221 91t-91 221q0 130 91 221t221 91Zm0-312Z" />
         </svg>
       )}
@@ -48,35 +50,70 @@ function StatusToggle({
 interface TimelineGridProps {
   tasks: SVARTask[];
   width: number;
-  featureCount: number;
   scrollRef: RefObject<HTMLDivElement | null>;
   onRowClick: (task: SVARTask) => void;
   onStatusChange: RefObject<(id: string, status: MilestoneStatus) => Promise<void>>;
   onAddFeature: () => void;
+  project: Project;
+  allProjects?: Project[];
+  onProjectChange?: (id: string) => void;
 }
 
 export function TimelineGrid({
   tasks,
   width,
-  featureCount,
   scrollRef,
   onRowClick,
   onStatusChange,
   onAddFeature,
+  project,
+  allProjects,
+  onProjectChange,
 }: TimelineGridProps) {
+  const hasMultiple = allProjects && allProjects.length > 1 && onProjectChange;
+  const projectIdx = hasMultiple ? allProjects.findIndex((p) => p.id === project.id) : -1;
+
   return (
     <div
       style={{ width, minWidth: width, maxWidth: width }}
       className="flex flex-col border-r border-border bg-background select-none"
     >
-      {/* Header — matches SVAR's 2-row scale header */}
+      {/* Header — project selector + feature count */}
       <div
-        className="flex items-center px-3 border-b border-border shrink-0"
+        className="flex items-center gap-1.5 px-3 border-b border-border shrink-0"
         style={{ height: SCALE_HEIGHT * 2 }}
       >
-        <span className="text-xs font-medium text-muted-foreground">
-          {featureCount} feature{featureCount !== 1 ? 's' : ''}
-        </span>
+        <div
+          className="flex items-center justify-center h-5 w-5 rounded-full shrink-0"
+          style={{ backgroundColor: getColorStyles(project.color).iconBg, color: getColorStyles(project.color).hex }}
+        >
+          <MilestoneIcon name={project.icon} className="h-3 w-3" />
+        </div>
+        <span className="text-sm font-medium truncate min-w-0 flex-1">{project.name}</span>
+        {hasMultiple && (
+          <div className="flex items-center shrink-0 ml-1">
+            <button
+              className="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              onClick={() => {
+                if (projectIdx > 0) onProjectChange!(allProjects![projectIdx - 1].id);
+              }}
+              disabled={projectIdx <= 0}
+              title="Previous milestone"
+            >
+              <ChevronLeft className="h-3 w-3" />
+            </button>
+            <button
+              className="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              onClick={() => {
+                if (projectIdx < allProjects!.length - 1) onProjectChange!(allProjects![projectIdx + 1].id);
+              }}
+              disabled={projectIdx >= allProjects!.length - 1}
+              title="Next milestone"
+            >
+              <ChevronRight className="h-3 w-3" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Scrollable row body — overflow hidden, synced via translateY from chart scroll */}

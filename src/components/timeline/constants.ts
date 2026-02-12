@@ -77,6 +77,10 @@ export const STATUS_CONFIG: Record<MilestoneStatus, StatusConfig> = {
 
 // Priority configuration with theme-aware CSS variables
 export const PRIORITY_CONFIG: Record<MilestonePriority, { label: string; color: string }> = {
+  none: {
+    label: 'None',
+    color: 'var(--priority-none)',
+  },
   low: {
     label: 'Low',
     color: 'var(--priority-low)',

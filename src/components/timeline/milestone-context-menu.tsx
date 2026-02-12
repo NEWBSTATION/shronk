@@ -40,6 +40,7 @@ const statusOptions: { value: MilestoneStatus; label: string; icon: typeof Circl
 ];
 
 const priorityOptions: { value: MilestonePriority; label: string; color: string }[] = [
+  { value: 'none', label: 'None', color: 'text-muted-foreground' },
   { value: 'low', label: 'Low', color: 'text-slate-400' },
   { value: 'medium', label: 'Medium', color: 'text-blue-500' },
   { value: 'high', label: 'High', color: 'text-amber-500' },

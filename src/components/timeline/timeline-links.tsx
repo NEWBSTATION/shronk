@@ -116,8 +116,8 @@ export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart }: Tim
       }
 
       const d = roundedPath(pts, R);
-      return { id: link.id, d, tx, ty };
-    }).filter(Boolean) as Array<{ id: string; d: string; tx: number; ty: number }>;
+      return { id: link.id, sourceId: link.sourceId, targetId: link.targetId, d, tx, ty };
+    }).filter(Boolean) as Array<{ id: string; sourceId: string; targetId: string; d: string; tx: number; ty: number }>;
   }, [tasks, links, pixelsPerDay, timelineStart]);
 
   if (paths.length === 0) return null;
@@ -150,9 +150,22 @@ export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart }: Tim
             fill="var(--muted-foreground)"
           />
         </marker>
+        <marker
+          id="timeline-arrow-hover"
+          markerWidth={ARROW_SIZE}
+          markerHeight={ARROW_SIZE}
+          refX={ARROW_SIZE}
+          refY={ARROW_SIZE / 2}
+          orient="auto"
+        >
+          <path
+            d={`M 0 0 L ${ARROW_SIZE} ${ARROW_SIZE / 2} L 0 ${ARROW_SIZE} Z`}
+            fill="var(--chart-2)"
+          />
+        </marker>
       </defs>
       {paths.map((p) => (
-        <g key={p.id} data-link-id={p.id}>
+        <g key={p.id} data-link-id={p.id} data-link-source={p.sourceId} data-link-target={p.targetId} style={{ pointerEvents: 'auto' }}>
           {/* Invisible wide hit area for clicking */}
           <path
             d={p.d}
@@ -168,7 +181,6 @@ export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart }: Tim
             fill="none"
             stroke="var(--muted-foreground)"
             strokeWidth={1.5}
-            markerEnd="url(#timeline-arrow)"
             className="timeline-link-line"
           />
         </g>

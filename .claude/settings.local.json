@@ -74,7 +74,17 @@
       "Bash(npm root:*)",
       "Bash(TEST_PASSWORD=Changeme1 node:*)",
       "Bash(wc:*)",
-      "Bash(perl:*)"
+      "Bash(perl:*)",
+      "WebSearch",
+      "WebFetch(domain:code.highcharts.com)",
+      "WebFetch(domain:docs.dhtmlx.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:www.codeproject.com)",
+      "WebFetch(domain:people.eng.unimelb.edu.au)",
+      "Bash(git merge:*)",
+      "Bash(set:*)"
     ]
   }
 }

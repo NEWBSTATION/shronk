@@ -9,7 +9,7 @@ const bulkUpdateSchema = z.object({
   ids: z.array(z.string().uuid()).min(1),
   updates: z.object({
     status: z.enum(["not_started", "in_progress", "on_hold", "completed", "cancelled"]).optional(),
-    priority: z.enum(["low", "medium", "high", "critical"]).optional(),
+    priority: z.enum(["none", "low", "medium", "high", "critical"]).optional(),
     progress: z.number().min(0).max(100).optional(),
   }),
 });

@@ -36,6 +36,20 @@
       "when": 1770857669809,
       "tag": "0004_misty_fantastic_four",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1770914970348,
+      "tag": "0005_thick_rockslide",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1770920104399,
+      "tag": "0006_easy_susan_delgado",
+      "breakpoints": true
     }
   ]
 }

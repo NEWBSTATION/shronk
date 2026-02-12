@@ -12,8 +12,7 @@ const isPublicRoute = createRouteMatcher([
 const TAB_REDIRECTS: Record<string, string> = {
   "/dashboard/features": "/dashboard?tab=features",
   "/dashboard/milestones": "/dashboard?tab=features",
-  "/dashboard/settings": "/dashboard?tab=settings",
-  "/dashboard/help": "/dashboard?tab=settings",
+  "/dashboard/help": "/dashboard?tab=features",
 };
 
 export default clerkMiddleware(async (auth, request) => {
@@ -29,6 +28,17 @@ export default clerkMiddleware(async (auth, request) => {
       redirectUrl.searchParams.set(key, value);
     });
     return NextResponse.redirect(redirectUrl);
+  }
+
+  // Redirect old /dashboard/settings → overlay param
+  if (pathname === "/dashboard/settings") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    const section = url.searchParams.get("section") || "profile";
+    url.searchParams.delete("section");
+    url.searchParams.set("tab", "features");
+    url.searchParams.set("settings", section);
+    return NextResponse.redirect(url);
   }
 
   // Redirect bare /dashboard to default tab

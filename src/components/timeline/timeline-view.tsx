@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import { startOfDay, addDays, addMonths, subMonths, differenceInDays } from 'date-fns';
-import { Plus, Minus, GitBranch, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Minus, GitBranch, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -11,6 +11,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
 import { TodayMarker } from './today-marker';
 import { CursorMarker } from './cursor-marker';
 import { TimelineGrid } from './timeline-grid';
@@ -95,6 +106,7 @@ interface TimelineViewProps {
   onStatusChange: (id: string, status: MilestoneStatus) => Promise<void>;
   onPriorityChange?: (id: string, priority: MilestonePriority) => Promise<void>;
   onAddFeature: () => void;
+  onQuickCreate?: (name: string, startDate: Date, endDate: Date, duration: number) => Promise<void>;
   onCreateDependency: (predecessorId: string, successorId: string) => Promise<void>;
   onDeleteDependency: (id: string) => Promise<void>;
 }
@@ -112,6 +124,7 @@ export function TimelineView({
   onUpdateDates,
   onUpdateTeamDuration,
   onAddFeature,
+  onQuickCreate,
   onStatusChange,
   onCreateDependency,
   onDeleteDependency,
@@ -137,7 +150,16 @@ export function TimelineView({
     [project.id, setMilestoneTimePeriod]
   );
 
-  const [zoomLevel, setZoomLevel] = useState(5);
+  const zoomLevel = useTimelineStore((s) => s.milestoneZoomLevels[project.id] ?? 5);
+  const setMilestoneZoomLevel = useTimelineStore((s) => s.setMilestoneZoomLevel);
+  const setZoomLevel = useCallback(
+    (levelOrUpdater: number | ((prev: number) => number)) => {
+      const current = useTimelineStore.getState().milestoneZoomLevels[project.id] ?? 5;
+      const next = typeof levelOrUpdater === 'function' ? levelOrUpdater(current) : levelOrUpdater;
+      setMilestoneZoomLevel(project.id, next);
+    },
+    [project.id, setMilestoneZoomLevel]
+  );
   const [showDependencies, setShowDependencies] = useState(true);
 
   const chartRef = useRef<TimelineChartHandle>(null);
@@ -171,18 +193,30 @@ export function TimelineView({
   const setVisibleTeamIds = useTimelineStore((s) => s.setVisibleTeamIds);
   const toggleTeamVisibility = useTimelineStore((s) => s.toggleTeamVisibility);
 
-  const prevTeamIdsRef = useRef<string[]>([]);
+  const prevTeamIdsRef = useRef<string[] | null>(null);
   useEffect(() => {
     const currentTeamIds = teams.map((t) => t.id);
+    const currentSet = new Set(currentTeamIds);
     const prevIds = prevTeamIdsRef.current;
     prevTeamIdsRef.current = currentTeamIds;
-    if (currentTeamIds.length > 0 && visibleTeamIds.length === 0) {
+
+    // First load with no persisted selection — show all
+    if (currentTeamIds.length > 0 && visibleTeamIds === null) {
       setVisibleTeamIds(currentTeamIds);
       return;
     }
-    const newTeamIds = currentTeamIds.filter((id) => !prevIds.includes(id));
-    if (newTeamIds.length > 0) {
-      setVisibleTeamIds([...visibleTeamIds, ...newTeamIds]);
+
+    // Prune stale IDs that no longer exist
+    const pruned = (visibleTeamIds ?? []).filter((id) => currentSet.has(id));
+
+    // Only detect "new" teams after the initial mount (prevIds !== null)
+    const newTeamIds = prevIds
+      ? currentTeamIds.filter((id) => !prevIds.includes(id))
+      : [];
+    const updated = [...pruned, ...newTeamIds];
+
+    if (updated.length !== (visibleTeamIds ?? []).length || newTeamIds.length > 0) {
+      setVisibleTeamIds(updated);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teams]);
@@ -337,12 +371,13 @@ export function TimelineView({
   const tasks: TimelineTask[] = useMemo(() => {
     let featureTasks: TimelineTask[];
 
-    if (hasTeamTracks && visibleTeamIds.length > 0) {
+    const resolvedTeamIds = visibleTeamIds ?? [];
+    if (hasTeamTracks && resolvedTeamIds.length > 0) {
       featureTasks = milestonesToTimelineTasksWithTeamTracks(
         sortedFeatures,
         teamDurations,
         teams,
-        visibleTeamIds
+        resolvedTeamIds
       );
     } else {
       featureTasks = sortedFeatures.map(milestoneToTimelineTask);
@@ -722,25 +757,6 @@ export function TimelineView({
     <div className="flex flex-col flex-1 min-h-0 border border-border rounded-lg overflow-hidden isolate">
       {/* Toolbar */}
       <div className="flex items-center px-3 py-2 border-b border-border bg-muted/30">
-        {allProjects && allProjects.length > 1 && onProjectChange ? (
-          <Select value={project.id} onValueChange={onProjectChange}>
-            <SelectTrigger className="w-auto gap-1.5 text-sm font-medium border-none shadow-none bg-transparent" style={{ height: '28px' }}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {allProjects.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <span className="text-sm font-medium">{project.name}</span>
-        )}
-
-        <div className="h-4 w-px bg-border mx-2" />
-
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="text-xs" style={{ height: '28px' }} onClick={scrollToToday}>
             Today
@@ -760,75 +776,87 @@ export function TimelineView({
 
           <div className="h-4 w-px bg-border" />
 
-          <Button
-            variant={showDependencies ? 'secondary' : 'outline'}
-            size="sm"
-            className="text-xs"
-            style={{ height: '28px' }}
-            onClick={() => setShowDependencies(!showDependencies)}
-          >
-            <GitBranch className="h-3.5 w-3.5 mr-1.5" />
-            Dependencies
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={showDependencies ? 'secondary' : 'outline'}
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setShowDependencies(!showDependencies)}
+              >
+                <GitBranch className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Dependencies</TooltipContent>
+          </Tooltip>
 
           {teams.length > 0 && hasTeamTracks && (
             <>
               <div className="h-4 w-px bg-border" />
-              <div className="flex items-center gap-1">
-                {teams.map((team) => {
-                  const isVisible = visibleTeamIds.includes(team.id);
-                  return (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2.5 text-xs gap-1.5"
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    Tracks
+                    {(visibleTeamIds ?? []).length > 0 && (
+                      <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                        {(visibleTeamIds ?? []).length}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-52 p-0" align="start">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                    <span className="text-xs font-medium text-muted-foreground">Team Tracks</span>
                     <button
-                      key={team.id}
-                      onClick={() => toggleTeamVisibility(team.id)}
-                      className={`flex items-center gap-1.5 px-2 rounded-full text-[11px] font-medium transition-all ${
-                        isVisible
-                          ? 'bg-secondary ring-1 ring-border'
-                          : 'opacity-40 hover:opacity-70'
-                      }`}
-                      style={{ height: '24px' }}
-                      title={`${isVisible ? 'Hide' : 'Show'} ${team.name}`}
+                      className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => {
+                        if ((visibleTeamIds ?? []).length === teams.length) {
+                          setVisibleTeamIds([]);
+                        } else {
+                          setVisibleTeamIds(teams.map((t) => t.id));
+                        }
+                      }}
                     >
-                      <div
-                        className="h-2 w-2 rounded-full shrink-0"
-                        style={{ backgroundColor: team.color }}
-                      />
-                      {team.name}
+                      {(visibleTeamIds ?? []).length === teams.length ? 'Hide all' : 'Show all'}
                     </button>
-                  );
-                })}
-              </div>
+                  </div>
+                  <div className="py-1 max-h-64 overflow-y-auto">
+                    {teams.map((team) => {
+                      const isVisible = (visibleTeamIds ?? []).includes(team.id);
+                      return (
+                        <div
+                          key={team.id}
+                          role="button"
+                          onClick={() => toggleTeamVisibility(team.id)}
+                          className="flex items-center gap-2.5 w-full px-3 py-1.5 text-xs hover:bg-muted transition-colors cursor-pointer"
+                        >
+                          <div
+                            className="h-2.5 w-2.5 rounded-full shrink-0 ring-1 ring-black/10"
+                            style={{ backgroundColor: team.color }}
+                          />
+                          <span className="flex-1 text-left truncate">{team.name}</span>
+                          <Switch
+                            size="sm"
+                            checked={isVisible}
+                            tabIndex={-1}
+                            onClick={(e) => e.stopPropagation()}
+                            onCheckedChange={() => toggleTeamVisibility(team.id)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </>
           )}
         </div>
 
-        {allProjects && allProjects.length > 1 && onProjectChange && (
-          <div className="ml-auto flex items-center rounded-md border border-border overflow-hidden">
-            <button
-              className="flex items-center justify-center h-6 w-6 hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              onClick={() => {
-                const idx = allProjects.findIndex((p) => p.id === project.id);
-                if (idx > 0) onProjectChange(allProjects[idx - 1].id);
-              }}
-              disabled={allProjects.findIndex((p) => p.id === project.id) <= 0}
-              title="Previous milestone"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
-            <div className="h-4 w-px bg-border" />
-            <button
-              className="flex items-center justify-center h-6 w-6 hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              onClick={() => {
-                const idx = allProjects.findIndex((p) => p.id === project.id);
-                if (idx < allProjects.length - 1) onProjectChange(allProjects[idx + 1].id);
-              }}
-              disabled={allProjects.findIndex((p) => p.id === project.id) >= allProjects.length - 1}
-              title="Next milestone"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Main content */}
@@ -836,11 +864,13 @@ export function TimelineView({
         <TimelineGrid
           tasks={tasks}
           width={storeGridColumnWidth}
-          featureCount={sortedFeatures.length}
           scrollRef={gridScrollRef}
           onRowClick={handleGridRowClick}
           onStatusChange={onStatusChangeRef}
           onAddFeature={onAddFeature}
+          project={project}
+          allProjects={allProjects}
+          onProjectChange={onProjectChange}
         />
 
         <div
@@ -867,6 +897,8 @@ export function TimelineView({
             pixelsPerDay={pixelsPerDay}
             onScroll={handleChartScrollSync}
             onTaskClick={handleBarTaskClick}
+            addFeatureRowIndex={onQuickCreate ? tasks.length - 1 : undefined}
+            onQuickCreate={onQuickCreate}
           />
 
           <TodayMarker

@@ -64,7 +64,7 @@ export function BulkActionBar() {
       {
         ids,
         updates: {
-          priority: priority as "low" | "medium" | "high" | "critical",
+          priority: priority as "none" | "low" | "medium" | "high" | "critical",
         },
       },
       {

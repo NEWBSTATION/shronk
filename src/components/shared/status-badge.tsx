@@ -12,6 +12,7 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
+  CircleDashed,
 } from "lucide-react";
 
 const statusConfig: Record<
@@ -49,6 +50,11 @@ const priorityConfig: Record<
   MilestonePriority,
   { label: string; icon: React.ElementType; className: string }
 > = {
+  none: {
+    label: "None",
+    icon: CircleDashed,
+    className: "bg-muted/50 text-muted-foreground/70",
+  },
   low: {
     label: "Low",
     icon: ArrowDown,
@@ -140,6 +146,7 @@ export function getStatusColor(status: MilestoneStatus): string {
 
 export function getPriorityColor(priority: MilestonePriority): string {
   const colors: Record<MilestonePriority, string> = {
+    none: "hsl(var(--muted))",
     low: "hsl(var(--muted))",
     medium: "hsl(221, 83%, 53%)",
     high: "hsl(25, 95%, 53%)",

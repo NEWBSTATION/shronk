@@ -2,9 +2,21 @@
 
 import * as React from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
-import { LogOut, User, SlidersHorizontal, Check, Moon, Sun, Monitor } from "lucide-react";
+import type { SettingsSection } from "@/components/settings/settings-panel";
+import {
+  LogOut,
+  User,
+  SlidersHorizontal,
+  Check,
+  Moon,
+  Sun,
+  Monitor,
+  Users,
+  ShieldCheck,
+} from "lucide-react";
 import { usePreferencesStore } from "@/store/preferences-store";
 import { useThemeStore } from "@/store/theme-store";
+import { useMembers } from "@/hooks/use-members";
 import { themePresets } from "@/config/theme-presets";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -37,11 +49,17 @@ function getSortedThemeEntries() {
   return defaultEntry ? [defaultEntry, ...otherEntries] : otherEntries;
 }
 
-export function HeaderUserMenu({ onNavigateSettings }: { onNavigateSettings?: (subTab: string) => void }) {
+interface HeaderUserMenuProps {
+  onOpenSettings?: (section: SettingsSection) => void;
+}
+
+export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const { showDisplayName } = usePreferencesStore();
   const { currentPresetKey, mode, setPreset, setMode, getResolvedMode } = useThemeStore();
+  const { data: membersData } = useMembers();
+  const isAdmin = membersData?.currentUserRole === "admin";
   const resolvedMode = getResolvedMode();
   const sortedThemes = getSortedThemeEntries();
   const [mounted, setMounted] = React.useState(false);
@@ -100,6 +118,14 @@ export function HeaderUserMenu({ onNavigateSettings }: { onNavigateSettings?: (s
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => onOpenSettings?.("profile")}>
+            <User />
+            Profile
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onOpenSettings?.("preferences")}>
+            <SlidersHorizontal />
+            Preferences
+          </DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <ModeIcon />
@@ -154,18 +180,19 @@ export function HeaderUserMenu({ onNavigateSettings }: { onNavigateSettings?: (s
               ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          <DropdownMenuItem
-            onClick={() => onNavigateSettings?.("profile")}
-          >
-            <User />
-            Profile
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => onOpenSettings?.("teams")}>
+            <Users />
+            Teams
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => onNavigateSettings?.("preferences")}
-          >
-            <SlidersHorizontal />
-            Preferences
-          </DropdownMenuItem>
+          {isAdmin && (
+            <DropdownMenuItem onClick={() => onOpenSettings?.("members")}>
+              <ShieldCheck />
+              Members
+            </DropdownMenuItem>
+          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem

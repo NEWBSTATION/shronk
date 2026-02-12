@@ -36,6 +36,7 @@ const STATUS_CONFIG: Record<MilestoneStatus, { icon: typeof Circle; label: strin
 };
 
 const PRIORITY_CONFIG: Record<MilestonePriority, { label: string; color: string }> = {
+  none: { label: 'None', color: 'var(--priority-none)' },
   low: { label: 'Low', color: 'var(--priority-low)' },
   medium: { label: 'Medium', color: 'var(--priority-medium)' },
   high: { label: 'High', color: 'var(--priority-high)' },

@@ -17,10 +17,16 @@ export function DrilldownStack() {
     if (activeCount === 0) return;
 
     const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+
       // Check if click is inside any active panel card
       for (const el of cardRefs.current.values()) {
-        if (el.contains(e.target as Node)) return;
+        if (el.contains(target)) return;
       }
+
+      // Ignore clicks inside Radix portals (Select, Popover, DropdownMenu, Dialog, etc.)
+      if (target.closest("[data-radix-popper-content-wrapper], [role=\"dialog\"], [data-radix-select-viewport], [data-radix-menu-content]")) return;
+
       popRef.current();
     };
 

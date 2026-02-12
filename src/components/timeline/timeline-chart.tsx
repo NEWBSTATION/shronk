@@ -4,6 +4,7 @@ import { useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 
 import { TimelineScales } from './timeline-scales';
 import { TimelineBars } from './timeline-bars';
 import { TimelineLinks } from './timeline-links';
+import { AddFeatureChartRow } from './add-feature-chart-row';
 import { ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { dateToPixel, getTotalWidth } from './date-math';
 import type { TimePeriod, TimelineTask, TimelineLink } from './types';
@@ -13,10 +14,9 @@ interface WeekendColumnsProps {
   windowEnd: Date;
   pixelsPerDay: number;
   timePeriod: TimePeriod;
-  taskCount: number;
 }
 
-function WeekendColumns({ windowStart, windowEnd, pixelsPerDay, timePeriod, taskCount }: WeekendColumnsProps) {
+function WeekendColumns({ windowStart, windowEnd, pixelsPerDay, timePeriod }: WeekendColumnsProps) {
   if (timePeriod !== 'week') return null;
 
   const columns: Array<{ left: number; width: number; key: string; isSaturday: boolean }> = [];
@@ -45,8 +45,8 @@ function WeekendColumns({ windowStart, windowEnd, pixelsPerDay, timePeriod, task
             position: 'absolute',
             left: col.left,
             top: 0,
+            bottom: 0,
             width: col.width,
-            height: Math.max(taskCount * ROW_HEIGHT, 500),
             backgroundImage: `repeating-linear-gradient(
               -45deg,
               color-mix(in srgb, var(--muted-foreground) 13%, transparent) 0px,
@@ -90,6 +90,8 @@ interface TimelineChartProps {
   pixelsPerDay: number;
   onScroll?: (scrollLeft: number, scrollTop: number) => void;
   onTaskClick?: (taskId: string) => void;
+  addFeatureRowIndex?: number;
+  onQuickCreate?: (name: string, startDate: Date, endDate: Date, duration: number) => Promise<void>;
 }
 
 export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>(
@@ -104,6 +106,8 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
       pixelsPerDay,
       onScroll,
       onTaskClick,
+      addFeatureRowIndex,
+      onQuickCreate,
     },
     ref
   ) {
@@ -149,6 +153,21 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
       return () => el.removeEventListener('scroll', handleScroll);
     }, [handleScroll]);
 
+    // Lock scroll axis: suppress vertical scroll when gesture is primarily horizontal
+    useEffect(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const handleWheel = (e: WheelEvent) => {
+        if (e.ctrlKey || e.metaKey) return;
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+          e.preventDefault();
+          el.scrollLeft += e.deltaX;
+        }
+      };
+      el.addEventListener('wheel', handleWheel, { passive: false });
+      return () => el.removeEventListener('wheel', handleWheel);
+    }, []);
+
     return (
       <div className="timeline-chart" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1, minHeight: 0 }}>
         <TimelineScales
@@ -190,14 +209,13 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
             className="timeline-scroll-area"
             style={{ overflow: 'auto', position: 'absolute', inset: 0, zIndex: 1 }}
           >
-            <div style={{ width: totalWidth, minHeight: '100%', position: 'relative' }}>
+            <div style={{ width: totalWidth, height: tasks.length * ROW_HEIGHT, minHeight: '100%', position: 'relative', overflow: 'hidden' }}>
               {/* Weekend columns */}
               <WeekendColumns
                 windowStart={windowStart}
                 windowEnd={windowEnd}
                 pixelsPerDay={pixelsPerDay}
                 timePeriod={timePeriod}
-                taskCount={tasks.length}
               />
 
               {/* Dependency lines (behind bars) */}
@@ -215,6 +233,17 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
                 timelineStart={windowStart}
                 onTaskClick={onTaskClick}
               />
+
+              {/* Quick-create overlay on the add-feature row */}
+              {addFeatureRowIndex != null && onQuickCreate && (
+                <AddFeatureChartRow
+                  rowIndex={addFeatureRowIndex}
+                  totalWidth={totalWidth}
+                  pixelsPerDay={pixelsPerDay}
+                  timelineStart={windowStart}
+                  onQuickCreate={onQuickCreate}
+                />
+              )}
             </div>
           </div>
         </div>
