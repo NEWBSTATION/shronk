@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { HeaderUserMenu } from "@/components/header-user-menu";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 export type TabId = "dashboard" | "features" | "timeline" | "settings";
 export type CreateAction = "milestone" | "feature";
@@ -39,15 +39,68 @@ interface AppHeaderProps {
   onNavigateSettings?: (subTab: string) => void;
 }
 
+function useMagnetic(strength = 0.3, radius = 100) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const rafRef = useRef<number>(0);
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!ref.current) return;
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const rect = ref.current!.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = e.clientX - cx;
+        const dy = e.clientY - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < radius) {
+          const pull = 1 - dist / radius;
+          setOffset({ x: dx * strength * pull, y: dy * strength * pull });
+        } else {
+          setOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }));
+        }
+      });
+    },
+    [strength, radius]
+  );
+
+  const handleMouseLeave = useCallback(() => {
+    setOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }));
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseleave", handleMouseLeave);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseleave", handleMouseLeave);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [handleMouseMove, handleMouseLeave]);
+
+  return { ref, style: { transform: `translate(${offset.x}px, ${offset.y}px)`, transition: offset.x === 0 && offset.y === 0 ? "transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)" : "transform 0.15s ease-out" } as const };
+}
+
 export function AppHeader({ activeTab, onTabChange, onCreateAction, onNavigateSettings }: AppHeaderProps) {
   const [createOpen, setCreateOpen] = useState(false);
+  const magnetic = useMagnetic(0.3, 100);
 
   return (
     <header className="flex shrink-0 items-center bg-background px-6 py-6">
       {/* Left: Logo */}
-      <div className="flex-1 flex items-center gap-1.5">
-        <Image src="/orc-head.svg" alt="Shronk" width={20} height={20} className="dark:invert-0 invert" />
-        <span className="text-base" style={{ fontFamily: "Silkscreen, cursive" }}>Shronk</span>
+      <div className="flex-1 flex items-center">
+        <div
+          ref={magnetic.ref}
+          style={magnetic.style}
+          className="flex items-center gap-1.5 cursor-pointer"
+          onClick={() => onTabChange("dashboard")}
+        >
+          <Image src="/orc-head.svg" alt="Shronk" width={20} height={20} className="dark:invert-0 invert" />
+          <span className="text-base" style={{ fontFamily: "Silkscreen, cursive" }}>Shronk</span>
+        </div>
       </div>
 
       {/* Center: Tab pills + create button */}
