@@ -20,13 +20,12 @@ import { useTimelineStore } from "@/store/timeline-store";
 import { ListTable } from "./list-table";
 import { ListBulkActions } from "./list-bulk-actions";
 import { useReorderMilestones } from "@/hooks/use-milestones";
-import type { Milestone, Team, MilestoneDependency } from "@/db/schema";
+import type { Milestone, MilestoneDependency } from "@/db/schema";
 import { statusConfig, priorityConfig } from "@/components/shared/status-badge";
 
 interface ListViewProps {
   milestones: Milestone[];
   dependencies: MilestoneDependency[];
-  teams: Team[];
   projectId: string;
   onEdit: (milestone: Milestone) => void;
   onDelete: (id: string) => void;
@@ -35,7 +34,6 @@ interface ListViewProps {
   onBulkStatusChange: (ids: string[], status: Milestone["status"]) => void;
   onBulkPriorityChange: (ids: string[], priority: Milestone["priority"]) => void;
   onBulkDelete: (ids: string[]) => void;
-  onBulkTeamChange: (ids: string[], teamId: string | null) => void;
 }
 
 interface GroupedMilestones {
@@ -48,7 +46,6 @@ interface GroupedMilestones {
 export function ListView({
   milestones,
   dependencies,
-  teams,
   projectId,
   onEdit,
   onDelete,
@@ -57,7 +54,6 @@ export function ListView({
   onBulkStatusChange,
   onBulkPriorityChange,
   onBulkDelete,
-  onBulkTeamChange,
 }: ListViewProps) {
   const {
     groupBy,
@@ -99,9 +95,6 @@ export function ListView({
         case "priority":
           key = milestone.priority;
           break;
-        case "team":
-          key = milestone.teamId || "unassigned";
-          break;
         default:
           key = "all";
       }
@@ -135,30 +128,10 @@ export function ListView({
           });
         }
       });
-    } else if (groupBy === "team") {
-      // Unassigned first
-      if (groups.has("unassigned")) {
-        result.push({
-          key: "unassigned",
-          label: "Unassigned",
-          milestones: groups.get("unassigned")!,
-        });
-      }
-      // Then teams
-      teams.forEach((team) => {
-        if (groups.has(team.id)) {
-          result.push({
-            key: team.id,
-            label: team.name,
-            color: team.color,
-            milestones: groups.get(team.id)!,
-          });
-        }
-      });
     }
 
     return result;
-  }, [milestones, groupBy, teams]);
+  }, [milestones, groupBy]);
 
   // Handle drag end for reordering
   const handleDragEnd = useCallback(
@@ -198,11 +171,6 @@ export function ListView({
     deselectAll();
   };
 
-  const handleBulkTeamChange = (teamId: string | null) => {
-    onBulkTeamChange(selectedIds, teamId);
-    deselectAll();
-  };
-
   const handleBulkDelete = () => {
     onBulkDelete(selectedIds);
     deselectAll();
@@ -227,7 +195,6 @@ export function ListView({
             groupedMilestones={groupedMilestones}
             collapsedGroups={collapsedGroups}
             onToggleGroup={toggleGroupCollapsed}
-            teams={teams}
             onEdit={onEdit}
             onDelete={onDelete}
             onStatusChange={onStatusChange}
@@ -242,10 +209,8 @@ export function ListView({
       {selectedIds.length > 0 && (
         <ListBulkActions
           selectedCount={selectedIds.length}
-          teams={teams}
           onStatusChange={handleBulkStatusChange}
           onPriorityChange={handleBulkPriorityChange}
-          onTeamChange={handleBulkTeamChange}
           onDelete={handleBulkDelete}
           onClearSelection={deselectAll}
         />

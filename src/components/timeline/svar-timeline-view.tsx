@@ -16,6 +16,7 @@ import {
 import { SVARThemeWrapper } from './svar-theme-wrapper';
 import { TodayMarker } from './today-marker';
 import { CursorMarker } from './cursor-marker';
+import { TimelineGrid } from './timeline-grid';
 import {
   milestoneToSVARTask,
   milestonesToSVARTasksWithTeamTracks,
@@ -37,73 +38,6 @@ import { useDragLink } from './use-drag-link';
 import { useLinkDelete } from './use-link-delete';
 
 const ADD_FEATURE_TASK_ID = '__add_feature__';
-
-/** Grid cell for team track rows — marks the parent row element for CSS targeting */
-function TeamTrackCell({ row }: { row: { text: string; durationText?: string; $custom?: { teamColor?: string } } }) {
-  const cellRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!cellRef.current) return;
-    // Walk up to the wx-row (grid side)
-    let el: HTMLElement | null = cellRef.current;
-    while (el && !el.className.includes('wx-row')) {
-      el = el.parentElement;
-    }
-    if (el) {
-      el.classList.add('wx-team-track-row');
-    }
-  }, []);
-
-  return (
-    <div ref={cellRef} className="flex items-center gap-1.5 min-w-0 pl-7 pr-3">
-      <div
-        className="h-2 w-2 rounded-full shrink-0"
-        style={{ backgroundColor: row.$custom?.teamColor }}
-      />
-      <span className="truncate min-w-0 flex-1 text-xs text-muted-foreground">{row.text}</span>
-      <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-        {row.durationText}
-      </span>
-    </div>
-  );
-}
-
-/** Circle-check toggle matching the FeatureRow Material Design icons */
-function StatusToggle({
-  id,
-  status,
-  onToggle,
-}: {
-  id: string;
-  status: string;
-  onToggle: React.MutableRefObject<(id: string, status: MilestoneStatus) => Promise<void>>;
-}) {
-  const isComplete = status === 'completed';
-  return (
-    <button
-      className={`shrink-0 flex items-center justify-center transition-colors ${
-        isComplete
-          ? 'text-green-500 hover:text-green-600'
-          : 'text-muted-foreground/40 hover:text-muted-foreground/70'
-      }`}
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle.current(id, isComplete ? 'not_started' : 'completed');
-      }}
-      title={isComplete ? 'Mark incomplete' : 'Mark complete'}
-    >
-      {isComplete ? (
-        <svg className="h-4 w-4" viewBox="0 -960 960 960" fill="currentColor">
-          <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Z" />
-        </svg>
-      ) : (
-        <svg className="h-4 w-4" viewBox="0 -960 960 960" fill="currentColor">
-          <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Zm0-72q130 0 221-91t91-221q0-130-91-221t-221-91q-130 0-221 91t-91 221q0 130 91 221t221 91Zm0-312Z" />
-        </svg>
-      )}
-    </button>
-  );
-}
 
 // Timeline windowing — initial padding (months each side) and expansion chunk (months)
 const WINDOW_PADDING: Record<TimePeriod, number> = {
@@ -247,12 +181,14 @@ export function SVARTimelineView({
   const onStatusChangeRef = useRef(onStatusChange);
   onStatusChangeRef.current = onStatusChange;
 
-  // Grid column width — persisted in store, used directly in columns memo.
-  // Zustand persist hydrates async, so this starts at 200 then updates to the saved value.
+  // Grid column width — persisted in store
   const setGridColumnWidth = useTimelineStore((s) => s.setGridColumnWidth);
-  const setGridColumnWidthRef = useRef(setGridColumnWidth);
-  setGridColumnWidthRef.current = setGridColumnWidth;
   const storeGridColumnWidth = useTimelineStore((s) => s.gridColumnWidth);
+  const storeGridColumnWidthRef = useRef(storeGridColumnWidth);
+  storeGridColumnWidthRef.current = storeGridColumnWidth;
+
+  // Custom grid panel refs
+  const gridScrollRef = useRef<HTMLDivElement>(null);
 
   // Team visibility from store
   const visibleTeamIds = useTimelineStore((s) => s.visibleTeamIds);
@@ -487,7 +423,7 @@ export function SVARTimelineView({
 
   // Sort and transform features
   const sortedFeatures = useMemo(() => {
-    return [...features].sort((a, b) => a.sortOrder - b.sortOrder);
+    return [...features].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
   }, [features]);
 
   // Check if any team tracks exist
@@ -616,8 +552,32 @@ export function SVARTimelineView({
   }, []);
 
   // Initialize Gantt API
+  // Collect summary task IDs so we can open them after SVAR init
+  const summaryTaskIds = useMemo(() => {
+    return tasks.filter((t) => t.type === 'summary').map((t) => t.id);
+  }, [tasks]);
+  const summaryTaskIdsRef = useRef(summaryTaskIds);
+  summaryTaskIdsRef.current = summaryTaskIds;
+
   const initGantt = useCallback((api: IApi) => {
     ganttApiRef.current = api;
+
+    // Open summary tasks after SVAR's internal tree is built.
+    // We cannot set open=true in the task data because SVAR's parse()
+    // sets data=null first, and toArray() may run before children are attached.
+    // Retry with increasing delays to handle the race condition.
+    const openSummaryTasks = (ids: string[], attempt = 0) => {
+      try {
+        for (const id of ids) {
+          api.exec('open-task', { id, mode: true });
+        }
+      } catch {
+        if (attempt < 3) {
+          setTimeout(() => openSummaryTasks(ids, attempt + 1), 50 * (attempt + 1));
+        }
+      }
+    };
+    setTimeout(() => openSummaryTasks(summaryTaskIdsRef.current), 0);
 
     // --- Helper: revert all cascaded tasks to original positions ---
     const revertCascadedTasks = () => {
@@ -864,29 +824,27 @@ export function SVARTimelineView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist column width on pointerup — SVAR sets inline width/min-width on wx-cell
-  // elements during resize. We read the actual rendered width after resize ends.
-  const lastSavedWidthRef = useRef(storeGridColumnWidth);
+  // When summary task IDs change (e.g. team visibility toggled), open them
   useEffect(() => {
-    const handlePointerUp = () => {
-      // Small delay to let SVAR finalize the resize
-      setTimeout(() => {
-        const container = ganttContainerRef.current;
-        if (!container) return;
-        const cell = container.querySelector(
-          '[class*="wx-table-container"] [class*="wx-body"] [class*="wx-cell"]'
-        ) as HTMLElement | null;
-        if (!cell) return;
-        const w = Math.round(cell.getBoundingClientRect().width);
-        if (w > 0 && w !== lastSavedWidthRef.current) {
-          lastSavedWidthRef.current = w;
-          setGridColumnWidthRef.current(w);
+    const api = ganttApiRef.current;
+    if (!api || summaryTaskIds.length === 0) return;
+    // Defer to after SVAR processes the new tasks prop, retry on tree race
+    let cancelled = false;
+    const openAll = (attempt = 0) => {
+      if (cancelled) return;
+      try {
+        for (const id of summaryTaskIds) {
+          api.exec('open-task', { id, mode: true });
         }
-      }, 100);
+      } catch {
+        if (attempt < 3) {
+          setTimeout(() => openAll(attempt + 1), 50 * (attempt + 1));
+        }
+      }
     };
-    document.addEventListener('pointerup', handlePointerUp);
-    return () => document.removeEventListener('pointerup', handlePointerUp);
-  }, []);
+    const timer = setTimeout(() => openAll(), 0);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [summaryTaskIds]);
 
   // Get the date at the viewport center using SVAR's internal scales
   const getViewportCenterDate = useCallback((): Date | null => {
@@ -960,20 +918,109 @@ export function SVARTimelineView({
     };
   }, []);
 
+  // --- Bidirectional scroll sync between our grid panel and SVAR's chart ---
+  useEffect(() => {
+    let syncing = false;
+    const gridEl = gridScrollRef.current;
+    if (!gridEl) return;
 
-  // Row hover highlight — spans both left grid and right chart
+    let svarScrollEl: HTMLElement | null = null;
+
+    const syncFromGrid = () => {
+      if (syncing || !svarScrollEl) return;
+      syncing = true;
+      svarScrollEl.scrollTop = gridEl.scrollTop;
+      requestAnimationFrame(() => { syncing = false; });
+    };
+
+    const syncFromSvar = () => {
+      if (syncing || !svarScrollEl) return;
+      syncing = true;
+      gridEl.scrollTop = svarScrollEl.scrollTop;
+      requestAnimationFrame(() => { syncing = false; });
+    };
+
+    // Retry until SVAR's scroll container is in the DOM
+    let mounted = true;
+    const tryAttach = () => {
+      svarScrollEl = getScrollElement();
+      if (!svarScrollEl) {
+        if (mounted) requestAnimationFrame(tryAttach);
+        return;
+      }
+      gridEl.addEventListener('scroll', syncFromGrid, { passive: true });
+      svarScrollEl.addEventListener('scroll', syncFromSvar, { passive: true });
+    };
+    requestAnimationFrame(tryAttach);
+
+    return () => {
+      mounted = false;
+      gridEl.removeEventListener('scroll', syncFromGrid);
+      svarScrollEl?.removeEventListener('scroll', syncFromSvar);
+    };
+  }, [getScrollElement]);
+
+  // --- Resize handle: pointer-event drag to resize grid panel ---
+  const resizeHandleRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handle = resizeHandleRef.current;
+    if (!handle) return;
+
+    let startX = 0;
+    let startWidth = 0;
+
+    const onPointerMove = (e: PointerEvent) => {
+      const newWidth = Math.max(120, Math.min(500, startWidth + (e.clientX - startX)));
+      setGridColumnWidth(newWidth);
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      handle.releasePointerCapture(e.pointerId);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      startX = e.clientX;
+      startWidth = storeGridColumnWidthRef.current;
+      document.addEventListener('pointermove', onPointerMove);
+      document.addEventListener('pointerup', onPointerUp);
+    };
+
+    handle.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      handle.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setGridColumnWidth]);
+
+  // --- Grid row click handler: open drilldown for features ---
+  const handleGridRowClick = useCallback((task: SVARTask) => {
+    const teamTrack = parseTeamTrackId(task.id);
+    const milestoneId = teamTrack ? teamTrack.milestoneId : task.id;
+    const feature = featureMap.get(milestoneId);
+    if (feature) onEdit(feature);
+  }, [featureMap, onEdit]);
+
+
+  // Row hover highlight — spans both left grid and right chart via shared parent
+  const mainContentRef = useRef<HTMLDivElement>(null);
   const rowHoverRef = useRef<HTMLDivElement | null>(null);
   const taskCountRef = useRef(tasks.length);
   taskCountRef.current = tasks.length;
   useEffect(() => {
-    const container = ganttContainerRef.current;
+    const container = mainContentRef.current;
     if (!container) return;
 
-    // Create the highlight element
+    // Create the highlight element — spans full width across both panels
     const highlight = document.createElement('div');
     highlight.className = 'timeline-row-hover';
     highlight.style.cssText =
-      'position:absolute;left:0;right:0;pointer-events:none;opacity:0;transition:opacity 0.1s;z-index:0;';
+      'position:absolute;left:0;right:0;pointer-events:none;opacity:0;transition:opacity 0.1s;z-index:1;';
     highlight.style.height = `${ROW_HEIGHT}px`;
     container.appendChild(highlight);
     rowHoverRef.current = highlight;
@@ -984,7 +1031,7 @@ export function SVARTimelineView({
       const rect = container.getBoundingClientRect();
       const y = e.clientY - rect.top;
 
-      // Only highlight rows below the timescale header
+      // Only highlight rows below the header
       if (y <= headerOffset || y >= rect.height) {
         highlight.style.opacity = '0';
         return;
@@ -1169,44 +1216,11 @@ export function SVARTimelineView({
     sc.scrollLeft = scrollTarget;
   }, [cellWidth]);
 
-  // Memoize columns to prevent SVAR Grid re-initialization on every render
-  const columns = useMemo(() => [
-    {
-      id: 'text',
-      header: '',
-      width: storeGridColumnWidth,
-      resize: true,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      cell: ({ row }: any) => {
-        if (row.id === ADD_FEATURE_TASK_ID) {
-          return (
-            <div className="flex items-center gap-1.5 px-3 text-muted-foreground cursor-pointer">
-              <Plus className="h-3.5 w-3.5" />
-              <span className="text-xs">Add feature</span>
-            </div>
-          );
-        }
-        const custom = row.$custom;
-        const isTeamTrack = custom?.isTeamTrack && row.parent;
-        if (isTeamTrack) {
-          return <TeamTrackCell row={row} />;
-        }
-        return (
-          <div className="flex items-center gap-1.5 min-w-0 px-3">
-            <StatusToggle id={row.id} status={custom?.status ?? 'not_started'} onToggle={onStatusChangeRef} />
-            <span className={`truncate min-w-0 flex-1 ${custom?.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>{row.text}</span>
-            <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-              {row.durationText}
-            </span>
-          </div>
-        );
-      },
-    },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [storeGridColumnWidth]);
+  // Empty columns — SVAR's grid is hidden; we render our own TimelineGrid
+  const columns = useMemo(() => [], []);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 border border-border rounded-lg overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 border border-border rounded-lg overflow-hidden isolate">
       {/* Toolbar */}
       <div className="flex items-center px-3 py-2 border-b border-border bg-muted/30">
         {/* Milestone name/selector */}
@@ -1325,85 +1339,91 @@ export function SVARTimelineView({
 
       </div>
 
-      {/* Main content - Let SVAR handle the grid and chart layout */}
-      <div
-        ref={ganttContainerRef}
-        className="flex-1 min-h-0 svar-timeline-container relative"
-        style={{
-          '--timeline-cell-width': `${cellWidth}px`,
-          '--timeline-row-height': `${ROW_HEIGHT}px`,
-        } as React.CSSProperties}
-      >
-        <SVARThemeWrapper>
-          <Gantt
-            tasks={tasks}
-            links={links}
-            scales={scales}
-            columns={columns}
-            cellWidth={cellWidth}
-            cellHeight={ROW_HEIGHT}
+      {/* Main content — custom grid panel + SVAR chart */}
+      <div ref={mainContentRef} className="flex flex-1 min-h-0 relative">
+        {/* Custom left grid panel */}
+        <TimelineGrid
+          tasks={tasks}
+          width={storeGridColumnWidth}
+          featureCount={sortedFeatures.length}
+          scrollRef={gridScrollRef}
+          onRowClick={handleGridRowClick}
+          onStatusChange={onStatusChangeRef}
+          onAddFeature={onAddFeature}
+        />
+
+        {/* Resize handle */}
+        <div
+          ref={resizeHandleRef}
+          className="w-1 shrink-0 cursor-col-resize bg-border hover:bg-primary/30 active:bg-primary/50 transition-colors"
+        />
+
+        {/* SVAR chart container — overflow:hidden clips today/cursor markers */}
+        <div
+          ref={ganttContainerRef}
+          className="flex-1 min-w-0 svar-timeline-container relative overflow-hidden"
+          style={{
+            '--timeline-cell-width': `${cellWidth}px`,
+            '--timeline-row-height': `${ROW_HEIGHT}px`,
+          } as React.CSSProperties}
+        >
+          <SVARThemeWrapper>
+            <Gantt
+              tasks={tasks}
+              links={links}
+              scales={scales}
+              columns={columns}
+              cellWidth={cellWidth}
+              cellHeight={ROW_HEIGHT}
+              scaleHeight={SCALE_HEIGHT}
+              start={windowStart}
+              end={windowEnd}
+              cellBorders="column"
+              highlightTime={highlightTime}
+              taskTemplate={TaskBarTemplate}
+              init={initGantt}
+            />
+          </SVARThemeWrapper>
+
+          {/* Custom Today Marker (SVAR markers are paywalled) */}
+          <TodayMarker
+            ganttApiRef={ganttApiRef}
             scaleHeight={SCALE_HEIGHT}
-            start={windowStart}
-            end={windowEnd}
-            cellBorders="column"
-            highlightTime={highlightTime}
-            taskTemplate={TaskBarTemplate}
-            init={initGantt}
           />
-        </SVARThemeWrapper>
 
-        {/* Feature count label — overlays the empty SVAR column header */}
-        <div
-          className="absolute flex items-center pointer-events-none z-10 px-3"
-          style={{
-            top: 0,
-            left: 0,
-            height: `${SCALE_HEIGHT * 2}px`,
-          }}
-        >
-          <span className="text-xs font-medium text-muted-foreground">
-            {sortedFeatures.length} feature{sortedFeatures.length !== 1 ? 's' : ''}
-          </span>
-        </div>
+          {/* Cursor Marker - follows mouse with date label */}
+          <CursorMarker
+            ganttApiRef={ganttApiRef}
+            scaleHeight={SCALE_HEIGHT}
+            onCursorMove={handleCursorMove}
+          />
 
-        {/* Custom Today Marker (SVAR markers are paywalled) */}
-        <TodayMarker
-          ganttApiRef={ganttApiRef}
-          scaleHeight={SCALE_HEIGHT}
-        />
-
-        {/* Cursor Marker - follows mouse with date label */}
-        <CursorMarker
-          ganttApiRef={ganttApiRef}
-          scaleHeight={SCALE_HEIGHT}
-          onCursorMove={handleCursorMove}
-        />
-
-        {/* Zoom controls overlay */}
-        <div
-          className="absolute flex flex-col rounded-md border border-border bg-background/95 backdrop-blur-sm shadow-sm overflow-hidden z-10"
-          style={{
-            top: `${SCALE_HEIGHT * 2 + 8}px`,
-            right: '12px',
-          }}
-        >
-          <button
-            className="flex items-center justify-center w-6 h-6 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            onClick={handleZoomIn}
-            disabled={zoomLevel >= 9}
-            title="Zoom in"
+          {/* Zoom controls overlay */}
+          <div
+            className="absolute flex flex-col rounded-md border border-border bg-background/95 backdrop-blur-sm shadow-sm overflow-hidden z-10"
+            style={{
+              top: `${SCALE_HEIGHT * 2 + 8}px`,
+              right: '12px',
+            }}
           >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-          <div className="h-px bg-border" />
-          <button
-            className="flex items-center justify-center w-6 h-6 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            onClick={handleZoomOut}
-            disabled={zoomLevel <= 1}
-            title="Zoom out"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
+            <button
+              className="flex items-center justify-center w-6 h-6 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              onClick={handleZoomIn}
+              disabled={zoomLevel >= 9}
+              title="Zoom in"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+            <div className="h-px bg-border" />
+            <button
+              className="flex items-center justify-center w-6 h-6 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              onClick={handleZoomOut}
+              disabled={zoomLevel <= 1}
+              title="Zoom out"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 

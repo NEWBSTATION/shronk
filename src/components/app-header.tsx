@@ -92,6 +92,7 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onNavigateSe
                     <PopoverTrigger asChild>
                       <button
                         className="flex items-center justify-center h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-background/50 transition-all"
+                        suppressHydrationWarning
                       >
                         <Plus className="h-4 w-4" />
                       </button>

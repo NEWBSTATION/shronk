@@ -118,6 +118,7 @@ function TimelineSkeleton() {
 
 interface TimelineTabProps {
   initialMilestoneId?: string | null;
+  isActive?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -128,7 +129,7 @@ type PanelContent =
   | { mode: "edit"; feature: Milestone }
   | { mode: "create" };
 
-export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
+export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTabProps) {
   const { data: projectsData, isLoading: isLoadingProjects } = useProjects();
   const projects = projectsData?.projects ?? [];
 
@@ -154,6 +155,15 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
       setPanelContent(null);
     }, 300);
   }, []);
+
+  // Close panel immediately when tab becomes inactive
+  useEffect(() => {
+    if (!isActive && panelContent) {
+      clearTimeout(panelTimerRef.current);
+      setPanelVisible(false);
+      setPanelContent(null);
+    }
+  }, [isActive, panelContent]);
 
   // Close panel on Escape
   useEffect(() => {
@@ -381,6 +391,7 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
         <div className="min-h-0 flex-1 p-6">
           <div className="h-full flex flex-col">
             <SVARTimelineView
+              key={selectedMilestone.id}
               project={selectedMilestone}
               allProjects={projects}
               onProjectChange={setSelectedMilestoneId}

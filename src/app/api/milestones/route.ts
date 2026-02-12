@@ -22,7 +22,6 @@ const createMilestoneSchema = z.object({
   status: z.enum(["not_started", "in_progress", "on_hold", "completed", "cancelled"]).default("not_started"),
   priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
   progress: z.number().min(0).max(100).default(0),
-  teamId: z.string().uuid().optional().nullable(),
   sortOrder: z.number().default(0),
 });
 
@@ -37,7 +36,6 @@ export async function GET(request: NextRequest) {
     const projectId = searchParams.get("projectId");
     const status = searchParams.getAll("status");
     const priority = searchParams.getAll("priority");
-    const teamId = searchParams.getAll("teamId");
     const search = searchParams.get("search");
     const sortField = searchParams.get("sortField") || "sortOrder";
     const sortDirection = searchParams.get("sortDirection") || "asc";
@@ -77,21 +75,6 @@ export async function GET(request: NextRequest) {
           priority as ("low" | "medium" | "high" | "critical")[]
         )
       );
-    }
-
-    if (teamId.length > 0) {
-      const teamConditions = teamId.includes("none")
-        ? or(
-            inArray(
-              milestones.teamId,
-              teamId.filter((t) => t !== "none")
-            ),
-            sql`${milestones.teamId} IS NULL`
-          )
-        : inArray(milestones.teamId, teamId);
-      if (teamConditions) {
-        conditions.push(teamConditions);
-      }
     }
 
     if (search) {
@@ -136,7 +119,7 @@ export async function GET(request: NextRequest) {
             )
         : [];
 
-    // Get team durations for these milestones
+    // Get team durations for these milestones (stable order to prevent UI flicker)
     const teamDurations =
       milestoneIds.length > 0
         ? await db
@@ -145,6 +128,7 @@ export async function GET(request: NextRequest) {
             .where(
               inArray(teamMilestoneDurations.milestoneId, milestoneIds)
             )
+            .orderBy(asc(teamMilestoneDurations.milestoneId), asc(teamMilestoneDurations.teamId))
         : [];
 
     return NextResponse.json({ milestones: result, dependencies, teamDurations });

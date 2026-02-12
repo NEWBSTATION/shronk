@@ -544,27 +544,18 @@ pre {
   color: var(--foreground) !important;
 }
 
-/* Grid body cells — remove default padding */
-.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-body"] [class*="wx-cell"] {
-  padding: 0 !important;
-}
-/* Zero tree toggle spacers in body cells */
-.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-body"] {
-  --wx-icon-size: 0px !important;
-}
-/* Hide toggle elements */
-.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-toggle-icon"],
-.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-toggle-placeholder"],
-.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-toggle"] {
-  display: none !important;
-}
-/* wx-text: fill remaining space in wx-content (after hidden toggle) and
-   allow overflow so the duration badge isn't clipped during column resize.
-   SVAR's default wx-text has overflow:hidden which clips right-aligned content. */
-.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-body"] [class*="wx-text"] {
-  flex: 1 1 0% !important;
+/* Hide SVAR's built-in grid and resizer — we render our own left panel */
+.timeline-theme-wrapper .wx-table-container,
+.timeline-theme-wrapper [class*="wx-table-container"] {
+  width: 0 !important;
   min-width: 0 !important;
-  overflow: visible !important;
+  flex: 0 0 0px !important;
+  overflow: hidden !important;
+  border: none !important;
+}
+.timeline-theme-wrapper .wx-resizer,
+.timeline-theme-wrapper [class*="wx-resizer"] {
+  display: none !important;
 }
 
 /* Task bars - use chart colors */
@@ -620,13 +611,6 @@ pre {
   margin-left: 6px;
 }
 
-/* Team track rows — no border between sibling tracks to visually group them */
-.timeline-theme-wrapper .wx-team-track-row + .wx-team-track-row {
-  border-top: none !important;
-}
-.timeline-theme-wrapper .wx-team-track-row:has(+ .wx-team-track-row) {
-  border-bottom: none !important;
-}
 
 /* Team track child bars — thinner than parent via clip-path */
 .timeline-theme-wrapper [class*="wx-bar"][class*="wx-task"].wx-team-track {
@@ -666,10 +650,6 @@ pre {
   background-color: var(--accent) !important;
 }
 
-/* Resizer/splitter bar between grid and chart */
-.timeline-theme-wrapper [class*="wx-resizer"] {
-  background-color: var(--border) !important;
-}
 
 /* Weekend/holiday columns - subtle dot stipple pattern for chart area */
 .timeline-theme-wrapper [class*="wx-weekend"]:not([class*="wx-cell"]) {
@@ -713,10 +693,6 @@ pre {
 .timeline-theme-wrapper [class*="wx-body"] [class*="wx-row"] {
   border-bottom: none !important;
 }
-/* Left grid panel rows keep their border */
-.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-body"] [class*="wx-row"] {
-  border-bottom: 1px solid var(--border) !important;
-}
 
 /* Header row bottom border - rely on SVAR's own border, no extra needed */
 
@@ -731,10 +707,6 @@ pre {
   border-bottom: 1px solid var(--border) !important;
 }
 
-/* Table container right border (divider between grid and chart) */
-.timeline-theme-wrapper [class*="wx-table-container"] {
-  border-right: 1px solid var(--border) !important;
-}
 
 /* Remove last cell right border to avoid double with container edge */
 .timeline-theme-wrapper [class*="wx-row"] [class*="wx-cell"]:last-child {
@@ -826,7 +798,7 @@ pre {
    cellBorders="column" makes SVAR render only vertical lines in its grid image,
    so the mask only affects those. 3px visible / 3px hidden.
    The grid div is a classless child of wx-area (not wx-gantt-holidays, wx-bars, etc.) */
-.timeline-theme-wrapper [class*="wx-area"] > div:not([class*="wx-"]):not([data-id]) {
+.timeline-theme-wrapper [class*="wx-area"] > div:not([class*="wx-"]):not([data-id]):not(.cursor-marker-line) {
   -webkit-mask-image: repeating-linear-gradient(
     to bottom,
     black 0px 3px,
@@ -870,6 +842,8 @@ pre {
 .cursor-marker-line {
   pointer-events: none;
   background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
 }
 
 .cursor-marker-label {
@@ -1046,3 +1020,20 @@ pre {
 .feature-island-panel > * {
   direction: ltr;
 }
+
+/* ================================================
+   TipTap Placeholder
+   The Placeholder extension adds `data-placeholder` and
+   classes `is-empty` / `is-editor-empty` to empty nodes.
+   ================================================ */
+
+[data-placeholder].is-empty::before,
+[data-placeholder].is-editor-empty::before {
+  content: attr(data-placeholder) !important;
+  color: var(--muted-foreground) !important;
+  opacity: 0.5 !important;
+  float: left !important;
+  height: 0 !important;
+  pointer-events: none !important;
+}
+

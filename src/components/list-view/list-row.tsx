@@ -23,11 +23,10 @@ import { ItemContextMenu } from "@/components/shared/item-context-menu";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import type { Milestone, Team, MilestoneStatus, MilestonePriority } from "@/db/schema";
+import type { Milestone, MilestoneStatus, MilestonePriority } from "@/db/schema";
 
 interface ListRowProps {
   milestone: Milestone;
-  teams: Team[];
   onEdit: () => void;
   onDelete: () => void;
   onStatusChange: (status: MilestoneStatus) => void;
@@ -39,7 +38,6 @@ interface ListRowProps {
 
 export function ListRow({
   milestone,
-  teams,
   onEdit,
   onDelete,
   onStatusChange,
@@ -68,7 +66,6 @@ export function ListRow({
   };
 
   const isSelected = selectedIds.includes(milestone.id);
-  const team = teams.find((t) => t.id === milestone.teamId);
   const StatusIcon = statusConfig[milestone.status].icon;
 
   const handleCheckboxChange = (e: React.MouseEvent) => {
@@ -144,21 +141,6 @@ export function ListRow({
         {/* Priority */}
         <TableCell>
           <PriorityBadge priority={milestone.priority} />
-        </TableCell>
-
-        {/* Team */}
-        <TableCell>
-          {team ? (
-            <div className="flex items-center gap-2">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: team.color }}
-              />
-              <span className="text-sm truncate max-w-[80px]">{team.name}</span>
-            </div>
-          ) : (
-            <span className="text-sm text-muted-foreground">—</span>
-          )}
         </TableCell>
 
         {/* Date Range */}

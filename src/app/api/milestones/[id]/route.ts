@@ -17,7 +17,6 @@ const updateMilestoneSchema = z.object({
   status: z.enum(["not_started", "in_progress", "on_hold", "completed", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high", "critical"]).optional(),
   progress: z.number().min(0).max(100).optional(),
-  teamId: z.string().uuid().optional().nullable(),
   sortOrder: z.number().optional(),
 });
 
@@ -68,7 +67,6 @@ export async function PATCH(
     }
     if (data.priority !== undefined) updateData.priority = data.priority;
     if (data.progress !== undefined) updateData.progress = data.progress;
-    if (data.teamId !== undefined) updateData.teamId = data.teamId;
     if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
 
     // Duration-first date logic:

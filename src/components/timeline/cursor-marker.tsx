@@ -43,7 +43,7 @@ export function CursorMarker({ ganttApiRef, scaleHeight, onCursorMove }: CursorM
   );
 
   useEffect(() => {
-    const ganttContainer = containerRef.current?.closest('.svar-timeline-container');
+    const ganttContainer = containerRef.current?.closest('.svar-timeline-container') as HTMLElement | null;
     if (!ganttContainer) return;
 
     let line: HTMLDivElement | null = null;
@@ -71,16 +71,16 @@ export function CursorMarker({ ganttApiRef, scaleHeight, onCursorMove }: CursorM
         z-index: 90;
         transform: translateX(-0.5px);
         display: none;
-        background: var(--muted-foreground);
+        background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
       `;
       wxArea.appendChild(line);
       lineRef.current = line;
 
-      // Create the label (lives inside the scroll container, positioned sticky-like)
+      // Create the label (lives inside the svar-timeline-container, clipped by overflow:hidden)
       label = document.createElement('div');
       label.className = 'cursor-marker-label';
       label.style.cssText = `
-        position: fixed;
+        position: absolute;
         pointer-events: none;
         z-index: 110;
         display: none;
@@ -94,7 +94,7 @@ export function CursorMarker({ ganttApiRef, scaleHeight, onCursorMove }: CursorM
         color: var(--muted-foreground);
         border: 1px solid var(--border);
       `;
-      document.body.appendChild(label);
+      ganttContainer.appendChild(label);
       labelRef.current = label;
 
       return true;
@@ -147,9 +147,11 @@ export function CursorMarker({ ganttApiRef, scaleHeight, onCursorMove }: CursorM
         label.textContent = format(date, 'MMM d, yyyy');
       }
 
-      // Position label at top of chart area, following cursor horizontally (fixed positioning)
-      label.style.left = `${e.clientX}px`;
-      label.style.top = `${rect.top + 4}px`;
+      // Position label at top of chart area, following cursor horizontally
+      if (!ganttContainer) return;
+      const containerRect = ganttContainer.getBoundingClientRect();
+      label.style.left = `${e.clientX - containerRect.left}px`;
+      label.style.top = `${rect.top - containerRect.top + 4}px`;
       label.style.transform = 'translateX(-50%)';
       label.style.display = '';
 

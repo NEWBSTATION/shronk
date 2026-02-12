@@ -29,6 +29,7 @@ interface SectionHeaderProps {
   completedCount: number;
   totalDuration: number;
   collapsed: boolean;
+  isDropTarget?: boolean;
   onToggle: () => void;
   onAddFeature?: () => void;
   onEditMilestone?: () => void;
@@ -44,6 +45,7 @@ export function SectionHeader({
   completedCount,
   totalDuration,
   collapsed,
+  isDropTarget,
   onToggle,
   onAddFeature,
   onEditMilestone,
@@ -84,7 +86,8 @@ export function SectionHeader({
           onClick={() => { if (!pickerOpen) onToggle(); }}
           className={cn(
             "w-full text-left group relative overflow-hidden px-4 py-3 transition-colors hover:bg-accent/15 cursor-pointer",
-            collapsed ? "rounded-2xl" : "rounded-t-2xl"
+            collapsed ? "rounded-2xl" : "rounded-t-2xl",
+            isDropTarget && "ring-2 ring-primary/50 bg-primary/5"
           )}
         >
           {/* Gradient background layer — sits behind content, hover overlays on top */}

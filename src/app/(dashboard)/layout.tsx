@@ -91,7 +91,7 @@ function DashboardMain({
           )}
         >
           {mountedTabs.has("timeline") && (
-            <TimelineTab initialMilestoneId={milestoneId} />
+            <TimelineTab initialMilestoneId={milestoneId} isActive={activeTab === "timeline"} />
           )}
         </div>
         <div

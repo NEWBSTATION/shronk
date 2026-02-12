@@ -32,13 +32,12 @@ import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { statusConfig, priorityConfig } from "./status-badge";
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
-import type { Milestone, Team, MilestoneStatus, MilestonePriority } from "@/db/schema";
+import type { Milestone, MilestoneStatus, MilestonePriority } from "@/db/schema";
 
 interface ItemDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item?: Milestone | null;
-  teams: Team[];
   onSave: (data: {
     title: string;
     description?: string;
@@ -47,7 +46,6 @@ interface ItemDialogProps {
     status: MilestoneStatus;
     priority: MilestonePriority;
     progress: number;
-    teamId?: string | null;
   }) => void;
   isLoading?: boolean;
 }
@@ -56,7 +54,6 @@ export function ItemDialog({
   open,
   onOpenChange,
   item,
-  teams,
   onSave,
   isLoading,
 }: ItemDialogProps) {
@@ -67,7 +64,6 @@ export function ItemDialog({
   const [status, setStatus] = useState<MilestoneStatus>("not_started");
   const [priority, setPriority] = useState<MilestonePriority>("medium");
   const [progress, setProgress] = useState(0);
-  const [teamId, setTeamId] = useState<string | null>(null);
 
   useEffect(() => {
     if (item) {
@@ -78,7 +74,6 @@ export function ItemDialog({
       setStatus(item.status);
       setPriority(item.priority);
       setProgress(item.progress);
-      setTeamId(item.teamId);
     } else {
       setTitle("");
       setDescription("");
@@ -87,7 +82,6 @@ export function ItemDialog({
       setStatus("not_started");
       setPriority("medium");
       setProgress(0);
-      setTeamId(null);
     }
   }, [item, open]);
 
@@ -101,7 +95,6 @@ export function ItemDialog({
       status,
       priority,
       progress,
-      teamId,
     });
   };
 
@@ -274,34 +267,6 @@ export function ItemDialog({
               />
             </div>
 
-            {/* Team */}
-            {teams.length > 0 && (
-              <div className="grid gap-2">
-                <Label>Team</Label>
-                <Select
-                  value={teamId || "none"}
-                  onValueChange={(v) => setTeamId(v === "none" ? null : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select team" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No team</SelectItem>
-                    {teams.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        <div className="flex items-center">
-                          <span
-                            className="mr-2 h-3 w-3 rounded-full"
-                            style={{ backgroundColor: team.color }}
-                          />
-                          {team.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
           </div>
 
           <DialogFooter>

@@ -24,7 +24,6 @@ export interface SVARTask {
   $custom?: {
     status: MilestoneStatus;
     priority: MilestonePriority;
-    teamId: string | null;
     projectId: string;
     sortOrder: number;
     description: string | null;

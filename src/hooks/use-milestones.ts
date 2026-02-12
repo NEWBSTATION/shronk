@@ -40,7 +40,6 @@ interface FetchMilestonesParams {
   projectId: string;
   status?: string[];
   priority?: string[];
-  teamId?: string[];
   search?: string;
   sortField?: string;
   sortDirection?: string;
@@ -57,9 +56,6 @@ async function fetchMilestones(
   }
   if (params.priority?.length) {
     params.priority.forEach((p) => searchParams.append("priority", p));
-  }
-  if (params.teamId?.length) {
-    params.teamId.forEach((t) => searchParams.append("teamId", t));
   }
   if (params.search) {
     searchParams.set("search", params.search);
@@ -343,7 +339,7 @@ export function useBulkUpdateMilestones() {
       updates,
     }: {
       ids: string[];
-      updates: Partial<Pick<Milestone, "status" | "priority" | "teamId" | "progress">>;
+      updates: Partial<Pick<Milestone, "status" | "priority" | "progress">>;
     }) => {
       const response = await fetch("/api/milestones/bulk", {
         method: "PATCH",

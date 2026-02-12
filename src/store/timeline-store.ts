@@ -6,7 +6,7 @@ import { persist } from "zustand/middleware";
 export type ViewType = "timeline" | "list";
 export type TimePeriod = "week" | "month" | "quarter" | "year";
 export type RowHeight = "compact" | "default" | "tall";
-export type GroupBy = "none" | "status" | "priority" | "team";
+export type GroupBy = "none" | "status" | "priority";
 export type DragMode = "move" | "resize-start" | "resize-end" | "create-dependency";
 
 export interface DragState {
@@ -24,7 +24,6 @@ export interface DragState {
 export interface Filters {
   status: string[];
   priority: string[];
-  teamId: string[];
   search: string;
   dateRange?: { start: Date; end: Date };
 }
@@ -94,7 +93,6 @@ interface TimelineStore {
   clearFilters: () => void;
   setStatusFilter: (status: string[]) => void;
   setPriorityFilter: (priority: string[]) => void;
-  setTeamFilter: (teamId: string[]) => void;
   setSearchFilter: (search: string) => void;
 
   setSortField: (field: string) => void;
@@ -121,7 +119,6 @@ interface TimelineStore {
 const defaultFilters: Filters = {
   status: [],
   priority: [],
-  teamId: [],
   search: "",
 };
 
@@ -215,9 +212,6 @@ export const useTimelineStore = create<TimelineStore>()(
 
       setPriorityFilter: (priority) =>
         set((state) => ({ filters: { ...state.filters, priority } })),
-
-      setTeamFilter: (teamId) =>
-        set((state) => ({ filters: { ...state.filters, teamId } })),
 
       setSearchFilter: (search) =>
         set((state) => ({ filters: { ...state.filters, search } })),

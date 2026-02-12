@@ -100,7 +100,6 @@ export function milestoneToSVARTask(milestone: Milestone): SVARTask {
     $custom: {
       status: milestone.status,
       priority: milestone.priority,
-      teamId: milestone.teamId,
       projectId: milestone.projectId,
       sortOrder: milestone.sortOrder,
       description: milestone.description,
@@ -216,9 +215,9 @@ export function milestonesToSVARTasksWithTeamTracks(
   for (const milestone of milestones) {
     const milestoneTDs = durationsByMilestone.get(milestone.id) || [];
     // Filter to only visible teams
-    const visibleTDs = milestoneTDs.filter((td) =>
-      visibleTeamIds.includes(td.teamId)
-    );
+    const visibleTDs = milestoneTDs
+      .filter((td) => visibleTeamIds.includes(td.teamId))
+      .sort((a, b) => a.teamId.localeCompare(b.teamId));
 
     if (visibleTDs.length === 0) {
       // No team tracks visible — render as normal task
@@ -228,7 +227,10 @@ export function milestonesToSVARTasksWithTeamTracks(
       // Parent dates already encompass all team tracks (unified reflow ensures this)
       const parentTask = milestoneToSVARTask(milestone);
       parentTask.type = 'summary';
-      parentTask.open = true;
+      // NOTE: Do NOT set open=true here — SVAR has an internal race condition
+      // where toArray() traverses data before parse() builds the tree, causing
+      // a crash when node.open===true && node.data===null. Instead, we open
+      // summary tasks after init via the SVAR API in svar-timeline-view.tsx.
 
       tasks.push(parentTask);
 
@@ -254,7 +256,6 @@ export function milestonesToSVARTasksWithTeamTracks(
           $custom: {
             status: milestone.status,
             priority: milestone.priority,
-            teamId: td.teamId,
             projectId: milestone.projectId,
             sortOrder: milestone.sortOrder,
             description: null,

@@ -7,24 +7,30 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCenter,
+  useDroppable,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
 import { Plus } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useFeaturesListStore } from "@/store/features-list-store";
 import { SectionHeader } from "./section-header";
-import { FeatureRow, SortableFeatureRow } from "./feature-row";
+import { FeatureRow, DraggableFeatureRow } from "./feature-row";
 
 interface Feature {
   id: string;
   projectId: string;
   title: string;
+  startDate: Date | string;
   status: string;
   priority: string;
   duration: number;
@@ -40,10 +46,17 @@ interface MilestoneOption {
   icon: string;
 }
 
+interface Dependency {
+  id: string;
+  predecessorId: string;
+  successorId: string;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface FeaturesSectionListProps {
   features: Feature[];
   milestones: MilestoneOption[];
+  dependencies?: Dependency[];
   onFeatureClick: (feature: any) => void;
   onToggleComplete?: (featureId: string, currentStatus: string) => void;
   onAddFeature?: (milestoneId: string) => void;
@@ -51,10 +64,7 @@ interface FeaturesSectionListProps {
   onDeleteMilestone?: (milestoneId: string) => void;
   onUpdateAppearance?: (milestoneId: string, data: { color: string; icon: string }) => void;
   onAddMilestone?: () => void;
-  onReorder?: (args: {
-    projectId: string;
-    items: Array<{ id: string; sortOrder: number }>;
-  }) => void;
+  onMoveFeature?: (featureId: string, targetProjectId: string) => void;
 }
 
 interface Section {
@@ -64,9 +74,38 @@ interface Section {
   totalDuration: number;
 }
 
+interface PendingMove {
+  featureId: string;
+  featureTitle: string;
+  targetProjectId: string;
+  targetMilestoneName: string;
+  brokenDeps: Array<{ predecessorId: string; successorId: string; predecessorTitle: string; successorTitle: string }>;
+  bridgedDeps: Array<{ predecessorTitle: string; successorTitle: string }>;
+}
+
+function DroppableSection({
+  milestoneId,
+  activeProjectId,
+  children,
+}: {
+  milestoneId: string;
+  activeProjectId: string | null;
+  children: (isValidDrop: boolean) => React.ReactNode;
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `drop-milestone-${milestoneId}`,
+  });
+
+  // Suppress highlight when dragging over the feature's own milestone
+  const isValidDrop = isOver && activeProjectId !== milestoneId;
+
+  return <div ref={setNodeRef}>{children(isValidDrop)}</div>;
+}
+
 export function FeaturesSectionList({
   features,
   milestones,
+  dependencies = [],
   onFeatureClick,
   onToggleComplete,
   onAddFeature,
@@ -74,7 +113,7 @@ export function FeaturesSectionList({
   onDeleteMilestone,
   onUpdateAppearance,
   onAddMilestone,
-  onReorder,
+  onMoveFeature,
 }: FeaturesSectionListProps) {
   const {
     collapsedSections,
@@ -88,6 +127,7 @@ export function FeaturesSectionList({
 
   const lastClickedRef = useRef<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -95,7 +135,16 @@ export function FeaturesSectionList({
     })
   );
 
-  // Group features by projectId, ordered by milestones array order
+  // Build a feature title lookup for dependency display
+  const featureTitleMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const f of features) {
+      map.set(f.id, f.title);
+    }
+    return map;
+  }, [features]);
+
+  // Group features by projectId, sorted by startDate within each section
   const sections = useMemo<Section[]>(() => {
     const byProject = new Map<string, Feature[]>();
     for (const f of features) {
@@ -105,7 +154,11 @@ export function FeaturesSectionList({
     }
 
     return milestones.map((m) => {
-      const sectionFeatures = byProject.get(m.id) ?? [];
+      const sectionFeatures = (byProject.get(m.id) ?? []).slice().sort((a, b) => {
+        const aDate = new Date(a.startDate).getTime();
+        const bDate = new Date(b.startDate).getTime();
+        return aDate - bDate;
+      });
       return {
         milestone: m,
         features: sectionFeatures,
@@ -132,6 +185,12 @@ export function FeaturesSectionList({
     }
     return ids;
   }, [sections, collapsedSections]);
+
+  // The projectId of the feature currently being dragged
+  const activeProjectId = useMemo(() => {
+    if (!activeId) return null;
+    return features.find((f) => f.id === activeId)?.projectId ?? null;
+  }, [activeId, features]);
 
   // Find the active feature for the drag overlay
   const activeFeature = useMemo(() => {
@@ -163,7 +222,6 @@ export function FeaturesSectionList({
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       setActiveId(event.active.id as string);
-      // Clear selection when drag starts to avoid confusing UX
       if (selectMode) {
         clearSelection();
       }
@@ -176,151 +234,256 @@ export function FeaturesSectionList({
       setActiveId(null);
 
       const { active, over } = event;
-      if (!over || active.id === over.id) return;
+      if (!over) return;
 
-      // Find which section both items belong to
-      const activeFeature = features.find((f) => f.id === active.id);
-      const overFeature = features.find((f) => f.id === over.id);
-      if (!activeFeature || !overFeature) return;
+      // Extract milestone id from droppable zone id
+      const overId = String(over.id);
+      if (!overId.startsWith("drop-milestone-")) return;
 
-      // Only allow reorder within the same section
-      if (activeFeature.projectId !== overFeature.projectId) return;
+      const targetMilestoneId = overId.replace("drop-milestone-", "");
+      const draggedFeature = features.find((f) => f.id === active.id);
+      if (!draggedFeature) return;
 
-      const section = sections.find(
-        (s) => s.milestone.id === activeFeature.projectId
+      // Same milestone — no-op
+      if (draggedFeature.projectId === targetMilestoneId) return;
+
+      const targetMilestone = milestones.find((m) => m.id === targetMilestoneId);
+      if (!targetMilestone) return;
+
+      // Check if feature has dependencies
+      const featureDeps = dependencies.filter(
+        (d) =>
+          d.predecessorId === draggedFeature.id ||
+          d.successorId === draggedFeature.id
       );
-      if (!section) return;
 
-      const sectionFeatures = section.features;
-      const oldIndex = sectionFeatures.findIndex((f) => f.id === active.id);
-      const newIndex = sectionFeatures.findIndex((f) => f.id === over.id);
+      if (featureDeps.length > 0) {
+        // Build broken/bridged info for the dialog
+        const predecessorIds = featureDeps
+          .filter((d) => d.successorId === draggedFeature.id)
+          .map((d) => d.predecessorId);
+        const successorIds = featureDeps
+          .filter((d) => d.predecessorId === draggedFeature.id)
+          .map((d) => d.successorId);
 
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+        const brokenDeps = featureDeps.map((d) => ({
+          predecessorId: d.predecessorId,
+          successorId: d.successorId,
+          predecessorTitle: featureTitleMap.get(d.predecessorId) ?? "Unknown",
+          successorTitle: featureTitleMap.get(d.successorId) ?? "Unknown",
+        }));
 
-      const reordered = arrayMove(sectionFeatures, oldIndex, newIndex);
-      const items = reordered.map((f, index) => ({
-        id: f.id,
-        sortOrder: index,
-      }));
+        const bridgedDeps: PendingMove["bridgedDeps"] = [];
+        for (const predId of predecessorIds) {
+          for (const succId of successorIds) {
+            bridgedDeps.push({
+              predecessorTitle: featureTitleMap.get(predId) ?? "Unknown",
+              successorTitle: featureTitleMap.get(succId) ?? "Unknown",
+            });
+          }
+        }
 
-      onReorder?.({ projectId: activeFeature.projectId, items });
+        setPendingMove({
+          featureId: draggedFeature.id,
+          featureTitle: draggedFeature.title,
+          targetProjectId: targetMilestoneId,
+          targetMilestoneName: targetMilestone.name,
+          brokenDeps,
+          bridgedDeps,
+        });
+      } else {
+        // No deps — move immediately
+        onMoveFeature?.(draggedFeature.id, targetMilestoneId);
+      }
     },
-    [features, sections, onReorder]
+    [features, milestones, dependencies, featureTitleMap, onMoveFeature]
   );
 
   const handleDragCancel = useCallback(() => {
     setActiveId(null);
   }, []);
 
+  const confirmMove = useCallback(() => {
+    if (pendingMove) {
+      onMoveFeature?.(pendingMove.featureId, pendingMove.targetProjectId);
+      setPendingMove(null);
+    }
+  }, [pendingMove, onMoveFeature]);
+
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
-      <div className="space-y-4">
-        {sections.map((section) => {
-          const isCollapsed = collapsedSections.has(section.milestone.id);
-          const featureIds = section.features.map((f) => f.id);
-          return (
-            <div
-              key={section.milestone.id}
-              className="rounded-2xl overflow-hidden border"
-            >
-              <SectionHeader
+    <>
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <div className="space-y-4">
+          {sections.map((section) => {
+            const isCollapsed = collapsedSections.has(section.milestone.id);
+            return (
+              <DroppableSection
+                key={section.milestone.id}
                 milestoneId={section.milestone.id}
-                name={section.milestone.name}
-                color={section.milestone.color}
-                icon={section.milestone.icon}
-                featureCount={section.features.length}
-                completedCount={section.completedCount}
-                totalDuration={section.totalDuration}
-                collapsed={isCollapsed}
-                onToggle={() => toggleSection(section.milestone.id)}
-                onAddFeature={() => onAddFeature?.(section.milestone.id)}
-                onEditMilestone={() => onEditMilestone?.(section.milestone.id)}
-                onDeleteMilestone={() => onDeleteMilestone?.(section.milestone.id)}
-                onUpdateAppearance={(data) => onUpdateAppearance?.(section.milestone.id, data)}
-              />
-
-              {/* Animated collapse container */}
-              <div
-                className="grid transition-[grid-template-rows] duration-200 ease-in-out"
-                style={{
-                  gridTemplateRows: isCollapsed ? "0fr" : "1fr",
-                }}
+                activeProjectId={activeProjectId}
               >
-                <div className="overflow-hidden">
-                  {section.features.length === 0 ? (
-                    <button
-                      onClick={() => onAddFeature?.(section.milestone.id)}
-                      className="w-full px-4 py-3.5 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer"
+                {(isOver) => (
+                  <div
+                    className="rounded-2xl overflow-hidden border transition-shadow"
+                    style={
+                      isOver
+                        ? { boxShadow: "0 0 0 2px hsl(var(--primary) / 0.3)" }
+                        : undefined
+                    }
+                  >
+                    <SectionHeader
+                      milestoneId={section.milestone.id}
+                      name={section.milestone.name}
+                      color={section.milestone.color}
+                      icon={section.milestone.icon}
+                      featureCount={section.features.length}
+                      completedCount={section.completedCount}
+                      totalDuration={section.totalDuration}
+                      collapsed={isCollapsed}
+                      isDropTarget={isOver}
+                      onToggle={() => toggleSection(section.milestone.id)}
+                      onAddFeature={() => onAddFeature?.(section.milestone.id)}
+                      onEditMilestone={() => onEditMilestone?.(section.milestone.id)}
+                      onDeleteMilestone={() => onDeleteMilestone?.(section.milestone.id)}
+                      onUpdateAppearance={(data) => onUpdateAppearance?.(section.milestone.id, data)}
+                    />
+
+                    {/* Animated collapse container */}
+                    <div
+                      className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+                      style={{
+                        gridTemplateRows: isCollapsed ? "0fr" : "1fr",
+                      }}
                     >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-                        <Plus className="h-4 w-4" />
+                      <div className="overflow-hidden">
+                        {section.features.length === 0 ? (
+                          <button
+                            onClick={() => onAddFeature?.(section.milestone.id)}
+                            className="w-full px-4 py-3.5 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer"
+                          >
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                              <Plus className="h-4 w-4" />
+                            </div>
+                            <span className="text-sm">Add a feature</span>
+                          </button>
+                        ) : (
+                          section.features.map((feature) => (
+                            <DraggableFeatureRow
+                              key={feature.id}
+                              id={feature.id}
+                              title={feature.title}
+                              status={feature.status}
+                              priority={feature.priority}
+                              duration={feature.duration}
+                              selected={selectedIds.has(feature.id)}
+                              selectMode={selectMode}
+                              onSelect={(e) => handleSelect(feature.id, e)}
+                              onClick={() => onFeatureClick(feature)}
+                              onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}
+                            />
+                          ))
+                        )}
                       </div>
-                      <span className="text-sm">Add a feature</span>
-                    </button>
-                  ) : (
-                    <SortableContext
-                      items={featureIds}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {section.features.map((feature) => (
-                        <SortableFeatureRow
-                          key={feature.id}
-                          id={feature.id}
-                          title={feature.title}
-                          status={feature.status}
-                          priority={feature.priority}
-                          duration={feature.duration}
-                          selected={selectedIds.has(feature.id)}
-                          selectMode={selectMode}
-                          onSelect={(e) => handleSelect(feature.id, e)}
-                          onClick={() => onFeatureClick(feature)}
-                          onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}
-                        />
-                      ))}
-                    </SortableContext>
-                  )}
-                </div>
+                    </div>
+                  </div>
+                )}
+              </DroppableSection>
+            );
+          })}
+
+          {/* Ghost section — add new milestone */}
+          {onAddMilestone && (
+            <button
+              onClick={onAddMilestone}
+              className="w-full rounded-2xl border border-dashed border-border px-4 py-3 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-accent/20 transition-colors"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                <Plus className="h-4 w-4" />
               </div>
-            </div>
-          );
-        })}
+              <span className="text-sm">New milestone</span>
+            </button>
+          )}
+        </div>
 
-        {/* Ghost section — add new milestone */}
-        {onAddMilestone && (
-          <button
-            onClick={onAddMilestone}
-            className="w-full rounded-2xl border border-dashed border-border px-4 py-3 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-accent/20 transition-colors"
-          >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-              <Plus className="h-4 w-4" />
-            </div>
-            <span className="text-sm">New milestone</span>
-          </button>
-        )}
-      </div>
+        <DragOverlay>
+          {activeFeature ? (
+            <FeatureRow
+              id={activeFeature.id}
+              title={activeFeature.title}
+              status={activeFeature.status}
+              priority={activeFeature.priority}
+              duration={activeFeature.duration}
+              selected={false}
+              selectMode={false}
+              isOverlay
+              onSelect={() => {}}
+              onClick={() => {}}
+            />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
-      <DragOverlay>
-        {activeFeature ? (
-          <FeatureRow
-            id={activeFeature.id}
-            title={activeFeature.title}
-            status={activeFeature.status}
-            priority={activeFeature.priority}
-            duration={activeFeature.duration}
-            selected={false}
-            selectMode={false}
-            isOverlay
-            onSelect={() => {}}
-            onClick={() => {}}
-          />
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+      <AlertDialog
+        open={!!pendingMove}
+        onOpenChange={(open) => {
+          if (!open) setPendingMove(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move feature with dependencies?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Moving &quot;{pendingMove?.featureTitle}&quot; to{" "}
+                  <strong>{pendingMove?.targetMilestoneName}</strong> will break
+                  its dependency connections.
+                </p>
+                {pendingMove && pendingMove.brokenDeps.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-foreground mb-1">
+                      Dependencies that will be removed:
+                    </p>
+                    <ul className="text-sm list-disc pl-5 space-y-0.5">
+                      {pendingMove.brokenDeps.map((d, i) => (
+                        <li key={i}>
+                          {d.predecessorTitle} → {d.successorTitle}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {pendingMove &&
+                  pendingMove.bridgedDeps.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-foreground mb-1">
+                        Dependencies that will be bridged:
+                      </p>
+                      <ul className="text-sm list-disc pl-5 space-y-0.5">
+                        {pendingMove.bridgedDeps.map((d, i) => (
+                          <li key={i}>
+                            {d.predecessorTitle} → {d.successorTitle}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMove}>
+              Move feature
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

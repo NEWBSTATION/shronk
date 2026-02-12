@@ -5,29 +5,24 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { statusConfig, priorityConfig } from "@/components/shared/status-badge";
-import type { Team, MilestoneStatus, MilestonePriority } from "@/db/schema";
-import { X, ChevronDown, CheckCircle, Flag, Users, Trash2 } from "lucide-react";
+import type { MilestoneStatus, MilestonePriority } from "@/db/schema";
+import { X, ChevronDown, CheckCircle, Flag, Trash2 } from "lucide-react";
 
 interface ListBulkActionsProps {
   selectedCount: number;
-  teams: Team[];
   onStatusChange: (status: MilestoneStatus) => void;
   onPriorityChange: (priority: MilestonePriority) => void;
-  onTeamChange: (teamId: string | null) => void;
   onDelete: () => void;
   onClearSelection: () => void;
 }
 
 export function ListBulkActions({
   selectedCount,
-  teams,
   onStatusChange,
   onPriorityChange,
-  onTeamChange,
   onDelete,
   onClearSelection,
 }: ListBulkActionsProps) {
@@ -89,37 +84,6 @@ export function ListBulkActions({
             })}
           </DropdownMenuContent>
         </DropdownMenu>
-
-        {/* Team */}
-        {teams.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Users className="h-4 w-4" />
-                Team
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => onTeamChange(null)}>
-                No team
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {teams.map((team) => (
-                <DropdownMenuItem
-                  key={team.id}
-                  onClick={() => onTeamChange(team.id)}
-                >
-                  <span
-                    className="mr-2 h-3 w-3 rounded-full"
-                    style={{ backgroundColor: team.color }}
-                  />
-                  {team.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
 
         <div className="w-px h-6 bg-border mx-2" />
 

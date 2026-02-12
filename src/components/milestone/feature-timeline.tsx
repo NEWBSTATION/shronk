@@ -746,7 +746,6 @@ export function FeatureTimeline({
           >
             {sortedFeatures.map((feature) => {
               const StatusIcon = STATUS_ICONS[feature.status];
-              const team = teams.find((t) => t.id === feature.teamId);
               const preview = previewDates[feature.id];
               const startDate = preview
                 ? preview.startDate
@@ -787,13 +786,6 @@ export function FeatureTimeline({
                       <Badge variant="outline" className="text-[10px] h-4 px-1">
                         {duration}d
                       </Badge>
-                      {team && (
-                        <div
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: team.color }}
-                          title={team.name}
-                        />
-                      )}
                     </div>
                   </div>
                 </div>

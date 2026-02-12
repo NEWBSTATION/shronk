@@ -28,7 +28,6 @@ import {
   useDependencies,
   useUpdateMilestone,
   useDeleteMilestone,
-  useReorderMilestones,
 } from "@/hooks/use-milestones";
 import type { Milestone, MilestoneStatus } from "@/db/schema";
 
@@ -43,7 +42,6 @@ interface Feature {
   priority: "low" | "medium" | "high" | "critical";
   progress: number;
   duration: number;
-  teamId: string | null;
   sortOrder: number;
   completedAt: Date | null;
   createdAt: Date;
@@ -61,9 +59,16 @@ interface MilestoneOption {
   description?: string | null;
 }
 
+interface FeaturesDepEntry {
+  id: string;
+  predecessorId: string;
+  successorId: string;
+}
+
 interface FeaturesResponse {
   features: Feature[];
   milestones: MilestoneOption[];
+  dependencies: FeaturesDepEntry[];
 }
 
 async function fetchFeatures(): Promise<FeaturesResponse> {
@@ -101,7 +106,6 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
 
   const updateMutation = useUpdateMilestone();
   const deleteMutation = useDeleteMilestone();
-  const reorderMutation = useReorderMilestones();
 
   const handleUpdateFeature = useCallback(
     async (data: Partial<Milestone> & { id: string; duration?: number }) => {
@@ -147,42 +151,28 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
     [queryClient]
   );
 
-  const handleReorder = useCallback(
-    ({
-      projectId,
-      items,
-    }: {
-      projectId: string;
-      items: Array<{ id: string; sortOrder: number }>;
-    }) => {
-      // Optimistically update the allFeatures query cache
-      queryClient.setQueryData(
-        ["allFeatures"],
-        (old: FeaturesResponse | undefined) => {
-          if (!old) return old;
-          const orderMap = new Map(items.map((i) => [i.id, i.sortOrder]));
-          return {
-            ...old,
-            features: old.features
-              .map((f) => ({
-                ...f,
-                sortOrder: orderMap.get(f.id) ?? f.sortOrder,
-              }))
-              .sort((a, b) => a.sortOrder - b.sortOrder),
-          };
+  const handleMoveFeature = useCallback(
+    async (featureId: string, targetProjectId: string) => {
+      try {
+        const response = await fetch("/api/features/move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ featureId, targetProjectId }),
+        });
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || "Failed to move feature");
         }
-      );
-
-      reorderMutation.mutate(
-        { projectId, items },
-        {
-          onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
-          },
-        }
-      );
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+        queryClient.invalidateQueries({ queryKey: ["milestones"] });
+        queryClient.invalidateQueries({ queryKey: ["dependencies"] });
+        queryClient.invalidateQueries({ queryKey: ["projects"] });
+        toast.success("Feature moved");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to move feature");
+      }
     },
-    [queryClient, reorderMutation]
+    [queryClient]
   );
 
   const handleAddFeatureForMilestone = useCallback(
@@ -330,6 +320,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
           <FeaturesSectionList
             features={features}
             milestones={milestoneOptions}
+            dependencies={data?.dependencies}
             onFeatureClick={handleFeatureClick}
             onToggleComplete={handleToggleComplete}
             onAddFeature={handleAddFeatureForMilestone}
@@ -337,7 +328,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
             onDeleteMilestone={handleDeleteMilestone}
             onUpdateAppearance={handleUpdateAppearance}
             onAddMilestone={() => setMilestoneDialogOpen(true)}
-            onReorder={handleReorder}
+            onMoveFeature={handleMoveFeature}
           />
         </div>
 

@@ -1,0 +1,168 @@
+'use client';
+
+import { useRef, useEffect, type RefObject } from 'react';
+import { Plus } from 'lucide-react';
+import { ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
+import type { SVARTask } from './types';
+import type { Milestone, MilestoneStatus } from '@/db/schema';
+
+const ADD_FEATURE_TASK_ID = '__add_feature__';
+
+/** Circle-check toggle matching the FeatureRow Material Design icons */
+function StatusToggle({
+  id,
+  status,
+  onToggle,
+}: {
+  id: string;
+  status: string;
+  onToggle: RefObject<(id: string, status: MilestoneStatus) => Promise<void>>;
+}) {
+  const isComplete = status === 'completed';
+  return (
+    <button
+      className={`shrink-0 flex items-center justify-center transition-colors ${
+        isComplete
+          ? 'text-green-500 hover:text-green-600'
+          : 'text-muted-foreground/40 hover:text-muted-foreground/70'
+      }`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle.current(id, isComplete ? 'not_started' : 'completed');
+      }}
+      title={isComplete ? 'Mark incomplete' : 'Mark complete'}
+    >
+      {isComplete ? (
+        <svg className="h-4 w-4" viewBox="0 -960 960 960" fill="currentColor">
+          <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Z" />
+        </svg>
+      ) : (
+        <svg className="h-4 w-4" viewBox="0 -960 960 960" fill="currentColor">
+          <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Zm0-72q130 0 221-91t91-221q0-130-91-221t-221-91q-130 0-221 91t-91 221q0 130 91 221t221 91Zm0-312Z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+interface TimelineGridProps {
+  tasks: SVARTask[];
+  width: number;
+  featureCount: number;
+  scrollRef: RefObject<HTMLDivElement | null>;
+  onRowClick: (task: SVARTask) => void;
+  onStatusChange: RefObject<(id: string, status: MilestoneStatus) => Promise<void>>;
+  onAddFeature: () => void;
+}
+
+export function TimelineGrid({
+  tasks,
+  width,
+  featureCount,
+  scrollRef,
+  onRowClick,
+  onStatusChange,
+  onAddFeature,
+}: TimelineGridProps) {
+  return (
+    <div
+      style={{ width, minWidth: width, maxWidth: width }}
+      className="flex flex-col border-r border-border bg-background select-none"
+    >
+      {/* Header — matches SVAR's 2-row scale header */}
+      <div
+        className="flex items-center px-3 border-b border-border shrink-0"
+        style={{ height: SCALE_HEIGHT * 2 }}
+      >
+        <span className="text-xs font-medium text-muted-foreground">
+          {featureCount} feature{featureCount !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {/* Scrollable row body */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none"
+        style={{
+          backgroundImage: `repeating-linear-gradient(
+            to bottom,
+            transparent 0px,
+            transparent ${ROW_HEIGHT - 1}px,
+            var(--border) ${ROW_HEIGHT - 1}px,
+            var(--border) ${ROW_HEIGHT}px
+          )`,
+          backgroundSize: `100% ${ROW_HEIGHT}px`,
+        }}
+      >
+        {tasks.map((task) => {
+          if (task.id === ADD_FEATURE_TASK_ID) {
+            return (
+              <div
+                key={task.id}
+                style={{ height: ROW_HEIGHT }}
+                className="flex items-center gap-1.5 px-3 text-muted-foreground cursor-pointer transition-colors"
+                onClick={onAddFeature}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span className="text-xs">Add feature</span>
+              </div>
+            );
+          }
+
+          const custom = task.$custom;
+          const isTeamTrack = custom?.isTeamTrack && task.parent;
+
+          if (isTeamTrack) {
+            return (
+              <div
+                key={task.id}
+                style={{ height: ROW_HEIGHT }}
+                className="flex items-center gap-1.5 min-w-0 pl-7 pr-3 cursor-pointer transition-colors"
+                onClick={() => onRowClick(task)}
+              >
+                <div
+                  className="h-2 w-2 rounded-full shrink-0"
+                  style={{ backgroundColor: custom?.teamColor }}
+                />
+                <span className="truncate min-w-0 flex-1 text-xs text-muted-foreground">
+                  {task.text}
+                </span>
+                <span className="shrink-0 ml-auto rounded border border-border/60 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground/50 tabular-nums">
+                  {task.durationText}
+                </span>
+              </div>
+            );
+          }
+
+          // Feature row
+          return (
+            <div
+              key={task.id}
+              style={{ height: ROW_HEIGHT }}
+              className="flex items-center gap-1.5 min-w-0 px-3 cursor-pointer transition-colors"
+              onClick={() => onRowClick(task)}
+            >
+              <StatusToggle
+                id={task.id}
+                status={custom?.status ?? 'not_started'}
+                onToggle={onStatusChange}
+              />
+              <span
+                className={`truncate min-w-0 flex-1 text-sm ${
+                  custom?.status === 'completed'
+                    ? 'line-through text-muted-foreground'
+                    : ''
+                }`}
+              >
+                {task.text}
+              </span>
+              <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                {task.durationText}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

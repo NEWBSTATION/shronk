@@ -94,7 +94,6 @@ export const milestones = pgTable("milestones", {
   status: milestoneStatusEnum("status").default("not_started").notNull(),
   priority: milestonePriorityEnum("priority").default("medium").notNull(),
   progress: integer("progress").default(0).notNull(),
-  teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
   duration: integer("duration").default(1).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
   completedAt: timestamp("completed_at"),
@@ -166,7 +165,6 @@ export const teamsRelations = relations(teams, ({ one, many }) => ({
     fields: [teams.projectId],
     references: [projects.id],
   }),
-  milestones: many(milestones),
   teamMilestoneDurations: many(teamMilestoneDurations),
 }));
 
@@ -174,10 +172,6 @@ export const milestonesRelations = relations(milestones, ({ one, many }) => ({
   project: one(projects, {
     fields: [milestones.projectId],
     references: [projects.id],
-  }),
-  team: one(teams, {
-    fields: [milestones.teamId],
-    references: [teams.id],
   }),
   predecessors: many(milestoneDependencies, { relationName: "successor" }),
   successors: many(milestoneDependencies, { relationName: "predecessor" }),

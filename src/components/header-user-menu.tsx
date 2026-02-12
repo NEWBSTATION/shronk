@@ -44,8 +44,10 @@ export function HeaderUserMenu({ onNavigateSettings }: { onNavigateSettings?: (s
   const { currentPresetKey, mode, setPreset, setMode, getResolvedMode } = useThemeStore();
   const resolvedMode = getResolvedMode();
   const sortedThemes = getSortedThemeEntries();
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
 
-  if (!isLoaded || !user) {
+  if (!mounted || !isLoaded || !user) {
     return <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />;
   }
 

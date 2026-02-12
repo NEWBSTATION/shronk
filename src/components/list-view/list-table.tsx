@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTimelineStore } from "@/store/timeline-store";
 import { ListRow } from "./list-row";
 import { ListGroupHeader } from "./list-group-header";
-import type { Milestone, Team } from "@/db/schema";
+import type { Milestone } from "@/db/schema";
 
 interface GroupedMilestones {
   key: string;
@@ -26,7 +26,6 @@ interface ListTableProps {
   groupedMilestones: GroupedMilestones[];
   collapsedGroups: string[];
   onToggleGroup: (key: string) => void;
-  teams: Team[];
   onEdit: (milestone: Milestone) => void;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: Milestone["status"]) => void;
@@ -39,7 +38,6 @@ export function ListTable({
   groupedMilestones,
   collapsedGroups,
   onToggleGroup,
-  teams,
   onEdit,
   onDelete,
   onStatusChange,
@@ -88,7 +86,6 @@ export function ListTable({
             <TableHead className="w-12"></TableHead>
             <TableHead className="min-w-[200px]">Title</TableHead>
             <TableHead className="w-[100px]">Priority</TableHead>
-            <TableHead className="w-[120px]">Team</TableHead>
             <TableHead className="w-[180px]">Date Range</TableHead>
             <TableHead className="w-[80px]">Progress</TableHead>
             <TableHead className="w-[60px]"></TableHead>
@@ -106,7 +103,6 @@ export function ListTable({
                 isCollapsed={isCollapsed}
                 showGroupHeader={showGroupHeader}
                 onToggleGroup={onToggleGroup}
-                teams={teams}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onStatusChange={onStatusChange}
@@ -128,7 +124,6 @@ interface ListGroupContentProps {
   isCollapsed: boolean;
   showGroupHeader: boolean;
   onToggleGroup: (key: string) => void;
-  teams: Team[];
   onEdit: (milestone: Milestone) => void;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: Milestone["status"]) => void;
@@ -143,7 +138,6 @@ function ListGroupContent({
   isCollapsed,
   showGroupHeader,
   onToggleGroup,
-  teams,
   onEdit,
   onDelete,
   onStatusChange,
@@ -162,7 +156,7 @@ function ListGroupContent({
           count={group.milestones.length}
           isCollapsed={isCollapsed}
           onToggle={() => onToggleGroup(group.key)}
-          colSpan={canReorder ? 9 : 8}
+          colSpan={canReorder ? 8 : 7}
         />
       )}
       {!isCollapsed &&
@@ -170,7 +164,6 @@ function ListGroupContent({
           <ListRow
             key={milestone.id}
             milestone={milestone}
-            teams={teams}
             onEdit={() => onEdit(milestone)}
             onDelete={() => onDelete(milestone.id)}
             onStatusChange={(status) => onStatusChange(milestone.id, status)}

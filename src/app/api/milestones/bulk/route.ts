@@ -10,7 +10,6 @@ const bulkUpdateSchema = z.object({
   updates: z.object({
     status: z.enum(["not_started", "in_progress", "on_hold", "completed", "cancelled"]).optional(),
     priority: z.enum(["low", "medium", "high", "critical"]).optional(),
-    teamId: z.string().uuid().optional().nullable(),
     progress: z.number().min(0).max(100).optional(),
   }),
 });
@@ -100,9 +99,6 @@ export async function PATCH(request: NextRequest) {
     }
     if (data.updates.priority !== undefined) {
       updateData.priority = data.updates.priority;
-    }
-    if (data.updates.teamId !== undefined) {
-      updateData.teamId = data.updates.teamId;
     }
     if (data.updates.progress !== undefined) {
       updateData.progress = data.updates.progress;

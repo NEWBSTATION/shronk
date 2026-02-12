@@ -1,8 +1,7 @@
 "use client";
 
 import { ChevronRight, GripVertical } from "lucide-react";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useDraggable } from "@dnd-kit/core";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +53,7 @@ export function FeatureRow({
     <div
       ref={nodeRef}
       style={style}
+      onClick={onClick}
       className={cn(
         "flex items-center px-4 py-3.5 transition-colors cursor-pointer group bg-background hover:bg-accent/50 border-b last:border-b-0",
         selected && "bg-accent",
@@ -75,6 +75,7 @@ export function FeatureRow({
         {!selectMode && (
           <div
             className="flex items-center justify-center cursor-grab active:cursor-grabbing shrink-0"
+            onClick={(e) => e.stopPropagation()}
             {...dragHandleProps}
           >
             <GripVertical className="h-4 w-4 text-muted-foreground/50" />
@@ -116,11 +117,8 @@ export function FeatureRow({
         )}
       </button>
 
-      {/* Feature name — click area for the row */}
-      <button
-        onClick={onClick}
-        className="flex flex-1 items-center gap-3 ml-3 min-w-0"
-      >
+      {/* Feature name + metadata */}
+      <div className="flex flex-1 items-center gap-3 ml-3 min-w-0">
         <span
           className={cn(
             "text-sm flex-1 truncate text-left",
@@ -141,36 +139,25 @@ export function FeatureRow({
           </span>
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
-      </button>
+      </div>
     </div>
   );
 }
 
-export function SortableFeatureRow(
+export function DraggableFeatureRow(
   props: Omit<
     FeatureRowProps,
     "isDragging" | "isOverlay" | "dragHandleProps" | "nodeRef" | "style"
   >
 ) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: props.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: props.id,
+  });
 
   return (
     <FeatureRow
       {...props}
       nodeRef={setNodeRef}
-      style={style}
       isDragging={isDragging}
       dragHandleProps={
         props.selectMode ? undefined : { ...attributes, ...listeners }

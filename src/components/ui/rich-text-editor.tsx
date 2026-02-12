@@ -61,7 +61,7 @@ function executeSlashCommand(editor: Editor, action: string) {
 export function RichTextEditor({
   content,
   onChange,
-  placeholder = "Write something, or type '/' for commands...",
+  placeholder = "Write or type / for commands",
   className,
 }: RichTextEditorProps) {
   const editorRef = useRef<Editor | null>(null);
@@ -173,7 +173,7 @@ export function RichTextEditor({
         link: false,
         underline: false,
       }),
-      Placeholder.configure({ placeholder }),
+      Placeholder.configure({ placeholder, showOnlyCurrent: false }),
       Underline,
       Link.configure({
         openOnClick: false,
@@ -188,7 +188,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm dark:prose-invert max-w-none outline-none min-h-[120px] px-3 py-2.5 text-sm [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_blockquote]:my-1 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground",
+          "tiptap prose prose-sm dark:prose-invert max-w-none outline-none min-h-[120px] px-3 py-2.5 text-sm [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_blockquote]:my-1 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground",
       },
       handleKeyDown: (view, event) => {
         if (event.key !== "/") return false;
@@ -220,7 +220,7 @@ export function RichTextEditor({
   if (!editor) return null;
 
   return (
-    <div className={cn("rounded-lg bg-muted/50 overflow-hidden", className)}>
+    <div className={cn("rounded-lg border border-border bg-background overflow-hidden", className)}>
       {/* Bubble menu — appears on text selection */}
       <BubbleMenu
         editor={editor}
@@ -325,7 +325,6 @@ export function RichTextEditor({
         </BubbleToggle>
       </BubbleMenu>
 
-      {/* Editor */}
       <EditorContent editor={editor} />
     </div>
   );

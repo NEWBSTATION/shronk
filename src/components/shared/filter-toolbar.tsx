@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useTimelineStore } from "@/store/timeline-store";
 import { statusConfig, priorityConfig } from "./status-badge";
-import type { Team } from "@/db/schema";
+// Team filter removed — team tracks are used instead
 import {
   Search,
   Filter,
@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 
 interface FilterToolbarProps {
-  teams?: Team[];
+  teams?: unknown[];
 }
 
 const sortOptions = [
@@ -51,15 +51,13 @@ const groupByOptions = [
   { value: "none", label: "No Grouping" },
   { value: "status", label: "Status" },
   { value: "priority", label: "Priority" },
-  { value: "team", label: "Team" },
 ];
 
-export function FilterToolbar({ teams = [] }: FilterToolbarProps) {
+export function FilterToolbar({ teams: _teams = [] }: FilterToolbarProps) {
   const {
     filters,
     setStatusFilter,
     setPriorityFilter,
-    setTeamFilter,
     setSearchFilter,
     clearFilters,
     sortField,
@@ -78,7 +76,6 @@ export function FilterToolbar({ teams = [] }: FilterToolbarProps) {
   const activeFilterCount =
     filters.status.length +
     filters.priority.length +
-    filters.teamId.length +
     (filters.search ? 1 : 0);
 
   const handleStatusChange = (status: string, checked: boolean) => {
@@ -94,14 +91,6 @@ export function FilterToolbar({ teams = [] }: FilterToolbarProps) {
       setPriorityFilter([...filters.priority, priority]);
     } else {
       setPriorityFilter(filters.priority.filter((p) => p !== priority));
-    }
-  };
-
-  const handleTeamChange = (teamId: string, checked: boolean) => {
-    if (checked) {
-      setTeamFilter([...filters.teamId, teamId]);
-    } else {
-      setTeamFilter(filters.teamId.filter((t) => t !== teamId));
     }
   };
 
@@ -194,53 +183,6 @@ export function FilterToolbar({ teams = [] }: FilterToolbarProps) {
               </div>
             </div>
 
-            {teams.length > 0 && (
-              <>
-                <Separator />
-                {/* Team */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Team</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="team-none"
-                        checked={filters.teamId.includes("none")}
-                        onCheckedChange={(checked) =>
-                          handleTeamChange("none", checked as boolean)
-                        }
-                      />
-                      <Label
-                        htmlFor="team-none"
-                        className="text-sm font-normal cursor-pointer"
-                      >
-                        Unassigned
-                      </Label>
-                    </div>
-                    {teams.map((team) => (
-                      <div key={team.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`team-${team.id}`}
-                          checked={filters.teamId.includes(team.id)}
-                          onCheckedChange={(checked) =>
-                            handleTeamChange(team.id, checked as boolean)
-                          }
-                        />
-                        <Label
-                          htmlFor={`team-${team.id}`}
-                          className="text-sm font-normal cursor-pointer flex items-center gap-1.5"
-                        >
-                          <span
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: team.color }}
-                          />
-                          {team.name}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
           </div>
 
           {activeFilterCount > 0 && (
@@ -288,7 +230,7 @@ export function FilterToolbar({ teams = [] }: FilterToolbarProps) {
       {viewType === "list" && (
         <Select
           value={groupBy}
-          onValueChange={(v) => setGroupBy(v as "none" | "status" | "priority" | "team")}
+          onValueChange={(v) => setGroupBy(v as "none" | "status" | "priority")}
         >
           <SelectTrigger className="w-[140px]">
             <SquareStack className="h-4 w-4 mr-2" />

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { milestones, projects } from "@/db/schema";
+import { milestones, milestoneDependencies, projects } from "@/db/schema";
 import { eq, and, inArray, asc, desc, ilike, or } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const projectIds = userProjects.map((p) => p.id);
 
     if (projectIds.length === 0) {
-      return NextResponse.json({ features: [], milestones: [] });
+      return NextResponse.json({ features: [], milestones: [], dependencies: [] });
     }
 
     // Build conditions for features
@@ -98,7 +98,6 @@ export async function GET(request: NextRequest) {
         status: milestones.status,
         priority: milestones.priority,
         progress: milestones.progress,
-        teamId: milestones.teamId,
         duration: milestones.duration,
         sortOrder: milestones.sortOrder,
         completedAt: milestones.completedAt,
@@ -126,7 +125,26 @@ export async function GET(request: NextRequest) {
       .where(eq(projects.userId, userId))
       .orderBy(asc(projects.name));
 
-    return NextResponse.json({ features, milestones: allMilestones });
+    // Get all dependencies for user's milestones
+    const allMilestoneIds = features.map((f) => f.id);
+    const dependencies =
+      allMilestoneIds.length > 0
+        ? await db
+            .select()
+            .from(milestoneDependencies)
+            .where(
+              or(
+                inArray(milestoneDependencies.predecessorId, allMilestoneIds),
+                inArray(milestoneDependencies.successorId, allMilestoneIds)
+              )
+            )
+        : [];
+
+    return NextResponse.json({
+      features,
+      milestones: allMilestones,
+      dependencies,
+    });
   } catch (error) {
     console.error("Error fetching features:", error);
     return NextResponse.json(

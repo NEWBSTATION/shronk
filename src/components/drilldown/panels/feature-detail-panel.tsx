@@ -12,7 +12,6 @@ import {
   ArrowLeft,
   Ellipsis,
   Layers3,
-  FileText,
   CircleDot,
 } from "lucide-react";
 
@@ -90,7 +89,6 @@ interface FeatureDetailPanelProps {
     endDate: Date;
     duration?: number;
     status: MilestoneStatus;
-    teamId?: string | null;
   }) => void;
   onDelete?: (id: string) => Promise<void>;
   onUpsertTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
@@ -155,7 +153,6 @@ export function FeatureDetailPanel({
   const [status, setStatus] = useState<MilestoneStatus>("not_started");
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date>(new Date());
-  const [teamId, setTeamId] = useState<string | null>(null);
   const [durationValue, setDurationValue] = useState(1);
   const [durationUnit, setDurationUnit] = useState<DurationUnit>("days");
   const [isDeleting, setIsDeleting] = useState(false);
@@ -181,7 +178,6 @@ export function FeatureDetailPanel({
       const e = new Date(feature.endDate);
       setStartDate(s);
       setEndDate(e);
-      setTeamId(feature.teamId);
       const days = computeDurationDays(s, e);
       const best = bestFitDurationUnit(days);
       setDurationValue(best.value);
@@ -192,7 +188,6 @@ export function FeatureDetailPanel({
       setStatus("not_started");
       setStartDate(new Date());
       setEndDate(computeEndDateFromDuration(new Date(), 14));
-      setTeamId(null);
       setDurationValue(2);
       setDurationUnit("weeks");
     }
@@ -237,17 +232,6 @@ export function FeatureDetailPanel({
           status: newStatus,
           progress: newStatus === "completed" ? 100 : 0,
         });
-      }
-    },
-    [isEditMode, saveField]
-  );
-
-  const handleTeamChange = useCallback(
-    (value: string) => {
-      const newTeamId = value === "none" ? null : value;
-      setTeamId(newTeamId);
-      if (isEditMode) {
-        saveField({ teamId: newTeamId });
       }
     },
     [isEditMode, saveField]
@@ -311,33 +295,34 @@ export function FeatureDetailPanel({
       endDate: computedEnd,
       duration: totalDays,
       status,
-      teamId,
     });
     back();
-  }, [onCreate, title, durationValue, durationUnit, startDate, status, description, teamId, back]);
-
-  const team = teams.find((t) => t.id === teamId);
+  }, [onCreate, title, durationValue, durationUnit, startDate, status, description, back]);
 
   return (
     <div className="p-6 md:p-8 min-w-0">
-      {/* Navigation header — matches Dougly: back left, menu right */}
-      <div className="flex items-center justify-between mb-6">
+      {/* Navigation header — back left, title centered, menu right */}
+      <div className="flex items-center mb-6">
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 shrink-0"
           onClick={back}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        {isEditMode && onDelete && (
+        <span className="flex-1 text-sm font-medium text-muted-foreground truncate">
+          {projectName || "Feature"}
+        </span>
+
+        {isEditMode && onDelete ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 shrink-0"
               >
                 <Ellipsis className="h-4 w-4" />
               </Button>
@@ -352,16 +337,13 @@ export function FeatureDetailPanel({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        ) : (
+          <div className="h-8 w-8 shrink-0" />
         )}
       </div>
 
       {/* Title — large heading with completion toggle */}
       <div className="mb-8">
-        {projectName && (
-          <div className="text-xs text-muted-foreground mb-2">
-            {projectName}
-          </div>
-        )}
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -443,46 +425,6 @@ export function FeatureDetailPanel({
             </Select>
           </PropertyRow>
         )}
-
-        {/* Team */}
-        <PropertyRow icon={Users} label="Team" type="custom">
-          <Select
-            value={teamId || "none"}
-            onValueChange={handleTeamChange}
-          >
-            <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0 w-auto gap-2">
-              <SelectValue>
-                {team ? (
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="h-2.5 w-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: team.color }}
-                    />
-                    <span>{team.name}</span>
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground/60">Empty</span>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">
-                <span className="text-muted-foreground">No team</span>
-              </SelectItem>
-              {teams.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="h-2.5 w-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: t.color }}
-                    />
-                    {t.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </PropertyRow>
 
         {/* Status */}
         <PropertyRow icon={CircleDot} label="Status" type="custom">
@@ -576,6 +518,14 @@ export function FeatureDetailPanel({
 
       </div>
 
+      {/* Description */}
+      <div className="mt-4">
+        <RichTextEditor
+          content={description}
+          onChange={handleDescriptionChange}
+        />
+      </div>
+
       {/* Team Tracks Section */}
       {isEditMode && teams.length > 0 && feature && (
         <TeamTracksSection
@@ -586,19 +536,6 @@ export function FeatureDetailPanel({
           onDeleteTeamDuration={onDeleteTeamDuration}
         />
       )}
-
-      {/* Description — separated below properties */}
-      <div className="mt-6 pt-6 border-t border-border">
-        <div className="flex items-center gap-3 mb-2 px-2 -mx-2">
-          <FileText className="size-4 text-muted-foreground shrink-0" />
-          <span className="text-sm text-muted-foreground">Description</span>
-        </div>
-        <RichTextEditor
-          content={description}
-          onChange={handleDescriptionChange}
-          placeholder="Add a description..."
-        />
-      </div>
 
       {/* Create mode footer */}
       {!isEditMode && (
@@ -675,51 +612,20 @@ function TeamTracksSection({
         </p>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-0.5">
         {teamDurations.map((td) => {
           const team = teams.find((t) => t.id === td.teamId);
           if (!team) return null;
 
           return (
-            <div
+            <TeamTrackRow
               key={td.id}
-              className="flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-accent/30 group"
-            >
-              <div
-                className="h-2.5 w-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: team.color }}
-              />
-              <span className="text-sm font-medium min-w-[80px]">{team.name}</span>
-
-              <div className="flex items-center gap-2 ml-auto">
-                <NumberStepper
-                  value={td.duration}
-                  onChange={(v) => {
-                    const newDuration = Math.max(1, v);
-                    onUpsertTeamDuration?.(feature.id, td.teamId, newDuration);
-                  }}
-                  min={1}
-                  className="w-16"
-                />
-                <span className="text-xs text-muted-foreground w-6">
-                  {td.duration === 1 ? "day" : "days"}
-                </span>
-
-                {td.startDate && (
-                  <span className="text-[11px] text-muted-foreground/50 tabular-nums">
-                    {format(new Date(td.startDate), "MMM d")} – {format(new Date(td.endDate), "MMM d")}
-                  </span>
-                )}
-
-                <button
-                  onClick={() => onDeleteTeamDuration?.(feature.id, td.teamId)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
-                  title="Remove team track"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
+              td={td}
+              team={team}
+              feature={feature}
+              onUpsertTeamDuration={onUpsertTeamDuration}
+              onDeleteTeamDuration={onDeleteTeamDuration}
+            />
           );
         })}
       </div>
@@ -755,6 +661,104 @@ function TeamTracksSection({
           </PopoverContent>
         </Popover>
       )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Team Track Row                                                              */
+/* -------------------------------------------------------------------------- */
+
+function TeamTrackRow({
+  td,
+  team,
+  feature,
+  onUpsertTeamDuration,
+  onDeleteTeamDuration,
+}: {
+  td: TeamMilestoneDuration;
+  team: Team;
+  feature: Milestone;
+  onUpsertTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
+  onDeleteTeamDuration?: (milestoneId: string, teamId: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [localDuration, setLocalDuration] = useState(td.duration);
+
+  useEffect(() => {
+    if (open) setLocalDuration(td.duration);
+  }, [open, td.duration]);
+
+  const handleClose = useCallback(
+    (newOpen: boolean) => {
+      if (!newOpen && localDuration !== td.duration) {
+        onUpsertTeamDuration?.(feature.id, td.teamId, Math.max(1, localDuration));
+      }
+      setOpen(newOpen);
+    },
+    [localDuration, td.duration, td.teamId, feature.id, onUpsertTeamDuration]
+  );
+
+  const durationLabel = `${td.duration}d`;
+  const dateRange =
+    td.startDate && td.endDate
+      ? `${format(new Date(td.startDate), "MMM d")} – ${format(new Date(td.endDate), "MMM d")}`
+      : null;
+
+  return (
+    <div className="flex items-center gap-3 min-h-8 py-1 rounded-md px-2 -mx-2 hover:bg-accent/30 group">
+      {/* Dot — centered in a size-4 box to align with PropertyRow icons */}
+      <div className="size-4 shrink-0 flex items-center justify-center">
+        <div
+          className="h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: team.color }}
+        />
+      </div>
+
+      {/* Team name */}
+      <span className="text-sm font-medium truncate min-w-0 flex-1">{team.name}</span>
+
+      {/* Duration + date range — right side */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Popover open={open} onOpenChange={handleClose}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="text-xs tabular-nums font-medium px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors"
+            >
+              {durationLabel}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-3" align="end">
+            <div className="flex items-center gap-2">
+              <NumberStepper
+                value={localDuration}
+                onChange={(v) => setLocalDuration(Math.max(1, v))}
+                min={1}
+                className="w-20"
+              />
+              <span className="text-sm text-muted-foreground">
+                {localDuration === 1 ? "day" : "days"}
+              </span>
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {dateRange && (
+          <span className="text-[11px] text-muted-foreground/50 tabular-nums hidden sm:inline">
+            {dateRange}
+          </span>
+        )}
+      </div>
+
+      {/* Delete */}
+      <button
+        onClick={() => onDeleteTeamDuration?.(feature.id, td.teamId)}
+        className="shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+        title="Remove team track"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }

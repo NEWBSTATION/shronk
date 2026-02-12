@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { ArrowLeft, Ellipsis, FileText, Trash2 } from "lucide-react";
+import { ArrowLeft, Ellipsis, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PropertyRow } from "@/components/ui/property-row";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { ColorIconPicker } from "@/components/features-list/color-icon-picker";
 import { MilestoneIcon } from "@/lib/milestone-icon";
 import { getColorStyles } from "@/lib/milestone-theme";
@@ -164,17 +164,11 @@ export function MilestoneInfoPanel({ milestone }: MilestoneInfoPanelProps) {
         </div>
       </div>
 
-      {/* Properties */}
-      <div className="space-y-0.5">
-        <PropertyRow
-          icon={FileText}
-          label="Description"
-          type="textarea"
-          value={milestone.description || ""}
-          placeholder="Add description..."
-          onSave={handleDescriptionSave}
-        />
-      </div>
+      {/* Description */}
+      <RichTextEditor
+        content={milestone.description || ""}
+        onChange={handleDescriptionSave}
+      />
 
       {/* Delete confirmation */}
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>

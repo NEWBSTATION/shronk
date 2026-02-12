@@ -64,7 +64,17 @@
       "Bash(npx dotenv:*)",
       "Bash(lsof:*)",
       "Bash(curl:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(git restore:*)",
+      "WebFetch(domain:fonts.gstatic.com)",
+      "Bash(npx next:*)",
+      "Bash(npx playwright:*)",
+      "Bash(npm ls:*)",
+      "Bash(npx:*)",
+      "Bash(npm root:*)",
+      "Bash(TEST_PASSWORD=Changeme1 node:*)",
+      "Bash(wc:*)",
+      "Bash(perl:*)"
     ]
   }
 }
