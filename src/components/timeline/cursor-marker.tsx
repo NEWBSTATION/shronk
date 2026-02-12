@@ -71,7 +71,7 @@ export function CursorMarker({ ganttApiRef, scaleHeight, onCursorMove }: CursorM
         z-index: 90;
         transform: translateX(-0.5px);
         display: none;
-        background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+        background: var(--muted-foreground);
       `;
       wxArea.appendChild(line);
       lineRef.current = line;

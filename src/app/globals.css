@@ -544,6 +544,29 @@ pre {
   color: var(--foreground) !important;
 }
 
+/* Grid body cells — remove default padding */
+.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-body"] [class*="wx-cell"] {
+  padding: 0 !important;
+}
+/* Zero tree toggle spacers in body cells */
+.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-body"] {
+  --wx-icon-size: 0px !important;
+}
+/* Hide toggle elements */
+.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-toggle-icon"],
+.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-toggle-placeholder"],
+.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-toggle"] {
+  display: none !important;
+}
+/* wx-text: fill remaining space in wx-content (after hidden toggle) and
+   allow overflow so the duration badge isn't clipped during column resize.
+   SVAR's default wx-text has overflow:hidden which clips right-aligned content. */
+.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-body"] [class*="wx-text"] {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
 /* Task bars - use chart colors */
 .timeline-theme-wrapper [class*="wx-bar"][class*="wx-task"]:not([class*="wx-split"]) {
   background-color: var(--chart-2) !important;
@@ -686,9 +709,13 @@ pre {
   border-right: 1px solid var(--border) !important;
 }
 
-/* Grid body rows - no border; background gradient on .wx-body handles row lines */
+/* Grid body rows - no border by default (chart area) */
 .timeline-theme-wrapper [class*="wx-body"] [class*="wx-row"] {
   border-bottom: none !important;
+}
+/* Left grid panel rows keep their border */
+.timeline-theme-wrapper [class*="wx-table-container"] [class*="wx-body"] [class*="wx-row"] {
+  border-bottom: 1px solid var(--border) !important;
 }
 
 /* Header row bottom border - rely on SVAR's own border, no extra needed */
@@ -999,4 +1026,23 @@ pre {
 .drag-link-active .wx-link.drag-link-target-hover .wx-inner {
   opacity: 1 !important;
   border-color: var(--chart-2) !important;
+}
+
+/* ================================================
+   Feature Detail Island Panel - resize handle
+   ================================================ */
+
+/* The RTL direction trick puts the browser resize handle on the left.
+   Style the native resize grip to be subtle. */
+.feature-island-panel::-webkit-resizable {
+  background: transparent;
+}
+
+.feature-island-panel {
+  resize: horizontal;
+  direction: rtl;
+}
+
+.feature-island-panel > * {
+  direction: ltr;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { format } from "date-fns";
 import {
   CalendarIcon,
@@ -13,6 +13,7 @@ import {
   Ellipsis,
   Layers3,
   FileText,
+  CircleDot,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,28 @@ interface FeatureDetailPanelProps {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Status display helper                                                      */
+/* -------------------------------------------------------------------------- */
+
+const STATUS_CONFIG: Record<MilestoneStatus, { label: string; dotClass: string }> = {
+  not_started: { label: "Not Started", dotClass: "bg-zinc-400" },
+  in_progress: { label: "In Progress", dotClass: "bg-blue-500" },
+  on_hold: { label: "On Hold", dotClass: "bg-amber-500" },
+  completed: { label: "Completed", dotClass: "bg-emerald-500" },
+  cancelled: { label: "Cancelled", dotClass: "bg-zinc-400" },
+};
+
+function StatusDisplay({ status }: { status: MilestoneStatus }) {
+  const { label, dotClass } = STATUS_CONFIG[status];
+  return (
+    <div className="flex items-center gap-2">
+      <div className={cn("h-2 w-2 rounded-full shrink-0", dotClass)} />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Component                                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -129,7 +152,7 @@ export function FeatureDetailPanel({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [completed, setCompleted] = useState(false);
+  const [status, setStatus] = useState<MilestoneStatus>("not_started");
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -137,6 +160,9 @@ export function FeatureDetailPanel({
   const [durationUnit, setDurationUnit] = useState<DurationUnit>("days");
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const completed = status === "completed";
+  const prevStatusRef = useRef<MilestoneStatus>("not_started");
 
   const isChained = useMemo(() => {
     if (!feature) return false;
@@ -147,7 +173,10 @@ export function FeatureDetailPanel({
     if (feature) {
       setTitle(feature.title);
       setDescription(feature.description || "");
-      setCompleted(feature.status === "completed");
+      setStatus(feature.status);
+      prevStatusRef.current = feature.status === "completed"
+        ? "in_progress"
+        : feature.status;
       const s = new Date(feature.startDate);
       const e = new Date(feature.endDate);
       setStartDate(s);
@@ -160,7 +189,7 @@ export function FeatureDetailPanel({
     } else {
       setTitle("");
       setDescription("");
-      setCompleted(false);
+      setStatus("not_started");
       setStartDate(new Date());
       setEndDate(computeEndDateFromDuration(new Date(), 14));
       setTeamId(null);
@@ -190,13 +219,28 @@ export function FeatureDetailPanel({
   );
 
   const handleCompletionToggle = useCallback(() => {
-    const newCompleted = !completed;
-    setCompleted(newCompleted);
+    const newStatus: MilestoneStatus = completed ? prevStatusRef.current : "completed";
+    setStatus(newStatus);
     if (isEditMode) {
-      const status: MilestoneStatus = newCompleted ? "completed" : "not_started";
-      saveField({ status, progress: newCompleted ? 100 : 0 });
+      saveField({ status: newStatus, progress: newStatus === "completed" ? 100 : 0 });
     }
   }, [completed, isEditMode, saveField]);
+
+  const handleStatusChange = useCallback(
+    (newStatus: MilestoneStatus) => {
+      if (newStatus !== "completed") {
+        prevStatusRef.current = newStatus;
+      }
+      setStatus(newStatus);
+      if (isEditMode) {
+        saveField({
+          status: newStatus,
+          progress: newStatus === "completed" ? 100 : 0,
+        });
+      }
+    },
+    [isEditMode, saveField]
+  );
 
   const handleTeamChange = useCallback(
     (value: string) => {
@@ -260,7 +304,6 @@ export function FeatureDetailPanel({
     if (!onCreate || !title.trim()) return;
     const totalDays = durationValue * DURATION_UNIT_MULTIPLIERS[durationUnit];
     const computedEnd = computeEndDateFromDuration(startDate, totalDays);
-    const status: MilestoneStatus = completed ? "completed" : "not_started";
     onCreate({
       title: title.trim(),
       description: description || undefined,
@@ -271,12 +314,12 @@ export function FeatureDetailPanel({
       teamId,
     });
     back();
-  }, [onCreate, title, durationValue, durationUnit, startDate, completed, description, teamId, back]);
+  }, [onCreate, title, durationValue, durationUnit, startDate, status, description, teamId, back]);
 
   const team = teams.find((t) => t.id === teamId);
 
   return (
-    <div className="p-8">
+    <div className="p-6 md:p-8 min-w-0">
       {/* Navigation header — matches Dougly: back left, menu right */}
       <div className="flex items-center justify-between mb-6">
         <Button
@@ -437,6 +480,37 @@ export function FeatureDetailPanel({
                   </div>
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </PropertyRow>
+
+        {/* Status */}
+        <PropertyRow icon={CircleDot} label="Status" type="custom">
+          <Select
+            value={status}
+            onValueChange={(v) => handleStatusChange(v as MilestoneStatus)}
+          >
+            <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0 w-auto gap-2">
+              <SelectValue>
+                <StatusDisplay status={status} />
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="not_started">
+                <StatusDisplay status="not_started" />
+              </SelectItem>
+              <SelectItem value="in_progress">
+                <StatusDisplay status="in_progress" />
+              </SelectItem>
+              <SelectItem value="on_hold">
+                <StatusDisplay status="on_hold" />
+              </SelectItem>
+              <SelectItem value="completed">
+                <StatusDisplay status="completed" />
+              </SelectItem>
+              <SelectItem value="cancelled">
+                <StatusDisplay status="cancelled" />
+              </SelectItem>
             </SelectContent>
           </Select>
         </PropertyRow>

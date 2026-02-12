@@ -225,23 +225,10 @@ export function milestonesToSVARTasksWithTeamTracks(
       tasks.push(milestoneToSVARTask(milestone));
     } else {
       // Summary parent + child tracks (always, even with one team visible)
-      // Compute parent span as union of milestone dates and all visible team track dates
+      // Parent dates already encompass all team tracks (unified reflow ensures this)
       const parentTask = milestoneToSVARTask(milestone);
       parentTask.type = 'summary';
       parentTask.open = true;
-
-      let minStart = parentTask.start;
-      let maxEnd = parentTask.end;
-      for (const td of visibleTDs) {
-        const tdStart = toLocalMidnight(td.startDate);
-        const tdEnd = addDays(toLocalMidnight(td.endDate), 1); // inclusive → exclusive
-        if (tdStart < minStart) minStart = tdStart;
-        if (tdEnd > maxEnd) maxEnd = tdEnd;
-      }
-      parentTask.start = minStart;
-      parentTask.end = maxEnd;
-      parentTask.duration = computeDurationDays(minStart, subDays(maxEnd, 1));
-      parentTask.durationText = formatDuration(parentTask.duration);
 
       tasks.push(parentTask);
 

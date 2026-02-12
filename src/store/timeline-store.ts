@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type ViewType = "timeline" | "list";
-export type TimePeriod = "day" | "week" | "month" | "quarter" | "year";
+export type TimePeriod = "week" | "month" | "quarter" | "year";
 export type RowHeight = "compact" | "default" | "tall";
 export type GroupBy = "none" | "status" | "priority" | "team";
 export type DragMode = "move" | "resize-start" | "resize-end" | "create-dependency";
@@ -67,6 +67,9 @@ interface TimelineStore {
   // Timeline scroll position
   timelineScrollLeft: number;
 
+  // Grid column width (left panel)
+  gridColumnWidth: number;
+
   // Team visibility
   visibleTeamIds: string[];
 
@@ -109,6 +112,7 @@ interface TimelineStore {
   setIsCreatingItem: (creating: boolean) => void;
   setContextMenu: (position: { x: number; y: number } | null, itemId?: string | null) => void;
   setTimelineScrollLeft: (left: number) => void;
+  setGridColumnWidth: (width: number) => void;
 
   setVisibleTeamIds: (ids: string[]) => void;
   toggleTeamVisibility: (teamId: string) => void;
@@ -146,6 +150,7 @@ export const useTimelineStore = create<TimelineStore>()(
       contextMenuPosition: null,
       contextMenuItemId: null,
       timelineScrollLeft: 0,
+      gridColumnWidth: 200,
       visibleTeamIds: [],
 
       // Actions
@@ -154,7 +159,9 @@ export const useTimelineStore = create<TimelineStore>()(
       setTimePeriod: (timePeriod) => set({ timePeriod }),
 
       getMilestoneTimePeriod: (milestoneId) => {
-        return get().milestoneTimePeriods[milestoneId] || "month";
+        const stored = get().milestoneTimePeriods[milestoneId];
+        const valid: TimePeriod[] = ["week", "month", "quarter", "year"];
+        return stored && valid.includes(stored) ? stored : "month";
       },
 
       setMilestoneTimePeriod: (milestoneId, timePeriod) =>
@@ -273,6 +280,8 @@ export const useTimelineStore = create<TimelineStore>()(
 
       setTimelineScrollLeft: (timelineScrollLeft) => set({ timelineScrollLeft }),
 
+      setGridColumnWidth: (gridColumnWidth) => set({ gridColumnWidth }),
+
       setVisibleTeamIds: (visibleTeamIds) => set({ visibleTeamIds }),
 
       toggleTeamVisibility: (teamId) =>
@@ -296,6 +305,7 @@ export const useTimelineStore = create<TimelineStore>()(
         sortDirection: state.sortDirection,
         milestoneTimePeriods: state.milestoneTimePeriods,
         visibleTeamIds: state.visibleTeamIds,
+        gridColumnWidth: state.gridColumnWidth,
       }),
     }
   )

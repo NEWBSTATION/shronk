@@ -8,12 +8,13 @@ import {
   useDrilldown,
 } from "@/components/drilldown/drilldown-context";
 import { DrilldownStack } from "@/components/drilldown/drilldown-stack";
+import { DashboardTab } from "@/components/tabs/dashboard-tab";
 import { FeaturesTab } from "@/components/tabs/features-tab";
 import { TimelineTab } from "@/components/tabs/timeline-tab";
 import { SettingsTab } from "@/components/tabs/settings-tab";
 import { cn } from "@/lib/utils";
 
-const VALID_TABS: TabId[] = ["features", "timeline", "settings"];
+const VALID_TABS: TabId[] = ["dashboard", "features", "timeline", "settings"];
 
 function DashboardMain({
   activeTab,
@@ -65,6 +66,14 @@ function DashboardMain({
         <div
           className={cn(
             "absolute inset-0 flex flex-col",
+            activeTab !== "dashboard" && "invisible pointer-events-none"
+          )}
+        >
+          {mountedTabs.has("dashboard") && <DashboardTab />}
+        </div>
+        <div
+          className={cn(
+            "absolute inset-0 flex flex-col",
             activeTab !== "features" && "invisible pointer-events-none"
           )}
         >
@@ -104,7 +113,7 @@ function DashboardContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as TabId | null;
   const initialTab: TabId =
-    tabParam && VALID_TABS.includes(tabParam) ? tabParam : "features";
+    tabParam && VALID_TABS.includes(tabParam) ? tabParam : "dashboard";
   const milestoneId = searchParams.get("milestone");
 
   // Local state for instant tab switching (bypasses Next.js router overhead)

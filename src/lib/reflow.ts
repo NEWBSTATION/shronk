@@ -1,65 +1,8 @@
 import { addDays } from "date-fns";
 
 /* ========================================================================= */
-/*  Per-team reflow                                                           */
+/*  Types                                                                     */
 /* ========================================================================= */
-
-export interface TeamReflowResult {
-  teamId: string;
-  updates: ReflowUpdate[];
-}
-
-/**
- * Run reflow independently for each team that has duration overrides.
- *
- * For each team, builds a milestone list where durations come from the
- * team-specific map (falling back to the milestone default) and calls
- * the existing `reflowProject()`.
- *
- * @param milestones - all milestones in the project (with default dates/durations)
- * @param dependencies - all milestone dependencies
- * @param teamDurations - Map<teamId, Map<milestoneId, duration>>
- * @param overrides - optional per-milestone overrides applied before reflow
- */
-export function reflowProjectPerTeam(
-  milestones: ReflowMilestone[],
-  dependencies: ReflowDependency[],
-  teamDurations: Map<string, Map<string, number>>,
-  overrides?: Map<string, Partial<ReflowMilestone>>
-): TeamReflowResult[] {
-  const results: TeamReflowResult[] = [];
-
-  for (const [teamId, durationMap] of teamDurations) {
-    // Build team-specific milestone list: use team duration if present, else milestone default
-    const teamMilestones: ReflowMilestone[] = milestones.map((m) => {
-      const teamDuration = durationMap.get(m.id);
-      return {
-        ...m,
-        duration: teamDuration ?? m.duration,
-      };
-    });
-
-    // Merge any explicit overrides (e.g. from a drag operation on a specific team track)
-    const teamOverrides = overrides
-      ? new Map(
-          [...overrides].map(([id, ov]) => {
-            // If the override has a duration, use it directly;
-            // otherwise use the team-specific duration
-            const teamDuration = durationMap.get(id);
-            if (ov.duration === undefined && teamDuration !== undefined) {
-              return [id, { ...ov, duration: teamDuration }];
-            }
-            return [id, ov];
-          })
-        )
-      : undefined;
-
-    const updates = reflowProject(teamMilestones, dependencies, teamOverrides);
-    results.push({ teamId, updates });
-  }
-
-  return results;
-}
 
 /**
  * Minimal milestone shape needed for reflow computation.
@@ -83,6 +26,93 @@ export interface ReflowUpdate {
   endDate: Date;
   duration: number;
 }
+
+/* ========================================================================= */
+/*  Team-track expansion helpers                                              */
+/* ========================================================================= */
+
+export interface DurationExpansion {
+  id: string;
+  oldDuration: number;
+  newDuration: number;
+}
+
+/**
+ * Expand parent milestone durations to be >= the max team track duration.
+ *
+ * Mutates the `milestones` array in place so the subsequent `reflowProject()`
+ * sees the expanded durations. Returns a list of expansions for persistence.
+ *
+ * @param milestones - mutable array of milestones (will be mutated)
+ * @param maxTeamDurationMap - Map<milestoneId, maxTeamDuration>
+ */
+export function expandDurationsFromTeamTracks(
+  milestones: ReflowMilestone[],
+  maxTeamDurationMap: Map<string, number>
+): DurationExpansion[] {
+  const expansions: DurationExpansion[] = [];
+
+  for (const m of milestones) {
+    const maxTeam = maxTeamDurationMap.get(m.id);
+    if (maxTeam !== undefined && maxTeam !== m.duration) {
+      expansions.push({
+        id: m.id,
+        oldDuration: m.duration,
+        newDuration: maxTeam,
+      });
+      m.duration = maxTeam;
+      m.endDate = addDays(m.startDate, maxTeam - 1);
+    }
+  }
+
+  return expansions;
+}
+
+export interface DerivedTeamDate {
+  milestoneId: string;
+  teamId: string;
+  startDate: Date;
+  endDate: Date;
+  duration: number;
+}
+
+/**
+ * Derive team track dates from parent milestone start + team duration.
+ *
+ * All team tracks share the parent's start date.
+ * endDate = parentStart + teamDuration - 1 (inclusive).
+ *
+ * @param milestoneDateMap - Map<milestoneId, { startDate }>  (post-reflow dates)
+ * @param teamDurations - array of { milestoneId, teamId, duration }
+ */
+export function deriveTeamTrackDates(
+  milestoneDateMap: Map<string, { startDate: Date }>,
+  teamDurations: { milestoneId: string; teamId: string; duration: number }[]
+): DerivedTeamDate[] {
+  const results: DerivedTeamDate[] = [];
+
+  for (const td of teamDurations) {
+    const parent = milestoneDateMap.get(td.milestoneId);
+    if (!parent) continue;
+
+    const startDate = parent.startDate;
+    const endDate = addDays(startDate, td.duration - 1);
+
+    results.push({
+      milestoneId: td.milestoneId,
+      teamId: td.teamId,
+      startDate,
+      endDate,
+      duration: td.duration,
+    });
+  }
+
+  return results;
+}
+
+/* ========================================================================= */
+/*  Core reflow                                                               */
+/* ========================================================================= */
 
 /**
  * Pure function: reflow an entire project's milestones using tight chaining.

@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { milestoneDependencies, milestones, projects, teamMilestoneDurations } from "@/db/schema";
+import { milestoneDependencies, milestones, projects } from "@/db/schema";
 import { eq, and, or, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { reflowProject, reflowProjectPerTeam, type ReflowMilestone, type ReflowDependency } from "@/lib/reflow";
-
-function toLocalMidnight(date: Date | string): Date {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-}
+import { unifiedReflow } from "@/lib/unified-reflow";
 
 const createDependencySchema = z.object({
   predecessorId: z.string().uuid(),
@@ -19,134 +14,6 @@ const createDependencySchema = z.object({
 const deleteDependencySchema = z.object({
   id: z.string().uuid(),
 });
-
-async function fetchProjectReflowData(projectId: string) {
-  const allMilestones = await db
-    .select()
-    .from(milestones)
-    .where(eq(milestones.projectId, projectId));
-
-  const milestoneIds = allMilestones.map((m) => m.id);
-
-  const allDeps = milestoneIds.length > 0
-    ? await db
-        .select()
-        .from(milestoneDependencies)
-        .where(
-          or(
-            inArray(milestoneDependencies.predecessorId, milestoneIds),
-            inArray(milestoneDependencies.successorId, milestoneIds)
-          )
-        )
-    : [];
-
-  const reflowMilestones: ReflowMilestone[] = allMilestones.map((m) => ({
-    id: m.id,
-    startDate: toLocalMidnight(m.startDate),
-    endDate: toLocalMidnight(m.endDate),
-    duration: m.duration,
-  }));
-
-  const reflowDeps: ReflowDependency[] = allDeps.map((d) => ({
-    predecessorId: d.predecessorId,
-    successorId: d.successorId,
-  }));
-
-  return { reflowMilestones, reflowDeps };
-}
-
-async function persistReflowUpdates(updates: Array<{ id: string; startDate: Date; endDate: Date; duration: number }>) {
-  for (const update of updates) {
-    await db
-      .update(milestones)
-      .set({
-        startDate: update.startDate,
-        endDate: update.endDate,
-        duration: update.duration,
-        updatedAt: new Date(),
-      })
-      .where(eq(milestones.id, update.id));
-  }
-}
-
-async function fetchAndRunTeamReflow(projectId: string) {
-  const allMilestones = await db
-    .select()
-    .from(milestones)
-    .where(eq(milestones.projectId, projectId));
-
-  const milestoneIds = allMilestones.map((m) => m.id);
-  if (milestoneIds.length === 0) return [];
-
-  const allDeps = milestoneIds.length > 0
-    ? await db
-        .select()
-        .from(milestoneDependencies)
-        .where(
-          or(
-            inArray(milestoneDependencies.predecessorId, milestoneIds),
-            inArray(milestoneDependencies.successorId, milestoneIds)
-          )
-        )
-    : [];
-
-  const allTeamDurations = await db
-    .select()
-    .from(teamMilestoneDurations)
-    .where(inArray(teamMilestoneDurations.milestoneId, milestoneIds));
-
-  if (allTeamDurations.length === 0) return [];
-
-  const reflowMs: ReflowMilestone[] = allMilestones.map((m) => ({
-    id: m.id,
-    startDate: toLocalMidnight(m.startDate),
-    endDate: toLocalMidnight(m.endDate),
-    duration: m.duration,
-  }));
-
-  const reflowDs: ReflowDependency[] = allDeps.map((d) => ({
-    predecessorId: d.predecessorId,
-    successorId: d.successorId,
-  }));
-
-  const teamDurationsMap = new Map<string, Map<string, number>>();
-  for (const td of allTeamDurations) {
-    if (!teamDurationsMap.has(td.teamId)) {
-      teamDurationsMap.set(td.teamId, new Map());
-    }
-    teamDurationsMap.get(td.teamId)!.set(td.milestoneId, td.duration);
-  }
-
-  const teamResults = reflowProjectPerTeam(reflowMs, reflowDs, teamDurationsMap);
-
-  for (const { teamId, updates } of teamResults) {
-    for (const update of updates) {
-      await db
-        .update(teamMilestoneDurations)
-        .set({
-          startDate: update.startDate,
-          endDate: update.endDate,
-          duration: update.duration,
-        })
-        .where(
-          and(
-            eq(teamMilestoneDurations.milestoneId, update.id),
-            eq(teamMilestoneDurations.teamId, teamId)
-          )
-        );
-    }
-  }
-
-  return teamResults.flatMap((r) =>
-    r.updates.map((u) => ({
-      teamId: r.teamId,
-      id: u.id,
-      startDate: u.startDate.toISOString(),
-      endDate: u.endDate.toISOString(),
-      duration: u.duration,
-    }))
-  );
-}
 
 /**
  * Full BFS reachability check for cycle detection.
@@ -186,7 +53,6 @@ async function wouldCreateCycle(
   }
 
   // BFS from `fromId` to see if we can reach `toId`
-  // (if successor `fromId` can reach predecessor `toId`, adding toId→fromId creates a cycle)
   const queue = [fromId];
   const visited = new Set<string>();
 
@@ -342,27 +208,27 @@ export async function POST(request: NextRequest) {
       .values(data)
       .returning();
 
-    // Reflow project after creating the dependency
-    const { reflowMilestones, reflowDeps } = await fetchProjectReflowData(
+    // Run unified reflow
+    const { milestoneUpdates, teamDateUpdates } = await unifiedReflow(
       predecessor.projectId
     );
-
-    const reflowUpdates = reflowProject(reflowMilestones, reflowDeps);
-    await persistReflowUpdates(reflowUpdates);
-
-    // Run per-team reflow
-    const teamCascadedUpdates = await fetchAndRunTeamReflow(predecessor.projectId);
 
     return NextResponse.json(
       {
         dependency,
-        cascadedUpdates: reflowUpdates.map((u) => ({
+        cascadedUpdates: milestoneUpdates.map((u) => ({
           id: u.id,
           startDate: u.startDate.toISOString(),
           endDate: u.endDate.toISOString(),
           duration: u.duration,
         })),
-        teamCascadedUpdates,
+        teamCascadedUpdates: teamDateUpdates.map((td) => ({
+          teamId: td.teamId,
+          id: td.milestoneId,
+          startDate: td.startDate.toISOString(),
+          endDate: td.endDate.toISOString(),
+          duration: td.duration,
+        })),
       },
       { status: 201 }
     );
@@ -418,23 +284,25 @@ export async function DELETE(request: NextRequest) {
       .delete(milestoneDependencies)
       .where(eq(milestoneDependencies.id, data.id));
 
-    // Reflow project after removing the dependency
-    const { reflowMilestones, reflowDeps } = await fetchProjectReflowData(projectId);
-    const reflowUpdates = reflowProject(reflowMilestones, reflowDeps);
-    await persistReflowUpdates(reflowUpdates);
-
-    // Run per-team reflow
-    const teamCascadedUpdates = await fetchAndRunTeamReflow(projectId);
+    // Run unified reflow
+    const { milestoneUpdates, teamDateUpdates } =
+      await unifiedReflow(projectId);
 
     return NextResponse.json({
       success: true,
-      cascadedUpdates: reflowUpdates.map((u) => ({
+      cascadedUpdates: milestoneUpdates.map((u) => ({
         id: u.id,
         startDate: u.startDate.toISOString(),
         endDate: u.endDate.toISOString(),
         duration: u.duration,
       })),
-      teamCascadedUpdates,
+      teamCascadedUpdates: teamDateUpdates.map((td) => ({
+        teamId: td.teamId,
+        id: td.milestoneId,
+        startDate: td.startDate.toISOString(),
+        endDate: td.endDate.toISOString(),
+        duration: td.duration,
+      })),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

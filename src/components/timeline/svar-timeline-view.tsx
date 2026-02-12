@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import { startOfDay, addDays, addMonths, subMonths, differenceInDays } from 'date-fns';
 import { Gantt } from '@svar-ui/react-gantt';
 import type { IApi } from '@svar-ui/react-gantt';
-import { Plus, Minus, GitBranch } from 'lucide-react';
+import { Plus, Minus, GitBranch, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -55,7 +55,7 @@ function TeamTrackCell({ row }: { row: { text: string; durationText?: string; $c
   }, []);
 
   return (
-    <div ref={cellRef} className="flex items-center gap-1.5 w-full min-w-0 pl-4">
+    <div ref={cellRef} className="flex items-center gap-1.5 min-w-0 pl-7 pr-3">
       <div
         className="h-2 w-2 rounded-full shrink-0"
         style={{ backgroundColor: row.$custom?.teamColor }}
@@ -65,6 +65,43 @@ function TeamTrackCell({ row }: { row: { text: string; durationText?: string; $c
         {row.durationText}
       </span>
     </div>
+  );
+}
+
+/** Circle-check toggle matching the FeatureRow Material Design icons */
+function StatusToggle({
+  id,
+  status,
+  onToggle,
+}: {
+  id: string;
+  status: string;
+  onToggle: React.MutableRefObject<(id: string, status: MilestoneStatus) => Promise<void>>;
+}) {
+  const isComplete = status === 'completed';
+  return (
+    <button
+      className={`shrink-0 flex items-center justify-center transition-colors ${
+        isComplete
+          ? 'text-green-500 hover:text-green-600'
+          : 'text-muted-foreground/40 hover:text-muted-foreground/70'
+      }`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle.current(id, isComplete ? 'not_started' : 'completed');
+      }}
+      title={isComplete ? 'Mark incomplete' : 'Mark complete'}
+    >
+      {isComplete ? (
+        <svg className="h-4 w-4" viewBox="0 -960 960 960" fill="currentColor">
+          <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Z" />
+        </svg>
+      ) : (
+        <svg className="h-4 w-4" viewBox="0 -960 960 960" fill="currentColor">
+          <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Zm0-72q130 0 221-91t91-221q0-130-91-221t-221-91q-130 0-221 91t-91 221q0 130 91 221t221 91Zm0-312Z" />
+        </svg>
+      )}
+    </button>
   );
 }
 
@@ -145,6 +182,7 @@ export function SVARTimelineView({
   onUpdateDates,
   onUpdateTeamDuration,
   onAddFeature,
+  onStatusChange,
   onCreateDependency,
   onDeleteDependency,
 }: SVARTimelineViewProps) {
@@ -152,8 +190,33 @@ export function SVARTimelineView({
   // Per-milestone time period from store (persisted to localStorage)
   const timePeriod = useTimelineStore((s) => s.getMilestoneTimePeriod(project.id)) as TimePeriod;
   const setMilestoneTimePeriod = useTimelineStore((s) => s.setMilestoneTimePeriod);
+  // Date to scroll to after time period change (captured before the switch)
+  const periodChangeDateRef = useRef<Date | null>(null);
   const setTimePeriod = useCallback(
-    (period: TimePeriod) => setMilestoneTimePeriod(project.id, period),
+    (period: TimePeriod) => {
+      // Capture center date before changing period — getViewportCenterDate
+      // isn't available yet at this point so read SVAR state directly
+      const api = ganttApiRef.current;
+      const container = ganttContainerRef.current;
+      if (api && container) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const state = api.getState() as any;
+        const scales = state?._scales;
+        if (scales?.diff && scales.start && scales.lengthUnit && state?.cellWidth) {
+          const wxArea = container.querySelector('.wx-area') as HTMLElement;
+          const sc = wxArea?.parentElement;
+          if (sc) {
+            const centerX = sc.scrollLeft + sc.clientWidth / 2;
+            const oneDayLater = addDays(scales.start as Date, 1);
+            const pxPerDay = scales.diff(oneDayLater, scales.start, scales.lengthUnit) * state.cellWidth;
+            if (pxPerDay > 0) {
+              periodChangeDateRef.current = addDays(scales.start as Date, Math.round(centerX / pxPerDay));
+            }
+          }
+        }
+      }
+      setMilestoneTimePeriod(project.id, period);
+    },
     [project.id, setMilestoneTimePeriod]
   );
 
@@ -164,6 +227,7 @@ export function SVARTimelineView({
   // Refs
   const ganttApiRef = useRef<IApi | null>(null);
   const ganttContainerRef = useRef<HTMLDivElement>(null);
+
 
   // Keep a ref to dependencies so event handlers always see the latest value
   const dependenciesRef = useRef(dependencies);
@@ -180,6 +244,15 @@ export function SVARTimelineView({
   onDeleteDependencyRef.current = onDeleteDependency;
   const onUpdateTeamDurationRef = useRef(onUpdateTeamDuration);
   onUpdateTeamDurationRef.current = onUpdateTeamDuration;
+  const onStatusChangeRef = useRef(onStatusChange);
+  onStatusChangeRef.current = onStatusChange;
+
+  // Grid column width — persisted in store, used directly in columns memo.
+  // Zustand persist hydrates async, so this starts at 200 then updates to the saved value.
+  const setGridColumnWidth = useTimelineStore((s) => s.setGridColumnWidth);
+  const setGridColumnWidthRef = useRef(setGridColumnWidth);
+  setGridColumnWidthRef.current = setGridColumnWidth;
+  const storeGridColumnWidth = useTimelineStore((s) => s.gridColumnWidth);
 
   // Team visibility from store
   const visibleTeamIds = useTimelineStore((s) => s.visibleTeamIds);
@@ -231,7 +304,7 @@ export function SVARTimelineView({
   const isExpandingRef = useRef(false);
   const scrollAdjustRef = useRef<{ oldStart: Date; oldScrollLeft: number } | null>(null);
 
-  // Reset window when time period changes
+  // Reset window when time period changes, then scroll to the previously centered date
   const prevTimePeriodRef = useRef(timePeriod);
   useEffect(() => {
     if (prevTimePeriodRef.current !== timePeriod) {
@@ -239,6 +312,20 @@ export function SVARTimelineView({
       const w = computeInitialWindow(features, timePeriod);
       setWindowStart(w.start);
       setWindowEnd(w.end);
+
+      // After SVAR re-renders with new scales, scroll to the captured center date
+      const targetDate = periodChangeDateRef.current;
+      if (targetDate) {
+        periodChangeDateRef.current = null;
+        // Triple-rAF: wait for state update → SVAR render → DOM layout
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              scrollToDate(targetDate);
+            });
+          });
+        });
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timePeriod]);
@@ -372,6 +459,30 @@ export function SVARTimelineView({
 
   const handleCursorMove = useCallback((info: { absoluteX: number; viewportX: number } | null) => {
     cursorInfoRef.current = info;
+  }, []);
+
+  // Capture viewport-center anchor for zoom buttons and time period changes
+  const captureViewportCenterAnchor = useCallback(() => {
+    const api = ganttApiRef.current;
+    const container = ganttContainerRef.current;
+    if (!api || !container) return;
+
+    const wxArea = container.querySelector('.wx-area') as HTMLElement;
+    const scrollContainer = wxArea?.parentElement;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const state = api.getState() as any;
+    if (!scrollContainer || !state?.cellWidth) return;
+
+    const viewportX = scrollContainer.clientWidth / 2;
+    const absoluteX = viewportX + scrollContainer.scrollLeft;
+    const fractionalUnits = absoluteX / state.cellWidth;
+    zoomAnchorRef.current = { fractionalUnits, viewportX };
+
+    if (zoomAnchorClearRef.current) clearTimeout(zoomAnchorClearRef.current);
+    zoomAnchorClearRef.current = setTimeout(() => {
+      zoomAnchorRef.current = null;
+      zoomAnchorClearRef.current = null;
+    }, 500);
   }, []);
 
   // Sort and transform features
@@ -676,9 +787,13 @@ export function SVARTimelineView({
       // Skip in-progress cascade preview updates
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((ev as any).inProgress) return;
-      if (isDraggingRef.current) return;
 
+      // Allow through only the task the user actually dragged (the drop event).
+      // Block cascaded side-effect update-task events (parent summaries, etc.)
+      // that SVAR fires before drag-task ends.
       const taskId = String((ev as Record<string, unknown>).id ?? ev.task?.id);
+      if (isDraggingRef.current && taskId !== draggedTaskIdRef.current) return;
+
       if (taskId === ADD_FEATURE_TASK_ID) return;
       const task = ev.task;
       if (!taskId || !task?.start || !task?.end) return;
@@ -745,34 +860,91 @@ export function SVARTimelineView({
 
     // Prevent SVAR's built-in editor on double-click
     api.intercept('show-editor', () => false);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Scroll to today using SVAR's internal scales for accurate pixel calculation
-  const scrollToToday = useCallback(() => {
+  // Persist column width on pointerup — SVAR sets inline width/min-width on wx-cell
+  // elements during resize. We read the actual rendered width after resize ends.
+  const lastSavedWidthRef = useRef(storeGridColumnWidth);
+  useEffect(() => {
+    const handlePointerUp = () => {
+      // Small delay to let SVAR finalize the resize
+      setTimeout(() => {
+        const container = ganttContainerRef.current;
+        if (!container) return;
+        const cell = container.querySelector(
+          '[class*="wx-table-container"] [class*="wx-body"] [class*="wx-cell"]'
+        ) as HTMLElement | null;
+        if (!cell) return;
+        const w = Math.round(cell.getBoundingClientRect().width);
+        if (w > 0 && w !== lastSavedWidthRef.current) {
+          lastSavedWidthRef.current = w;
+          setGridColumnWidthRef.current(w);
+        }
+      }, 100);
+    };
+    document.addEventListener('pointerup', handlePointerUp);
+    return () => document.removeEventListener('pointerup', handlePointerUp);
+  }, []);
+
+  // Get the date at the viewport center using SVAR's internal scales
+  const getViewportCenterDate = useCallback((): Date | null => {
+    const api = ganttApiRef.current;
+    const container = ganttContainerRef.current;
+    if (!api || !container) return null;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const state = api.getState() as any;
+    const scalesInternal = state?._scales;
+    if (!scalesInternal?.diff || !scalesInternal.start || !scalesInternal.lengthUnit || !state?.cellWidth) return null;
+
+    const wxArea = container.querySelector('.wx-area') as HTMLElement;
+    const scrollContainer = wxArea?.parentElement;
+    if (!scrollContainer) return null;
+
+    const centerX = scrollContainer.scrollLeft + scrollContainer.clientWidth / 2;
+    const fractionalUnits = centerX / state.cellWidth;
+
+    // Convert fractional scale units back to a date by adding days
+    // Use the pixel-to-date approach: 1 day = scalesInternal.diff(day+1, day, unit) * cellWidth pixels
+    const scaleStart = scalesInternal.start as Date;
+    const oneDayLater = addDays(scaleStart, 1);
+    const pixelsPerDay = scalesInternal.diff(oneDayLater, scaleStart, scalesInternal.lengthUnit) * state.cellWidth;
+    if (pixelsPerDay <= 0) return null;
+
+    const daysFromStart = centerX / pixelsPerDay;
+    return addDays(scaleStart, Math.round(daysFromStart));
+  }, []);
+
+  // Scroll to center a specific date in the viewport
+  const scrollToDate = useCallback((targetDate: Date) => {
     const api = ganttApiRef.current;
     const container = ganttContainerRef.current;
     if (!api || !container) return;
 
-    const today = startOfDay(new Date());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const state = api.getState() as any;
     const scalesInternal = state?._scales;
-    if (!scalesInternal?.diff || !scalesInternal.start || !scalesInternal.lengthUnit) return;
+    if (!scalesInternal?.diff || !scalesInternal.start || !scalesInternal.lengthUnit || !state?.cellWidth) return;
 
-    const todayX = Math.round(scalesInternal.diff(today, scalesInternal.start, scalesInternal.lengthUnit) * state.cellWidth);
-    if (todayX < 0) return;
+    const targetX = Math.round(scalesInternal.diff(targetDate, scalesInternal.start, scalesInternal.lengthUnit) * state.cellWidth);
 
     const wxArea = container.querySelector('.wx-area') as HTMLElement;
     const scrollContainer = wxArea?.parentElement;
     if (!scrollContainer) return;
 
     const viewportWidth = scrollContainer.clientWidth;
-    const scrollTarget = Math.max(0, todayX - viewportWidth / 2);
+    const scrollTarget = Math.max(0, targetX - viewportWidth / 2);
 
     api.exec('scroll-chart', { left: scrollTarget });
     scrollContainer.scrollLeft = scrollTarget;
   }, []);
+
+  // Scroll to today using SVAR's internal scales for accurate pixel calculation
+  const scrollToToday = useCallback(() => {
+    scrollToDate(startOfDay(new Date()));
+  }, [scrollToDate]);
 
   useEffect(() => {
     const timeout = setTimeout(scrollToToday, 300);
@@ -845,14 +1017,34 @@ export function SVARTimelineView({
     };
   }, []);
 
-  // Zoom handlers
-  const handleZoomIn = useCallback(() => setZoomLevel((p) => Math.min(9, p + 1)), []);
-  const handleZoomOut = useCallback(() => setZoomLevel((p) => Math.max(1, p - 1)), []);
+  // Zoom handlers — anchor on viewport center so the view doesn't jump
+  const handleZoomIn = useCallback(() => {
+    captureViewportCenterAnchor();
+    setZoomLevel((p) => Math.min(9, p + 1));
+  }, [captureViewportCenterAnchor]);
+  const handleZoomOut = useCallback(() => {
+    captureViewportCenterAnchor();
+    setZoomLevel((p) => Math.max(1, p - 1));
+  }, [captureViewportCenterAnchor]);
 
   // Ctrl+wheel / trackpad pinch to zoom (with cursor anchoring)
+  // Batches rapid wheel events into a single zoom step per frame to avoid flicker.
   useEffect(() => {
     const container = ganttContainerRef.current;
     if (!container) return;
+
+    let accumulatedDelta = 0;
+    let pendingRaf: number | null = null;
+
+    const flushZoom = () => {
+      pendingRaf = null;
+      if (accumulatedDelta < 0) {
+        setZoomLevel((p) => Math.min(9, p + 1));
+      } else if (accumulatedDelta > 0) {
+        setZoomLevel((p) => Math.max(1, p - 1));
+      }
+      accumulatedDelta = 0;
+    };
 
     const handleWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
@@ -860,7 +1052,6 @@ export function SVARTimelineView({
 
       // Only capture anchor if no pending one exists — during rapid zoom,
       // the first capture is always consistent (cellWidth + scrollLeft match).
-      // Subsequent events before render see stale values and would corrupt it.
       if (!zoomAnchorRef.current) {
         const api = ganttApiRef.current;
         if (api) {
@@ -887,16 +1078,17 @@ export function SVARTimelineView({
         zoomAnchorClearRef.current = null;
       }, 200);
 
-      if (e.deltaY < 0) {
-        setZoomLevel((p) => Math.min(9, p + 1));
-      } else if (e.deltaY > 0) {
-        setZoomLevel((p) => Math.max(1, p - 1));
+      // Accumulate delta and schedule a single zoom step per frame
+      accumulatedDelta += e.deltaY;
+      if (pendingRaf === null) {
+        pendingRaf = requestAnimationFrame(flushZoom);
       }
     };
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
       container.removeEventListener('wheel', handleWheel);
+      if (pendingRaf !== null) cancelAnimationFrame(pendingRaf);
       if (zoomAnchorClearRef.current) clearTimeout(zoomAnchorClearRef.current);
     };
   }, []);
@@ -957,48 +1149,38 @@ export function SVARTimelineView({
   }, [getScrollElement]);
 
   // After cellWidth changes, scroll to keep the anchored point at the same viewport position.
-  // The anchor persists across rapid zoom (cleared by timeout in wheel handler, not here).
-  // Query the scroll element fresh each call (SVAR may recreate DOM nodes during re-render).
-  useEffect(() => {
+  // Uses useLayoutEffect to set scroll before browser paint, avoiding visual flashing.
+  useLayoutEffect(() => {
     const anchor = zoomAnchorRef.current;
     if (!anchor) return;
 
     const container = ganttContainerRef.current;
-    const api = ganttApiRef.current;
-    if (!container || !api) return;
+    if (!container) return;
 
     const newPixelX = Math.round(anchor.fractionalUnits * cellWidth);
     const scrollTarget = Math.max(0, newPixelX - anchor.viewportX);
 
-    const applyScroll = () => {
-      const wxArea = container.querySelector('.wx-area') as HTMLElement;
-      const sc = wxArea?.parentElement;
-      if (!sc) return;
-      sc.scrollLeft = scrollTarget;
-      api.exec('scroll-chart', { left: scrollTarget });
-    };
+    const wxArea = container.querySelector('.wx-area') as HTMLElement;
+    const sc = wxArea?.parentElement;
+    if (!sc) return;
 
-    applyScroll();
-    const raf1 = requestAnimationFrame(() => {
-      applyScroll();
-      requestAnimationFrame(applyScroll);
-    });
-
-    return () => cancelAnimationFrame(raf1);
+    // Set scroll position synchronously before paint — no SVAR exec needed,
+    // the DOM scrollLeft is the source of truth for the scroll container.
+    sc.scrollLeft = scrollTarget;
   }, [cellWidth]);
 
   // Memoize columns to prevent SVAR Grid re-initialization on every render
   const columns = useMemo(() => [
     {
       id: 'text',
-      header: 'Feature',
-      width: 200,
+      header: '',
+      width: storeGridColumnWidth,
       resize: true,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       cell: ({ row }: any) => {
         if (row.id === ADD_FEATURE_TASK_ID) {
           return (
-            <div className="flex items-center gap-1.5 w-full text-muted-foreground cursor-pointer">
+            <div className="flex items-center gap-1.5 px-3 text-muted-foreground cursor-pointer">
               <Plus className="h-3.5 w-3.5" />
               <span className="text-xs">Add feature</span>
             </div>
@@ -1010,8 +1192,9 @@ export function SVARTimelineView({
           return <TeamTrackCell row={row} />;
         }
         return (
-          <div className="flex items-center gap-2 w-full min-w-0">
-            <span className="truncate min-w-0 flex-1">{row.text}</span>
+          <div className="flex items-center gap-1.5 min-w-0 px-3">
+            <StatusToggle id={row.id} status={custom?.status ?? 'not_started'} onToggle={onStatusChangeRef} />
+            <span className={`truncate min-w-0 flex-1 ${custom?.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>{row.text}</span>
             <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
               {row.durationText}
             </span>
@@ -1019,13 +1202,35 @@ export function SVARTimelineView({
         );
       },
     },
-  ], []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [storeGridColumnWidth]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0 border border-border rounded-lg overflow-hidden">
       {/* Toolbar */}
-      <div className="relative flex items-center px-3 py-2 border-b border-border bg-muted/30">
-        {/* Left controls */}
+      <div className="flex items-center px-3 py-2 border-b border-border bg-muted/30">
+        {/* Milestone name/selector */}
+        {allProjects && allProjects.length > 1 && onProjectChange ? (
+          <Select value={project.id} onValueChange={onProjectChange}>
+            <SelectTrigger className="w-auto gap-1.5 text-sm font-medium border-none shadow-none bg-transparent" style={{ height: '28px' }}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {allProjects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-sm font-medium">{project.name}</span>
+        )}
+
+        {/* Separator */}
+        <div className="h-4 w-px bg-border mx-2" />
+
+        {/* Controls */}
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="text-xs" style={{ height: '28px' }} onClick={scrollToToday}>
             Today
@@ -1089,30 +1294,35 @@ export function SVARTimelineView({
           )}
         </div>
 
-        {/* Center — milestone selector */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          {allProjects && allProjects.length > 1 && onProjectChange ? (
-            <Select value={project.id} onValueChange={onProjectChange}>
-              <SelectTrigger className="w-auto gap-1.5 text-sm font-medium border-none shadow-none bg-transparent pointer-events-auto" style={{ height: '28px' }}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {allProjects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <span className="text-sm font-medium">{project.name}</span>
-          )}
-        </div>
+        {/* Prev/Next milestone — far right */}
+        {allProjects && allProjects.length > 1 && onProjectChange && (
+          <div className="ml-auto flex items-center rounded-md border border-border overflow-hidden">
+            <button
+              className="flex items-center justify-center h-6 w-6 hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              onClick={() => {
+                const idx = allProjects.findIndex((p) => p.id === project.id);
+                if (idx > 0) onProjectChange(allProjects[idx - 1].id);
+              }}
+              disabled={allProjects.findIndex((p) => p.id === project.id) <= 0}
+              title="Previous milestone"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <div className="h-4 w-px bg-border" />
+            <button
+              className="flex items-center justify-center h-6 w-6 hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              onClick={() => {
+                const idx = allProjects.findIndex((p) => p.id === project.id);
+                if (idx < allProjects.length - 1) onProjectChange(allProjects[idx + 1].id);
+              }}
+              disabled={allProjects.findIndex((p) => p.id === project.id) >= allProjects.length - 1}
+              title="Next milestone"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
-        {/* Right — feature count */}
-        <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-          {sortedFeatures.length} feature{sortedFeatures.length !== 1 ? 's' : ''}
-        </span>
       </div>
 
       {/* Main content - Let SVAR handle the grid and chart layout */}
@@ -1141,6 +1351,20 @@ export function SVARTimelineView({
             init={initGantt}
           />
         </SVARThemeWrapper>
+
+        {/* Feature count label — overlays the empty SVAR column header */}
+        <div
+          className="absolute flex items-center pointer-events-none z-10 px-3"
+          style={{
+            top: 0,
+            left: 0,
+            height: `${SCALE_HEIGHT * 2}px`,
+          }}
+        >
+          <span className="text-xs font-medium text-muted-foreground">
+            {sortedFeatures.length} feature{sortedFeatures.length !== 1 ? 's' : ''}
+          </span>
+        </div>
 
         {/* Custom Today Marker (SVAR markers are paywalled) */}
         <TodayMarker

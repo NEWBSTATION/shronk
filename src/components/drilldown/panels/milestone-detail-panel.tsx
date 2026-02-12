@@ -2,7 +2,7 @@
 
 import { useMemo, useCallback } from "react";
 import { format } from "date-fns";
-import { Plus, Calendar, Box, Circle, CircleCheck, ArrowLeft, Ellipsis } from "lucide-react";
+import { Plus, Calendar, Box, ArrowLeft, Ellipsis } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -253,31 +253,35 @@ export function MilestoneDetailPanel({
             </Button>
           </div>
         ) : (
-          features.map((feature) => (
-            <button
-              key={feature.id}
-              onClick={() => handleEditFeature(feature)}
-              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left hover:bg-accent transition-colors group"
-            >
-              {feature.status === "completed" ? (
-                <CircleCheck className="h-4 w-4 text-green-500 shrink-0" fill="currentColor" />
-              ) : (
-                <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-              )}
-              <span
-                className={
-                  feature.status === "completed"
-                    ? "text-sm text-muted-foreground line-through flex-1 truncate"
-                    : "text-sm flex-1 truncate"
-                }
+          features.map((feature) => {
+            const dotClass =
+              feature.status === "completed" ? "bg-emerald-500" :
+              feature.status === "in_progress" ? "bg-blue-500" :
+              feature.status === "on_hold" ? "bg-amber-500" :
+              feature.status === "cancelled" ? "bg-zinc-400" :
+              "bg-zinc-300";
+            return (
+              <button
+                key={feature.id}
+                onClick={() => handleEditFeature(feature)}
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left hover:bg-accent transition-colors group"
               >
-                {feature.title}
-              </span>
-              <span className="text-xs text-muted-foreground/60 shrink-0">
-                {feature.duration}d
-              </span>
-            </button>
-          ))
+                <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${dotClass}`} />
+                <span
+                  className={
+                    feature.status === "completed"
+                      ? "text-sm text-muted-foreground line-through flex-1 truncate"
+                      : "text-sm flex-1 truncate"
+                  }
+                >
+                  {feature.title}
+                </span>
+                <span className="text-xs text-muted-foreground/60 shrink-0">
+                  {feature.duration}d
+                </span>
+              </button>
+            );
+          })
         )}
       </div>
     </div>

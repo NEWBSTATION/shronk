@@ -402,25 +402,17 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
         </div>
       )}
 
-      {/* Right-side detail panel overlay */}
+      {/* Right-side detail panel — floating island within timeline bounds */}
       {panelContent && (
-        <>
-          {/* Scrim — click to close */}
-          <div
-            className={cn(
-              "absolute inset-0 z-40 bg-black/20 transition-opacity duration-300",
-              panelVisible ? "opacity-100" : "opacity-0"
-            )}
-            onClick={closePanel}
-          />
-
-          {/* Panel */}
-          <div
-            className={cn(
-              "absolute inset-y-0 right-0 z-50 w-full md:w-[480px] bg-background border-l shadow-lg overflow-y-auto transition-transform duration-300 ease-out",
-              panelVisible ? "translate-x-0" : "translate-x-full"
-            )}
-          >
+        <div
+          className={cn(
+            "feature-island-panel absolute top-10 bottom-10 right-10 z-50 w-[calc(100%-2.5rem)] md:w-[480px] min-w-[320px] max-w-[calc(100%-5rem)] overflow-hidden bg-background rounded-2xl border border-border shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15),0_0_0_1px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)] transition-all duration-300 ease-out",
+            panelVisible
+              ? "translate-x-0 opacity-100"
+              : "translate-x-8 opacity-0 pointer-events-none"
+          )}
+        >
+          <div className="h-full overflow-y-auto overflow-x-hidden">
             {panelContent.mode === "edit" ? (
               <FeatureDetailPanel
                 feature={panelContent.feature}
@@ -455,7 +447,7 @@ export function TimelineTab({ initialMilestoneId }: TimelineTabProps) {
               />
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

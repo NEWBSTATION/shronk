@@ -22,8 +22,8 @@ export function DrilldownStack() {
           <div
             key={panel.id + "-" + index}
             className={cn(
-              "absolute inset-0 flex justify-center transition-all duration-300 ease-out overflow-y-auto",
-              // Active (top of stack) — centered content, fully visible
+              "absolute inset-0 flex justify-end p-3 transition-all duration-300 ease-out",
+              // Active (top of stack) — fully visible
               isActive && "translate-x-0 opacity-100",
               // Behind (1 level back) — slid left, blurred, dimmed
               !isExiting &&
@@ -45,7 +45,7 @@ export function DrilldownStack() {
             }}
           >
             <div
-              className="w-full md:w-[600px] pb-8"
+              className="w-full md:w-[600px] rounded-2xl border border-border/60 bg-background shadow-lg shadow-black/[0.08] dark:shadow-black/25 overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {panel.content}

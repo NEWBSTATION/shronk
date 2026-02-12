@@ -1,6 +1,6 @@
 "use client";
 
-import { Gem, Box, ChartGantt, Settings, Plus } from "lucide-react";
+import { Gem, Box, ChartGantt, Settings, Plus, Gauge } from "lucide-react";
 import Image from "next/image";
 import {
   Tooltip,
@@ -17,10 +17,11 @@ import { HeaderUserMenu } from "@/components/header-user-menu";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
-export type TabId = "features" | "timeline" | "settings";
+export type TabId = "dashboard" | "features" | "timeline" | "settings";
 export type CreateAction = "milestone" | "feature";
 
 const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
+  { id: "dashboard", label: "Dashboard", icon: Gauge },
   { id: "features", label: "Features", icon: Gem },
   { id: "timeline", label: "Timeline", icon: ChartGantt },
   { id: "settings", label: "Settings", icon: Settings },
@@ -44,13 +45,13 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onNavigateSe
   return (
     <header className="flex shrink-0 items-center bg-background px-6 py-6">
       {/* Left: Logo */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex-1 flex items-center gap-1.5">
         <Image src="/orc-head.svg" alt="Shronk" width={20} height={20} className="dark:invert-0 invert" />
         <span className="text-base" style={{ fontFamily: "Silkscreen, cursive" }}>Shronk</span>
       </div>
 
       {/* Center: Tab pills + create button */}
-      <div className="flex-1 flex justify-center">
+      <div className="flex justify-center">
         <TooltipProvider delayDuration={300}>
           <div className="flex items-center gap-2">
             <div className="inline-flex items-center gap-1 rounded-2xl bg-muted p-1">
@@ -130,7 +131,9 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onNavigateSe
       </div>
 
       {/* Right: User menu */}
-      <HeaderUserMenu onNavigateSettings={onNavigateSettings} />
+      <div className="flex-1 flex justify-end">
+        <HeaderUserMenu onNavigateSettings={onNavigateSettings} />
+      </div>
     </header>
   );
 }
