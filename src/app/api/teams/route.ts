@@ -8,12 +8,14 @@ import { z } from "zod";
 const createTeamSchema = z.object({
   name: z.string().min(1).max(255),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#6366f1"),
+  autoAdd: z.boolean().optional().default(false),
 });
 
 const updateTeamSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).max(255).optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  autoAdd: z.boolean().optional(),
 });
 
 const deleteTeamSchema = z.object({
@@ -88,6 +90,7 @@ export async function PATCH(request: NextRequest) {
     const updateData: Record<string, unknown> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.color !== undefined) updateData.color = data.color;
+    if (data.autoAdd !== undefined) updateData.autoAdd = data.autoAdd;
 
     const [updated] = await db
       .update(teams)

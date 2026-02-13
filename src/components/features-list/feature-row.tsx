@@ -3,7 +3,9 @@
 import { useState, useMemo } from "react";
 import { format, getYear } from "date-fns";
 import { ChevronRight, GripVertical } from "lucide-react";
-import { useDraggable } from "@dnd-kit/core";
+import { formatDuration } from "@/lib/format-duration";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
@@ -58,6 +60,7 @@ interface FeatureRowProps {
   onToggleComplete?: () => void;
   onStatusChange?: (newStatus: string) => void;
   isDragging?: boolean;
+  isAnyDragging?: boolean;
   isOverlay?: boolean;
   dragHandleProps?: Record<string, unknown>;
   nodeRef?: (node: HTMLElement | null) => void;
@@ -79,6 +82,7 @@ export function FeatureRow({
   onToggleComplete,
   onStatusChange,
   isDragging,
+  isAnyDragging,
   isOverlay,
   dragHandleProps,
   nodeRef,
@@ -115,7 +119,8 @@ export function FeatureRow({
       style={style}
       onClick={onClick}
       className={cn(
-        "flex items-center px-4 py-3.5 transition-colors cursor-pointer group bg-background hover:bg-accent/50 border-b last:border-b-0",
+        "relative flex items-center px-4 py-3.5 transition-colors cursor-pointer bg-background border-b last:border-b-0",
+        !isAnyDragging && "group hover:bg-accent/50",
         selected && "bg-accent",
         isDragging && "opacity-30",
         isOverlay && "border rounded-lg shadow-lg"
@@ -126,10 +131,10 @@ export function FeatureRow({
         className={cn(
           "shrink-0 flex items-center overflow-hidden transition-all duration-150",
           selectMode || selected || statusOpen
-            ? "w-9 opacity-100 gap-2 mr-3"
+            ? "w-10 opacity-100 gap-2 mr-3"
             : isOverlay
-              ? "w-9 opacity-100 gap-2 mr-3"
-              : "w-0 opacity-0 mr-0 group-hover:w-9 group-hover:opacity-100 group-hover:gap-2 group-hover:mr-3"
+              ? "w-10 opacity-100 gap-2 mr-3"
+              : "w-0 opacity-0 mr-0 group-hover:w-10 group-hover:opacity-100 group-hover:gap-2 group-hover:mr-3"
         )}
       >
         {!selectMode && (
@@ -249,7 +254,7 @@ export function FeatureRow({
                     />
                     <span className="truncate max-w-[72px]">{td.teamName}</span>
                     <span className="tabular-nums text-muted-foreground/50">
-                      {td.duration}d
+                      {formatDuration(td.duration)}
                     </span>
                   </span>
                 ))}
@@ -289,20 +294,31 @@ export function FeatureRow({
   );
 }
 
-export function DraggableFeatureRow(
+export function SortableFeatureRow(
   props: Omit<
     FeatureRowProps,
     "isDragging" | "isOverlay" | "dragHandleProps" | "nodeRef" | "style"
   >
 ) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: props.id,
-  });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
     <FeatureRow
       {...props}
       nodeRef={setNodeRef}
+      style={style}
       isDragging={isDragging}
       dragHandleProps={
         props.selectMode ? undefined : { ...attributes, ...listeners }

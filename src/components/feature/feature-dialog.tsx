@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import { CalendarIcon, Timer, Layers3, Users, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
 import {
@@ -46,6 +47,13 @@ interface TeamOption {
   id: string;
   name: string;
   color: string;
+  autoAdd?: boolean;
+}
+
+export interface ChainTo {
+  featureId: string;
+  featureTitle: string;
+  endDate: Date | string;
 }
 
 interface FeatureDialogProps {
@@ -56,6 +64,10 @@ interface FeatureDialogProps {
   defaultMilestoneId?: string | null;
   /** Available teams for team track assignment */
   teams?: TeamOption[];
+  /** Previous feature to chain to (sets start date + creates dependency) */
+  chainTo?: ChainTo | null;
+  /** Whether chain toggle should start enabled */
+  chainEnabled?: boolean;
 }
 
 export function FeatureDialog({
@@ -64,6 +76,8 @@ export function FeatureDialog({
   milestones,
   defaultMilestoneId,
   teams = [],
+  chainTo,
+  chainEnabled: chainEnabledProp = false,
 }: FeatureDialogProps) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
@@ -77,13 +91,36 @@ export function FeatureDialog({
   const [localDurationValue, setLocalDurationValue] = useState(2);
   const [localDurationUnit, setLocalDurationUnit] = useState<DurationUnit>("weeks");
   const [pendingTeamTracks, setPendingTeamTracks] = useState<Map<string, number>>(new Map());
+  const [chainActive, setChainActive] = useState(false);
 
-  // Sync default milestone when dialog opens
+  // Sync default milestone + chain state when dialog opens
   useEffect(() => {
     if (open) {
       setMilestoneId(defaultMilestoneId || milestones[0]?.id || "");
+      const shouldChain = chainEnabledProp && !!chainTo;
+      setChainActive(shouldChain);
+      if (shouldChain && chainTo) {
+        setStartDate(addDays(new Date(chainTo.endDate), 1));
+      }
+      // Pre-populate team tracks from teams with autoAdd enabled
+      const autoAddTeams = teams.filter((t) => t.autoAdd);
+      if (autoAddTeams.length > 0) {
+        const totalDays = durationValue * DURATION_UNIT_MULTIPLIERS[durationUnit];
+        setPendingTeamTracks(
+          new Map(autoAddTeams.map((t) => [t.id, totalDays]))
+        );
+      }
     }
-  }, [open, defaultMilestoneId, milestones]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultMilestoneId, milestones, chainEnabledProp, chainTo, teams]);
+
+  // When chain toggle is turned on, snap start date to predecessor's end + 1
+  const handleChainToggle = (checked: boolean) => {
+    setChainActive(checked);
+    if (checked && chainTo) {
+      setStartDate(addDays(new Date(chainTo.endDate), 1));
+    }
+  };
 
   const resetForm = () => {
     setTitle("");
@@ -92,6 +129,7 @@ export function FeatureDialog({
     setDurationValue(2);
     setDurationUnit("weeks");
     setPendingTeamTracks(new Map());
+    setChainActive(false);
     setError(null);
   };
 
@@ -121,6 +159,18 @@ export function FeatureDialog({
 
       const newMilestone = await response.json();
 
+      // Create chain dependency if active
+      if (chainActive && chainTo) {
+        await fetch("/api/dependencies", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            predecessorId: chainTo.featureId,
+            successorId: newMilestone.id,
+          }),
+        });
+      }
+
       // Upsert pending team tracks
       if (pendingTeamTracks.size > 0) {
         await Promise.all(
@@ -138,11 +188,14 @@ export function FeatureDialog({
         );
       }
 
-      toast.success("Feature created");
+      toast.success(chainActive && chainTo ? "Feature created & chained" : "Feature created");
       onOpenChange(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
       queryClient.invalidateQueries({ queryKey: ["milestones"] });
+      if (chainActive && chainTo) {
+        queryClient.invalidateQueries({ queryKey: ["dependencies"] });
+      }
     } catch (err) {
       setError((err as Error).message || "Failed to create feature");
     } finally {
@@ -225,7 +278,7 @@ export function FeatureDialog({
                   setLocalDurationUnit(durationUnit);
                 }
                 if (!newOpen && (localDurationValue !== durationValue || localDurationUnit !== durationUnit)) {
-                  setDurationValue(Math.max(1, localDurationValue));
+                  setDurationValue(Math.max(0, localDurationValue));
                   setDurationUnit(localDurationUnit);
                 }
                 setDurationOpen(newOpen);
@@ -244,8 +297,8 @@ export function FeatureDialog({
                 <div className="flex items-center gap-2">
                   <NumberStepper
                     value={localDurationValue}
-                    onChange={(v) => setLocalDurationValue(Math.max(1, v))}
-                    min={1}
+                    onChange={(v) => setLocalDurationValue(Math.max(0, v))}
+                    min={0}
                     className="w-20"
                   />
                   <Select
@@ -273,7 +326,8 @@ export function FeatureDialog({
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center h-8 px-2 text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer"
+                  disabled={chainActive}
+                  className="flex items-center h-8 px-2 text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {format(startDate, "MMM d, yyyy")}
                 </button>
@@ -290,6 +344,7 @@ export function FeatureDialog({
               </PopoverContent>
             </Popover>
           </PropertyRow>
+
         </div>
 
         {/* Team Tracks */}
@@ -315,6 +370,16 @@ export function FeatureDialog({
         )}
 
         <DialogFooter className="mt-4">
+          {chainTo && (
+            <label className="flex items-center gap-2 cursor-pointer select-none mr-auto">
+              <Switch
+                size="sm"
+                checked={chainActive}
+                onCheckedChange={handleChainToggle}
+              />
+              <span className="text-xs text-muted-foreground">Auto-Chain</span>
+            </label>
+          )}
           <Button
             variant="outline"
             onClick={() => {
@@ -440,7 +505,7 @@ function DialogTeamTrackRow({
   const handleClose = useCallback(
     (newOpen: boolean) => {
       if (!newOpen && localDuration !== duration) {
-        onUpdateDuration(Math.max(1, localDuration));
+        onUpdateDuration(Math.max(0, localDuration));
       }
       setOpen(newOpen);
     },
@@ -472,8 +537,8 @@ function DialogTeamTrackRow({
             <div className="flex items-center gap-2">
               <NumberStepper
                 value={localDuration}
-                onChange={(v) => setLocalDuration(Math.max(1, v))}
-                min={1}
+                onChange={(v) => setLocalDuration(Math.max(0, v))}
+                min={0}
                 className="w-20"
               />
               <span className="text-sm text-muted-foreground">

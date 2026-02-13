@@ -39,6 +39,7 @@ import { getPixelsPerDay, dateToPixel, getTotalWidth } from './date-math';
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from './constants';
 import { useTimelineStore } from '@/store/timeline-store';
 import { reflowProject, type ReflowMilestone, type ReflowDependency } from '@/lib/reflow';
+import { topoSortFeatures } from '@/lib/topo-sort';
 import { useBarDrag } from './use-bar-drag';
 import { useDragLink } from './use-drag-link';
 import { useLinkDelete } from './use-link-delete';
@@ -105,10 +106,13 @@ interface TimelineViewProps {
   onUpdateTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
   onStatusChange: (id: string, status: MilestoneStatus) => Promise<void>;
   onPriorityChange?: (id: string, priority: MilestonePriority) => Promise<void>;
-  onAddFeature: () => void;
-  onQuickCreate?: (name: string, startDate: Date, endDate: Date, duration: number) => Promise<void>;
+  onAddFeature: (opts?: { chain?: boolean }) => void;
+  onQuickCreate?: (name: string, startDate: Date, endDate: Date, duration: number, chainToId?: string) => Promise<void>;
   onCreateDependency: (predecessorId: string, successorId: string) => Promise<void>;
   onDeleteDependency: (id: string) => Promise<void>;
+  onReorderFeatures?: (projectId: string, orderedFeatureIds: string[]) => Promise<void>;
+  onMilestoneClick?: (project: Project) => void;
+  onAddMilestone?: () => void;
 }
 
 export function TimelineView({
@@ -128,6 +132,9 @@ export function TimelineView({
   onStatusChange,
   onCreateDependency,
   onDeleteDependency,
+  onReorderFeatures,
+  onMilestoneClick,
+  onAddMilestone,
 }: TimelineViewProps) {
   const timePeriod = useTimelineStore((s) => s.getMilestoneTimePeriod(project.id)) as TimePeriod;
   const setMilestoneTimePeriod = useTimelineStore((s) => s.setMilestoneTimePeriod);
@@ -161,6 +168,7 @@ export function TimelineView({
     [project.id, setMilestoneZoomLevel]
   );
   const [showDependencies, setShowDependencies] = useState(true);
+  const [isGridDragging, setIsGridDragging] = useState(false);
 
   const chartRef = useRef<TimelineChartHandle>(null);
   const ganttContainerRef = useRef<HTMLDivElement>(null);
@@ -181,6 +189,8 @@ export function TimelineView({
   onUpdateTeamDurationRef.current = onUpdateTeamDuration;
   const onStatusChangeRef = useRef(onStatusChange);
   onStatusChangeRef.current = onStatusChange;
+  const onReorderFeaturesRef = useRef(onReorderFeatures);
+  onReorderFeaturesRef.current = onReorderFeatures;
 
   const setGridColumnWidth = useTimelineStore((s) => s.setGridColumnWidth);
   const storeGridColumnWidth = useTimelineStore((s) => s.gridColumnWidth);
@@ -361,12 +371,29 @@ export function TimelineView({
     }, 500);
   }, []);
 
-  // Sort and transform features
+  // Sort features by dependency chain order (topo sort) so arrows flow top-to-bottom
   const sortedFeatures = useMemo(() => {
-    return [...features].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
-  }, [features]);
+    return topoSortFeatures(features, dependencies);
+  }, [features, dependencies]);
 
   const hasTeamTracks = teamDurations.length > 0;
+
+  // Chain info: last feature in the sorted list for chain-to behavior
+  const chainInfo = useMemo(() => {
+    if (sortedFeatures.length === 0) return null;
+    const last = sortedFeatures[sortedFeatures.length - 1];
+    return {
+      featureId: last.id,
+      featureTitle: last.title,
+      endDate: toLocalMidnight(last.endDate),
+    };
+  }, [sortedFeatures]);
+
+  // Chain-end IDs: features that have no successors (nothing depends on them)
+  const chainEndIds = useMemo(() => {
+    const predecessorSet = new Set(dependencies.map(d => d.predecessorId));
+    return new Set(sortedFeatures.filter(f => !predecessorSet.has(f.id)).map(f => f.id));
+  }, [sortedFeatures, dependencies]);
 
   const tasks: TimelineTask[] = useMemo(() => {
     let featureTasks: TimelineTask[];
@@ -383,6 +410,13 @@ export function TimelineView({
       featureTasks = sortedFeatures.map(milestoneToTimelineTask);
     }
 
+    // Mark chain-end parent nodes
+    for (const task of featureTasks) {
+      if (!task.$custom?.isTeamTrack && chainEndIds.has(task.id)) {
+        if (task.$custom) task.$custom.isChainEnd = true;
+      }
+    }
+
     featureTasks.push({
       id: ADD_FEATURE_TASK_ID,
       text: '',
@@ -393,7 +427,7 @@ export function TimelineView({
       type: 'task',
     });
     return featureTasks;
-  }, [sortedFeatures, hasTeamTracks, teamDurations, teams, visibleTeamIds]);
+  }, [sortedFeatures, hasTeamTracks, teamDurations, teams, visibleTeamIds, chainEndIds]);
 
   const links: TimelineLink[] = useMemo(() => {
     if (!showDependencies) return [];
@@ -476,6 +510,24 @@ export function TimelineView({
     const timeout = setTimeout(scrollToToday, 100);
     return () => clearTimeout(timeout);
   }, [scrollToToday]);
+
+  // --- Keyboard shortcuts ---
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ignore when typing in an input/textarea
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        onAddFeatureRef.current(e.shiftKey ? { chain: true } : undefined);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
 
   // --- Drag-to-connect & link delete ---
   useDragLink(ganttContainerRef, onCreateDependencyRef, ADD_FEATURE_TASK_ID);
@@ -571,6 +623,11 @@ export function TimelineView({
     handleBarTaskClick(task.id);
   }, [handleBarTaskClick]);
 
+  // --- Grid row reorder ---
+  const handleGridReorder = useCallback((orderedFeatureIds: string[]) => {
+    onReorderFeaturesRef.current?.(project.id, orderedFeatureIds);
+  }, [project.id]);
+
   // --- Row hover highlight ---
   const mainContentRef = useRef<HTMLDivElement>(null);
   const taskCountRef = useRef(tasks.length);
@@ -609,11 +666,17 @@ export function TimelineView({
       highlight.style.opacity = '0';
     };
 
+    const handleScroll = () => {
+      highlight.style.opacity = '0';
+    };
+
     container.addEventListener('mousemove', handleMouseMove);
     container.addEventListener('mouseleave', handleMouseLeave);
+    container.addEventListener('scroll', handleScroll, true);
     return () => {
       container.removeEventListener('mousemove', handleMouseMove);
       container.removeEventListener('mouseleave', handleMouseLeave);
+      container.removeEventListener('scroll', handleScroll, true);
       highlight.remove();
     };
   }, []);
@@ -863,20 +926,28 @@ export function TimelineView({
       <div ref={mainContentRef} className="flex flex-1 min-h-0 relative">
         <TimelineGrid
           tasks={tasks}
+          features={sortedFeatures}
           width={storeGridColumnWidth}
           scrollRef={gridScrollRef}
           onRowClick={handleGridRowClick}
           onStatusChange={onStatusChangeRef}
           onAddFeature={onAddFeature}
+          onReorder={handleGridReorder}
+          onDragActiveChange={setIsGridDragging}
           project={project}
           allProjects={allProjects}
           onProjectChange={onProjectChange}
+          onMilestoneClick={onMilestoneClick}
+          onAddMilestone={onAddMilestone}
         />
 
         <div
           ref={resizeHandleRef}
-          className="w-1 shrink-0 cursor-col-resize bg-border hover:bg-primary/30 active:bg-primary/50 transition-colors"
-        />
+          className="shrink-0 cursor-col-resize flex items-stretch justify-center group"
+          style={{ width: '9px', marginLeft: '-4px', marginRight: '-4px' }}
+        >
+          <div className="w-px bg-border group-hover:bg-primary/60 group-active:bg-primary/80 transition-colors" />
+        </div>
 
         <div
           ref={ganttContainerRef}
@@ -897,8 +968,10 @@ export function TimelineView({
             pixelsPerDay={pixelsPerDay}
             onScroll={handleChartScrollSync}
             onTaskClick={handleBarTaskClick}
-            addFeatureRowIndex={onQuickCreate ? tasks.length - 1 : undefined}
+            addFeatureRowIndex={onQuickCreate ? (isGridDragging ? tasks.filter(t => !t.$custom?.isTeamTrack).length - 1 : tasks.length - 1) : undefined}
             onQuickCreate={onQuickCreate}
+            chainInfo={chainInfo}
+            hideTeamTracks={isGridDragging}
           />
 
           <TodayMarker

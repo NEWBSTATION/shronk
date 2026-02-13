@@ -11,13 +11,14 @@ import { DrilldownStack } from "@/components/drilldown/drilldown-stack";
 import { DashboardTab } from "@/components/tabs/dashboard-tab";
 import { FeaturesTab } from "@/components/tabs/features-tab";
 import { TimelineTab } from "@/components/tabs/timeline-tab";
+import { CalendarTab } from "@/components/tabs/calendar-tab";
 import {
   SettingsDialog,
   type SettingsSection,
 } from "@/components/settings/settings-panel";
 import { cn } from "@/lib/utils";
 
-const VALID_TABS: TabId[] = ["dashboard", "features", "timeline"];
+const VALID_TABS: TabId[] = ["dashboard", "features", "timeline", "calendar"];
 const VALID_SETTINGS_SECTIONS: SettingsSection[] = [
   "profile",
   "preferences",
@@ -118,6 +119,14 @@ function DashboardMain({
             <TimelineTab initialMilestoneId={milestoneId} isActive={activeTab === "timeline"} />
           )}
         </div>
+        <div
+          className={cn(
+            "absolute inset-0 flex flex-col",
+            activeTab !== "calendar" && "invisible opacity-0 pointer-events-none"
+          )}
+        >
+          {mountedTabs.has("calendar") && <CalendarTab isActive={activeTab === "calendar"} />}
+        </div>
       </div>
 
       <DrilldownStack />
@@ -155,6 +164,9 @@ function DashboardContent() {
   const [createIntent, setCreateIntent] = useState(0);
   const [createType, setCreateType] = useState<CreateAction>("feature");
 
+  // Controlled create-popover state (shared with AppHeader for global hotkey)
+  const [createOpen, setCreateOpen] = useState(false);
+
   // Sync with external URL changes (e.g., middleware redirects, deep links)
   useEffect(() => {
     const urlTab = searchParams.get("tab") as TabId | null;
@@ -170,9 +182,10 @@ function DashboardContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // Preload timeline bundle so it's cached before user visits the tab
+  // Preload timeline + calendar bundles so they're cached before user visits the tab
   useEffect(() => {
     import("@/components/timeline/timeline-view");
+    import("@/components/calendar/calendar-view");
   }, []);
 
   // --- Settings dialog handlers ---
@@ -249,6 +262,22 @@ function DashboardContent() {
     [handleTabChange]
   );
 
+  // Global hotkey: C opens create popover (M/F handled inside AppHeader)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+
+      if (e.key === "c") {
+        e.preventDefault();
+        setCreateOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   return (
     <DrilldownProvider>
       <div className="flex flex-col h-svh">
@@ -257,6 +286,8 @@ function DashboardContent() {
           onTabChange={handleTabChange}
           onCreateAction={handleCreateAction}
           onOpenSettings={handleOpenSettings}
+          createOpen={createOpen}
+          onCreateOpenChange={setCreateOpen}
         />
         <DashboardMain
           activeTab={activeTab}

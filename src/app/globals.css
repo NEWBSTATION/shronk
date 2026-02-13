@@ -397,22 +397,89 @@ pre {
 
 .timeline-bar {
   border-radius: 4px;
-  background-color: var(--chart-2);
-  color: #fff;
+  background-color: color-mix(in srgb, var(--muted-foreground) 30%, var(--background));
+  color: var(--foreground);
   cursor: grab;
   user-select: none;
   overflow: visible;
   z-index: 10;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.timeline-bar:not(.timeline-bar-team-track) {
+  border: 1.5px solid color-mix(in srgb, var(--muted-foreground) 25%, transparent);
+}
+
+.timeline-bar:not(.timeline-bar-team-track):hover {
+  border-color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
 }
 
 .timeline-bar:hover {
-  box-shadow: 0px 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent),
-              0px 3px 10px color-mix(in srgb, var(--foreground) 12%, transparent);
+  background-color: color-mix(in srgb, var(--muted-foreground) 38%, var(--background));
 }
 
 .timeline-bar:active {
   cursor: grabbing;
+}
+
+/* Animated diagonal stripes on team track hover */
+.timeline-bar-team-track {
+  background-position: 0 0;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.timeline-bar-team-track:hover {
+  animation: stripe-scroll 1s linear infinite;
+  border-color: color-mix(in srgb, var(--team-color) 60%, transparent) !important;
+}
+
+@keyframes stripe-scroll {
+  from { background-position: 0 0; }
+  to { background-position: 8.49px 8.49px; }
+}
+
+/* Left/right edge fade on the chart scroll area (below header scales) */
+.timeline-scroll-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 32px;
+  background: linear-gradient(to right, var(--background), transparent);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Chain-end parent bar — fade the fill + border only, not handles/labels */
+.timeline-bar-chain-end:not(.timeline-bar-team-track) {
+  background: none !important;
+  border-color: transparent !important;
+}
+
+.timeline-bar-chain-end:not(.timeline-bar-team-track) > .timeline-bar-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: color-mix(in srgb, var(--muted-foreground) 30%, var(--background));
+  border: 1.5px solid color-mix(in srgb, var(--muted-foreground) 25%, transparent);
+  mask-image: linear-gradient(to right, black 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 70%, transparent 100%);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.timeline-bar-chain-end:not(.timeline-bar-team-track):hover > .timeline-bar-fill {
+  background-color: color-mix(in srgb, var(--muted-foreground) 38%, var(--background));
+  border-color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+}
+
+/* Completed bar — dimmed with subtle strikethrough */
+.timeline-bar-completed:not(.timeline-bar-team-track) {
+  opacity: 0.45;
+}
+
+.timeline-bar-completed:not(.timeline-bar-team-track):hover {
+  opacity: 0.65;
 }
 
 /* Resize handles (left/right edges) */
@@ -487,6 +554,14 @@ pre {
   z-index: 1;
 }
 
+.timeline-bar-completed .timeline-bar-label {
+  color: var(--muted-foreground);
+}
+
+.timeline-bar-completed .timeline-bar-label-text {
+  text-decoration: line-through;
+}
+
 /* Duration badge next to bar label */
 .timeline-bar-duration {
   font-size: 10px;
@@ -497,6 +572,22 @@ pre {
   border-radius: 4px;
   line-height: 1.4;
   margin-left: 6px;
+}
+
+/* Done badge for completed bars — replaces duration, stands out */
+.timeline-bar-done-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: #10b981;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.5;
+  margin-left: 6px;
+  text-decoration: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #10b981 30%, transparent);
 }
 
 /* Team track bar label variant */

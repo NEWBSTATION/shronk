@@ -6,6 +6,7 @@ import {
   varchar,
   pgEnum,
   integer,
+  boolean,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -76,6 +77,7 @@ export const teams = pgTable("teams", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   color: varchar("color", { length: 7 }).default("#6366f1").notNull(),
+  autoAdd: boolean("auto_add").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -25,8 +25,12 @@ export function useDragLink(
     let startY = 0;
     let svgOverlay: SVGSVGElement | null = null;
     let pathEl: SVGPathElement | null = null;
+    let panRAF: number | null = null;
+    let lastMouseEvent: MouseEvent | null = null;
 
     const DRAG_THRESHOLD = 5;
+    const PAN_EDGE_SIZE = 60;  // px from edge to start panning
+    const PAN_SPEED = 12;      // px per frame at the very edge
 
     /** Walk up from a handle to find the task bar's data-task-id */
     function getTaskIdFromHandle(handle: HTMLElement): string | null {
@@ -81,6 +85,46 @@ export function useDragLink(
       return null;
     }
 
+    function getScrollArea(): HTMLElement | null {
+      return container.querySelector('.timeline-scroll-area') as HTMLElement | null;
+    }
+
+    function stopPan() {
+      if (panRAF !== null) {
+        cancelAnimationFrame(panRAF);
+        panRAF = null;
+      }
+    }
+
+    function panLoop() {
+      const scrollArea = getScrollArea();
+      const e = lastMouseEvent;
+      if (!scrollArea || !e || !isDragging) { stopPan(); return; }
+
+      const rect = scrollArea.getBoundingClientRect();
+      const cursorX = e.clientX;
+      let scrollDelta = 0;
+
+      if (cursorX < rect.left + PAN_EDGE_SIZE) {
+        // Pan left — stronger the closer to edge
+        const t = 1 - Math.max(0, cursorX - rect.left) / PAN_EDGE_SIZE;
+        scrollDelta = -PAN_SPEED * t;
+      } else if (cursorX > rect.right - PAN_EDGE_SIZE) {
+        // Pan right
+        const t = 1 - Math.max(0, rect.right - cursorX) / PAN_EDGE_SIZE;
+        scrollDelta = PAN_SPEED * t;
+      }
+
+      if (scrollDelta !== 0) {
+        scrollArea.scrollLeft += scrollDelta;
+        // Re-draw the bezier since source handle position shifted
+        const containerRect = container.getBoundingClientRect();
+        updatePath(e.clientX - containerRect.left, e.clientY - containerRect.top);
+      }
+
+      panRAF = requestAnimationFrame(panLoop);
+    }
+
     let hoveredTarget: HTMLElement | null = null;
 
     function setHoveredTarget(target: HTMLElement | null) {
@@ -123,6 +167,8 @@ export function useDragLink(
     function onMouseMove(e: MouseEvent) {
       if (!sourceHandle) return;
 
+      lastMouseEvent = e;
+
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -134,6 +180,8 @@ export function useDragLink(
         container.classList.add('drag-link-active');
         sourceHandle.classList.add('drag-link-source');
         svgOverlay = createOverlay();
+        // Start the auto-pan loop
+        panRAF = requestAnimationFrame(panLoop);
       }
 
       const containerRect = container.getBoundingClientRect();
@@ -179,6 +227,8 @@ export function useDragLink(
     }
 
     function cleanup() {
+      stopPan();
+      lastMouseEvent = null;
       isDragging = false;
       hasMoved = false;
       sourceTaskId = null;

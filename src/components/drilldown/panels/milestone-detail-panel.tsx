@@ -21,6 +21,7 @@ import {
   useProjects,
 } from "@/hooks/use-milestones";
 import type { Project, Milestone, MilestoneStatus } from "@/db/schema";
+import { formatDuration } from "@/lib/format-duration";
 
 interface MilestoneDetailPanelProps {
   milestone: Project;
@@ -316,7 +317,7 @@ export function MilestoneDetailPanel({
                   {feature.title}
                 </span>
                 <span className="text-xs text-muted-foreground/60 shrink-0">
-                  {feature.duration}d
+                  {formatDuration(feature.duration)}
                 </span>
               </button>
             );

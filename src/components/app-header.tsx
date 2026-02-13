@@ -1,6 +1,6 @@
 "use client";
 
-import { Gem, Box, ChartGantt, Plus, ChartPie } from "lucide-react";
+import { Gem, Box, ChartGantt, Plus, ChartPie, CalendarDays } from "lucide-react";
 import Image from "next/image";
 import {
   Tooltip,
@@ -18,18 +18,19 @@ import type { SettingsSection } from "@/components/settings/settings-panel";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 
-export type TabId = "dashboard" | "features" | "timeline";
+export type TabId = "dashboard" | "features" | "timeline" | "calendar";
 export type CreateAction = "milestone" | "feature";
 
 const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "Dashboard", icon: ChartPie },
   { id: "features", label: "Features", icon: Box },
   { id: "timeline", label: "Timeline", icon: ChartGantt },
+  // { id: "calendar", label: "Calendar", icon: CalendarDays },
 ];
 
-const createOptions: { type: CreateAction; label: string; icon: React.ElementType }[] = [
-  { type: "milestone", label: "Milestone", icon: Gem },
-  { type: "feature", label: "Feature", icon: Box },
+const createOptions: { type: CreateAction; label: string; icon: React.ElementType; shortcutKey: string }[] = [
+  { type: "milestone", label: "Milestone", icon: Gem, shortcutKey: "M" },
+  { type: "feature", label: "Feature", icon: Box, shortcutKey: "F" },
 ];
 
 interface AppHeaderProps {
@@ -37,6 +38,8 @@ interface AppHeaderProps {
   onTabChange: (tab: TabId) => void;
   onCreateAction?: (type: CreateAction) => void;
   onOpenSettings?: (section: SettingsSection) => void;
+  createOpen?: boolean;
+  onCreateOpenChange?: (open: boolean) => void;
 }
 
 function useMagnetic(strength = 0.3, radius = 100) {
@@ -84,9 +87,28 @@ function useMagnetic(strength = 0.3, radius = 100) {
   return { ref, style: { transform: `translate(${offset.x}px, ${offset.y}px)`, transition: offset.x === 0 && offset.y === 0 ? "transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)" : "transform 0.15s ease-out" } as const };
 }
 
-export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettings }: AppHeaderProps) {
-  const [createOpen, setCreateOpen] = useState(false);
+export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettings, createOpen: createOpenProp, onCreateOpenChange }: AppHeaderProps) {
+  // Support both controlled (from layout) and uncontrolled (standalone) usage
+  const [createOpenLocal, setCreateOpenLocal] = useState(false);
+  const createOpen = createOpenProp ?? createOpenLocal;
+  const setCreateOpen = onCreateOpenChange ?? setCreateOpenLocal;
   const magnetic = useMagnetic(0.3, 100);
+
+  // When popover is open, M/F keys trigger create actions
+  useEffect(() => {
+    if (!createOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (key === "m" || key === "f") {
+        e.preventDefault();
+        e.stopImmediatePropagation(); // Prevent timeline F handler from also firing
+        setCreateOpen(false);
+        onCreateAction?.(key === "m" ? "milestone" : "feature");
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [createOpen, setCreateOpen, onCreateAction]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -180,7 +202,7 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
                     </PopoverTrigger>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" sideOffset={8}>
-                    Create
+                    <span className="flex items-center gap-1.5">Create <kbd className="text-[11px] font-mono text-background/40 bg-background/10 px-1 py-0.5 rounded">C</kbd></span>
                   </TooltipContent>
                 </Tooltip>
                 <PopoverContent
@@ -202,7 +224,8 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
                         className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-foreground hover:bg-accent transition-colors"
                       >
                         <Icon className="h-4 w-4 text-muted-foreground" />
-                        {option.label}
+                        <span className="flex-1 text-left">{option.label}</span>
+                        <kbd className="ml-auto text-[11px] font-mono text-muted-foreground/50">{option.shortcutKey}</kbd>
                       </button>
                     );
                   })}

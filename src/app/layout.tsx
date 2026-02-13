@@ -30,6 +30,13 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
+        <head>
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){try{var d=JSON.parse(localStorage.getItem("shronk-theme-storage"));var m=d&&d.state&&d.state.mode;if(m==="system")m=window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";if(m==="dark")document.documentElement.classList.add("dark")}catch(e){}})()`,
+            }}
+          />
+        </head>
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
           suppressHydrationWarning

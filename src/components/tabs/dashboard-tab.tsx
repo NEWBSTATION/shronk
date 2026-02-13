@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Check,
   Minus,
+  Plus,
   Calendar,
 } from "lucide-react";
 import { format, isBefore, startOfDay, differenceInDays, addDays, eachWeekOfInterval, isAfter } from "date-fns";
@@ -29,6 +30,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -38,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { formatDuration } from "@/lib/format-duration";
 import {
   useProjects,
   useMilestones,
@@ -48,6 +51,7 @@ import {
 } from "@/hooks/use-milestones";
 import { useDrilldown } from "@/components/drilldown/drilldown-context";
 import { FeatureDetailPanel } from "@/components/drilldown/panels/feature-detail-panel";
+import { FeatureDialog } from "@/components/feature/feature-dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -666,7 +670,7 @@ function TeamTimelineCard({ team, totalFeatures, onFeatureClick }: { team: TeamT
                       {format(f.startDate, "MMM d")} — {format(f.endDate, "MMM d")}
                     </span>
                     <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                      {f.duration}d
+                      {formatDuration(f.duration)}
                     </span>
                     <StatusBadge status={f.status} />
                   </div>
@@ -790,6 +794,7 @@ export function DashboardTab() {
   const projects = projectsData?.projects ?? [];
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!selectedProjectId && projects.length > 0) {
@@ -884,7 +889,7 @@ export function DashboardTab() {
     <div className="flex flex-col flex-1 min-h-0 px-6 py-8 overflow-y-auto">
       <div className="mx-auto w-full max-w-4xl space-y-8">
         {/* Milestone Header */}
-        <div className="flex items-baseline gap-3 flex-wrap">
+        <div className="space-y-3">
           <Select value={selectedProjectId ?? undefined} onValueChange={setSelectedProjectId}>
             <SelectTrigger className="w-fit text-sm font-medium">
               <SelectValue placeholder="Select project" />
@@ -895,13 +900,78 @@ export function DashboardTab() {
               ))}
             </SelectContent>
           </Select>
-          {milestoneStart && milestoneEnd && (
-            <span className="text-sm text-muted-foreground">
-              {format(milestoneStart, "MMM d")} — {format(milestoneEnd, "MMM d, yyyy")}
-              <span className="text-muted-foreground/60"> · </span>
-              <span className="tabular-nums">{milestoneSpanDays}d</span>
-            </span>
-          )}
+          {milestoneStart && milestoneEnd && (() => {
+            const today = startOfDay(new Date());
+            const totalDays = milestoneSpanDays;
+            const elapsed = Math.max(0, differenceInDays(today, milestoneStart));
+            const remaining = Math.max(0, differenceInDays(milestoneEnd, today));
+            const pct = totalDays > 0 ? Math.min(100, Math.max(0, (elapsed / totalDays) * 100)) : 0;
+            const isPast = isBefore(milestoneEnd, today);
+            const isFuture = isAfter(milestoneStart, today);
+            const startYear = milestoneStart.getFullYear();
+            const endYear = milestoneEnd.getFullYear();
+            const nowYear = today.getFullYear();
+            const startFmt = startYear !== nowYear ? "MMM d, yyyy" : "MMM d";
+            const endFmt = endYear !== startYear || endYear !== nowYear ? "MMM d, yyyy" : "MMM d";
+
+            return (
+              <div className="rounded-xl border border-border/50 bg-card px-5 py-4">
+                {/* Top row: elapsed / label / remaining */}
+                <div className="flex items-baseline justify-between mb-3">
+                  <div>
+                    <span className="text-lg font-semibold tabular-nums tracking-tight">
+                      {isPast ? totalDays : elapsed}
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      {isPast ? "days" : "days in"}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground/70">
+                    {isPast
+                      ? "Completed"
+                      : isFuture
+                        ? `Starts in ${differenceInDays(milestoneStart, today)}d`
+                        : `${Math.round(pct)}% elapsed`}
+                  </span>
+                  <div className="text-right">
+                    <span className="text-lg font-semibold tabular-nums tracking-tight">
+                      {isPast ? 0 : remaining}
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-1">days left</span>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="relative h-1.5 bg-muted rounded-full overflow-visible">
+                  <div
+                    className={cn(
+                      "absolute inset-y-0 left-0 rounded-full transition-all duration-500",
+                      isPast
+                        ? "bg-emerald-500"
+                        : "bg-gradient-to-r from-[var(--chart-1)] to-[var(--chart-2)]"
+                    )}
+                    style={{ width: `${pct}%` }}
+                  />
+                  {!isPast && !isFuture && (
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-foreground border-2 border-background shadow-sm"
+                      style={{ left: `${pct}%`, marginLeft: "-5px" }}
+                    />
+                  )}
+                </div>
+
+                {/* Bottom row: start date / end date */}
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-[11px] text-muted-foreground">
+                    {format(milestoneStart, startFmt)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {format(milestoneEnd, endFmt)}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {isLoadingMilestones ? (
@@ -919,6 +989,15 @@ export function DashboardTab() {
             <p className="mt-1 text-sm text-muted-foreground max-w-sm">
               Add features to this milestone to see dashboard analytics.
             </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => setFeatureDialogOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Add Feature
+            </Button>
           </div>
         ) : (
           <>
@@ -960,10 +1039,29 @@ export function DashboardTab() {
                   <p className="text-xs text-muted-foreground mt-0.5">overdue</p>
                 </div>
 
-                {/* Avg Duration */}
+                {/* Status */}
                 <div className="flex-1 min-w-[100px] px-5 pt-3 pb-4">
-                  <p className="text-2xl font-semibold tabular-nums tracking-tight">{avgDuration}d</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">avg duration</p>
+                  {completionPct === 100 ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                          <Check className="h-3 w-3 text-white" />
+                        </div>
+                        <span className="text-base font-semibold text-emerald-600 dark:text-emerald-400">Done</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">all features shipped</p>
+                    </>
+                  ) : overdue > 0 ? (
+                    <>
+                      <p className="text-base font-semibold text-red-500">At Risk</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{overdue} overdue</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-base font-semibold text-blue-500">On Track</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{avgDuration}d avg duration</p>
+                    </>
+                  )}
                 </div>
 
                 {/* Bottleneck */}
@@ -1011,6 +1109,14 @@ export function DashboardTab() {
           </>
         )}
       </div>
+
+      <FeatureDialog
+        open={featureDialogOpen}
+        onOpenChange={setFeatureDialogOpen}
+        milestones={projects.map((p) => ({ id: p.id, name: p.name, color: p.color, icon: p.icon }))}
+        defaultMilestoneId={selectedProjectId}
+        teams={teams}
+      />
     </div>
   );
 }

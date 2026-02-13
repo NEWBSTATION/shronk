@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { dateToPixel, durationToPixels } from './date-math';
 import { ROW_HEIGHT } from './scales-config';
 import type { TimelineTask, TimelineLink } from './types';
@@ -10,6 +10,7 @@ interface TimelineLinksProps {
   links: TimelineLink[];
   pixelsPerDay: number;
   timelineStart: Date;
+  hideTeamTracks?: boolean;
 }
 
 const DELTA = 20;    // stub length from bar edge
@@ -58,24 +59,46 @@ function roundedPath(pts: [number, number][], r: number): string {
   return parts.join(' ');
 }
 
-export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart }: TimelineLinksProps) {
+export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart, hideTeamTracks }: TimelineLinksProps) {
+  // Defer hideTeamTracks changes so links fade out at old positions,
+  // then recompute at new positions and fade back in.
+  const [deferredHide, setDeferredHide] = useState(hideTeamTracks);
+  const [fading, setFading] = useState(false);
+  const prevHideRef = useRef(hideTeamTracks);
+
+  useEffect(() => {
+    if (prevHideRef.current !== hideTeamTracks) {
+      prevHideRef.current = hideTeamTracks;
+      setFading(true);
+      const timer = setTimeout(() => {
+        setDeferredHide(hideTeamTracks);
+        requestAnimationFrame(() => setFading(false));
+      }, 300); // wait for bars to fully settle before showing links
+      return () => clearTimeout(timer);
+    }
+  }, [hideTeamTracks]);
+
   const paths = useMemo(() => {
     if (links.length === 0) return [];
 
     // Build task index: id → { row, left, right, centerY }
     const taskIndex = new Map<string, { row: number; left: number; right: number; centerY: number }>();
     let rowIndex = 0;
+    let adjustedRowIndex = 0;
     for (const task of tasks) {
+      const isTeam = !!task.$custom?.isTeamTrack;
       const left = dateToPixel(task.startDate, timelineStart, pixelsPerDay);
       const width = durationToPixels(task.duration, pixelsPerDay);
-      const centerY = rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+      const effectiveRow = deferredHide ? adjustedRowIndex : rowIndex;
+      const centerY = effectiveRow * ROW_HEIGHT + ROW_HEIGHT / 2;
       taskIndex.set(task.id, {
-        row: rowIndex,
+        row: effectiveRow,
         left,
         right: left + width,
         centerY,
       });
       rowIndex++;
+      if (!isTeam) adjustedRowIndex++;
     }
 
     return links.map((link) => {
@@ -118,7 +141,7 @@ export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart }: Tim
       const d = roundedPath(pts, R);
       return { id: link.id, sourceId: link.sourceId, targetId: link.targetId, d, tx, ty };
     }).filter(Boolean) as Array<{ id: string; sourceId: string; targetId: string; d: string; tx: number; ty: number }>;
-  }, [tasks, links, pixelsPerDay, timelineStart]);
+  }, [tasks, links, pixelsPerDay, timelineStart, deferredHide]);
 
   if (paths.length === 0) return null;
 
@@ -134,6 +157,8 @@ export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart }: Tim
         height: totalHeight,
         pointerEvents: 'none',
         overflow: 'visible',
+        opacity: fading ? 0 : 1,
+        transition: 'opacity 200ms ease',
       }}
     >
       <defs>

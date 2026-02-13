@@ -1,0 +1,212 @@
+/* FullCalendar theme overrides — maps FC CSS vars to app theme vars */
+
+.fc-calendar-root {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--muted);
+  --fc-today-bg-color: hsl(var(--accent) / 0.08);
+  --fc-event-border-color: transparent;
+  --fc-small-font-size: 0.75rem;
+  --fc-neutral-text-color: var(--muted-foreground);
+}
+
+/* Day headers — uppercase, small text */
+.fc-calendar-root .fc-col-header-cell-cushion {
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+  padding: 8px 4px;
+}
+
+/* Day numbers */
+.fc-calendar-root .fc-daygrid-day-number {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  padding: 4px 8px;
+}
+
+/* Today's day number */
+.fc-calendar-root .fc-day-today .fc-daygrid-day-number {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Events — rounded with left border accent */
+.fc-calendar-root .fc-daygrid-event,
+.fc-calendar-root .fc-timegrid-event {
+  border-radius: 4px;
+  border-left-width: 3px;
+  border-left-style: solid;
+  font-size: 0.75rem;
+  padding: 1px 4px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.fc-calendar-root .fc-daygrid-event:hover,
+.fc-calendar-root .fc-timegrid-event:hover {
+  opacity: 0.8;
+}
+
+/* Event title */
+.fc-calendar-root .fc-event-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "more" link */
+.fc-calendar-root .fc-daygrid-more-link {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  padding: 2px 4px;
+}
+
+.fc-calendar-root .fc-daygrid-more-link:hover {
+  color: var(--foreground);
+}
+
+/* More popover */
+.fc-calendar-root .fc-more-popover {
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.15);
+}
+
+.fc-calendar-root .fc-more-popover .fc-popover-header {
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+/* Scrollgrid — rounded corners */
+.fc-calendar-root .fc-scrollgrid {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Remove outer border from scrollgrid (the container handles it) */
+.fc-calendar-root .fc-scrollgrid {
+  border: none;
+}
+
+/* Table borders */
+.fc-calendar-root td,
+.fc-calendar-root th {
+  border-color: var(--border);
+}
+
+/* Week/day view time slots */
+.fc-calendar-root .fc-timegrid-slot-label-cushion {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}
+
+/* Now indicator */
+.fc-calendar-root .fc-timegrid-now-indicator-line {
+  border-color: var(--primary);
+}
+
+.fc-calendar-root .fc-timegrid-now-indicator-arrow {
+  border-top-color: var(--primary);
+}
+
+/* Remove default button styles since we use a custom toolbar */
+.fc-calendar-root .fc-header-toolbar {
+  display: none !important;
+}
+
+/* Day cell hover */
+.fc-calendar-root .fc-daygrid-day:hover {
+  background: hsl(var(--accent) / 0.04);
+}
+
+/* Non-current month day cells */
+.fc-calendar-root .fc-day-other .fc-daygrid-day-number {
+  opacity: 0.4;
+}
+
+/* Event dot content renderer */
+.fc-calendar-root .calendar-event-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fc-calendar-root .calendar-event-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.fc-calendar-root .calendar-event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.fc-calendar-root .calendar-event-progress {
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+/* Milestone badge — always-readable pill on feature events */
+.fc-calendar-root .calendar-milestone-badge {
+  flex-shrink: 0;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  padding: 2px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.fc-calendar-root .calendar-milestone-badge:hover {
+  opacity: 0.8;
+}
+
+/* Completed / cancelled features — greyed out, dashed border */
+.fc-calendar-root .calendar-event-done {
+  border-left-style: dashed;
+  opacity: 0.55;
+}
+
+.fc-calendar-root .calendar-event-done .calendar-milestone-badge {
+  background-color: var(--muted-foreground) !important;
+  opacity: 0.6;
+}
+
+.fc-calendar-root .calendar-event-done .calendar-event-title {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* Team track title — slightly smaller, italic to distinguish from features */
+.fc-calendar-root .calendar-team-track-title {
+  font-size: 0.6875rem;
+  font-style: italic;
+}

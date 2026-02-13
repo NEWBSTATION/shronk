@@ -20,7 +20,7 @@ import { useDrilldown } from "@/components/drilldown/drilldown-context";
 import { FeaturesSectionList } from "@/components/features-list/features-section-list";
 import { MilestoneInfoPanel } from "@/components/drilldown/panels/milestone-info-panel";
 import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
-import { FeatureDialog } from "@/components/feature/feature-dialog";
+import { FeatureDialog, type ChainTo } from "@/components/feature/feature-dialog";
 import { BulkActionBar } from "@/components/features-list/bulk-action-bar";
 import { useFeaturesListStore } from "@/store/features-list-store";
 import {
@@ -28,6 +28,7 @@ import {
   useDependencies,
   useUpdateMilestone,
   useDeleteMilestone,
+  useReorderFeatures,
 } from "@/hooks/use-milestones";
 import type { Milestone, MilestoneStatus } from "@/db/schema";
 
@@ -113,6 +114,8 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [featureDialogMilestoneId, setFeatureDialogMilestoneId] = useState<string | null>(null);
   const [deletingMilestoneId, setDeletingMilestoneId] = useState<string | null>(null);
+  const [chainTo, setChainTo] = useState<ChainTo | null>(null);
+  const [chainEnabled, setChainEnabled] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["allFeatures"],
@@ -150,6 +153,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
 
   const updateMutation = useUpdateMilestone();
   const deleteMutation = useDeleteMilestone();
+  const reorderMutation = useReorderFeatures();
 
   const handleUpdateFeature = useCallback(
     async (data: Partial<Milestone> & { id: string; duration?: number }) => {
@@ -219,12 +223,43 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
     [queryClient]
   );
 
+  const handleReorderFeatures = useCallback(
+    async (projectId: string, orderedFeatureIds: string[]) => {
+      try {
+        await reorderMutation.mutateAsync({ projectId, orderedFeatureIds });
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to reorder features");
+      }
+    },
+    [reorderMutation, queryClient]
+  );
+
   const handleAddFeatureForMilestone = useCallback(
-    (milestoneId: string) => {
+    (milestoneId: string, e?: React.MouseEvent) => {
       setFeatureDialogMilestoneId(milestoneId);
+
+      // Find the last feature in this milestone for chaining
+      const milestoneFeatures = features.filter((f) => f.projectId === milestoneId);
+      const lastFeature = milestoneFeatures.length > 0
+        ? milestoneFeatures[milestoneFeatures.length - 1]
+        : null;
+
+      if (lastFeature) {
+        setChainTo({
+          featureId: lastFeature.id,
+          featureTitle: lastFeature.title,
+          endDate: lastFeature.endDate,
+        });
+        setChainEnabled(!!e?.shiftKey);
+      } else {
+        setChainTo(null);
+        setChainEnabled(false);
+      }
+
       setFeatureDialogOpen(true);
     },
-    []
+    [features]
   );
 
   // React to create intent from the header plus button
@@ -236,6 +271,8 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
         setMilestoneDialogOpen(true);
       } else {
         setFeatureDialogMilestoneId(null);
+        setChainTo(null);
+        setChainEnabled(false);
         setFeatureDialogOpen(true);
       }
     }
@@ -343,14 +380,16 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
 
   if (isLoading) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 px-6 py-8 space-y-4">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-8 w-32" />
+      <div className="flex flex-col flex-1 min-h-0 px-6 py-8">
+        <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl space-y-4">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-8 w-32" />
+          </div>
+          <Skeleton className="h-12 w-full rounded-2xl" />
+          <Skeleton className="h-48 w-full rounded-2xl" />
+          <Skeleton className="h-48 w-full rounded-2xl" />
         </div>
-        <Skeleton className="h-12 w-full rounded-2xl" />
-        <Skeleton className="h-48 w-full rounded-2xl" />
-        <Skeleton className="h-48 w-full rounded-2xl" />
       </div>
     );
   }
@@ -376,25 +415,24 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-6 py-8">
-      <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl flex flex-col flex-1 min-h-0">
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <FeaturesSectionList
-            features={features}
-            milestones={milestoneOptions}
-            dependencies={data?.dependencies}
-            teamDurationsMap={teamDurationsMap}
-            onFeatureClick={handleFeatureClick}
-            onToggleComplete={handleToggleComplete}
-            onStatusChange={handleStatusChange}
-            onAddFeature={handleAddFeatureForMilestone}
-            onEditMilestone={handleEditMilestone}
-            onDeleteMilestone={handleDeleteMilestone}
-            onUpdateAppearance={handleUpdateAppearance}
-            onAddMilestone={() => setMilestoneDialogOpen(true)}
-            onMoveFeature={handleMoveFeature}
-          />
-        </div>
+    <div className="flex flex-col flex-1 min-h-0 px-6 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_16px)]">
+      <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl flex flex-col min-h-0 pt-8 pb-32">
+        <FeaturesSectionList
+          features={features}
+          milestones={milestoneOptions}
+          dependencies={data?.dependencies}
+          teamDurationsMap={teamDurationsMap}
+          onFeatureClick={handleFeatureClick}
+          onToggleComplete={handleToggleComplete}
+          onStatusChange={handleStatusChange}
+          onAddFeature={handleAddFeatureForMilestone}
+          onEditMilestone={handleEditMilestone}
+          onDeleteMilestone={handleDeleteMilestone}
+          onUpdateAppearance={handleUpdateAppearance}
+          onAddMilestone={() => setMilestoneDialogOpen(true)}
+          onMoveFeature={handleMoveFeature}
+          onReorderFeatures={handleReorderFeatures}
+        />
 
         <BulkActionBar />
       </div>
@@ -410,6 +448,8 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
         milestones={milestoneOptions}
         defaultMilestoneId={featureDialogMilestoneId}
         teams={teams}
+        chainTo={chainTo}
+        chainEnabled={chainEnabled}
       />
 
       <AlertDialog

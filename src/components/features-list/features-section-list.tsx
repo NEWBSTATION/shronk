@@ -5,13 +5,21 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
+  closestCenter,
   useSensor,
   useSensors,
   useDroppable,
+  type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { Plus } from "lucide-react";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { Plus, GripVertical } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,8 +31,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useFeaturesListStore } from "@/store/features-list-store";
+import { topoSortFeatures } from "@/lib/topo-sort";
+import { formatDuration } from "@/lib/format-duration";
 import { SectionHeader } from "./section-header";
-import { FeatureRow, DraggableFeatureRow, type TeamDurationInfo } from "./feature-row";
+import { SortableFeatureRow, type TeamDurationInfo } from "./feature-row";
 
 interface Feature {
   id: string;
@@ -62,12 +72,13 @@ interface FeaturesSectionListProps {
   onFeatureClick: (feature: any) => void;
   onToggleComplete?: (featureId: string, currentStatus: string) => void;
   onStatusChange?: (featureId: string, newStatus: string) => void;
-  onAddFeature?: (milestoneId: string) => void;
+  onAddFeature?: (milestoneId: string, e?: React.MouseEvent) => void;
   onEditMilestone?: (milestoneId: string) => void;
   onDeleteMilestone?: (milestoneId: string) => void;
   onUpdateAppearance?: (milestoneId: string, data: { color: string; icon: string }) => void;
   onAddMilestone?: () => void;
   onMoveFeature?: (featureId: string, targetProjectId: string) => void;
+  onReorderFeatures?: (projectId: string, orderedFeatureIds: string[]) => void;
 }
 
 interface Section {
@@ -87,6 +98,14 @@ interface PendingMove {
   brokenDeps: Array<{ predecessorId: string; successorId: string; predecessorTitle: string; successorTitle: string }>;
   bridgedDeps: Array<{ predecessorTitle: string; successorTitle: string }>;
 }
+
+// Pointer-first collision so the drop point tracks the cursor tightly,
+// not the center of the (tall) dragged row.
+const pointerCollision: CollisionDetection = (args) => {
+  const pointer = pointerWithin(args);
+  if (pointer.length > 0) return pointer;
+  return closestCenter(args);
+};
 
 function DroppableSection({
   milestoneId,
@@ -121,6 +140,7 @@ export function FeaturesSectionList({
   onUpdateAppearance,
   onAddMilestone,
   onMoveFeature,
+  onReorderFeatures,
 }: FeaturesSectionListProps) {
   const {
     collapsedSections,
@@ -151,7 +171,7 @@ export function FeaturesSectionList({
     return map;
   }, [features]);
 
-  // Group features by projectId, sorted by startDate within each section
+  // Group features by projectId, sorted by dependency chain order within each section
   const sections = useMemo<Section[]>(() => {
     const byProject = new Map<string, Feature[]>();
     for (const f of features) {
@@ -161,11 +181,11 @@ export function FeaturesSectionList({
     }
 
     return milestones.map((m) => {
-      const sectionFeatures = (byProject.get(m.id) ?? []).slice().sort((a, b) => {
-        const aDate = new Date(a.startDate).getTime();
-        const bDate = new Date(b.startDate).getTime();
-        return aDate - bDate;
-      });
+      const raw = byProject.get(m.id) ?? [];
+      const sectionDeps = (dependencies || []).filter(
+        (d) => raw.some((f) => f.id === d.predecessorId) && raw.some((f) => f.id === d.successorId)
+      );
+      const sectionFeatures = topoSortFeatures(raw, sectionDeps);
       let minStart: Date | undefined;
       let maxEnd: Date | undefined;
       for (const f of sectionFeatures) {
@@ -253,67 +273,91 @@ export function FeaturesSectionList({
       const { active, over } = event;
       if (!over) return;
 
-      // Extract milestone id from droppable zone id
       const overId = String(over.id);
-      if (!overId.startsWith("drop-milestone-")) return;
-
-      const targetMilestoneId = overId.replace("drop-milestone-", "");
       const draggedFeature = features.find((f) => f.id === active.id);
       if (!draggedFeature) return;
 
-      // Same milestone — no-op
-      if (draggedFeature.projectId === targetMilestoneId) return;
+      // --- Cross-milestone drop (onto a droppable section zone) ---
+      if (overId.startsWith("drop-milestone-")) {
+        const targetMilestoneId = overId.replace("drop-milestone-", "");
 
-      const targetMilestone = milestones.find((m) => m.id === targetMilestoneId);
-      if (!targetMilestone) return;
+        // Same milestone — no-op
+        if (draggedFeature.projectId === targetMilestoneId) return;
 
-      // Check if feature has dependencies
-      const featureDeps = dependencies.filter(
-        (d) =>
-          d.predecessorId === draggedFeature.id ||
-          d.successorId === draggedFeature.id
-      );
+        const targetMilestone = milestones.find((m) => m.id === targetMilestoneId);
+        if (!targetMilestone) return;
 
-      if (featureDeps.length > 0) {
-        // Build broken/bridged info for the dialog
-        const predecessorIds = featureDeps
-          .filter((d) => d.successorId === draggedFeature.id)
-          .map((d) => d.predecessorId);
-        const successorIds = featureDeps
-          .filter((d) => d.predecessorId === draggedFeature.id)
-          .map((d) => d.successorId);
+        // Check if feature has dependencies
+        const featureDeps = dependencies.filter(
+          (d) =>
+            d.predecessorId === draggedFeature.id ||
+            d.successorId === draggedFeature.id
+        );
 
-        const brokenDeps = featureDeps.map((d) => ({
-          predecessorId: d.predecessorId,
-          successorId: d.successorId,
-          predecessorTitle: featureTitleMap.get(d.predecessorId) ?? "Unknown",
-          successorTitle: featureTitleMap.get(d.successorId) ?? "Unknown",
-        }));
+        if (featureDeps.length > 0) {
+          const predecessorIds = featureDeps
+            .filter((d) => d.successorId === draggedFeature.id)
+            .map((d) => d.predecessorId);
+          const successorIds = featureDeps
+            .filter((d) => d.predecessorId === draggedFeature.id)
+            .map((d) => d.successorId);
 
-        const bridgedDeps: PendingMove["bridgedDeps"] = [];
-        for (const predId of predecessorIds) {
-          for (const succId of successorIds) {
-            bridgedDeps.push({
-              predecessorTitle: featureTitleMap.get(predId) ?? "Unknown",
-              successorTitle: featureTitleMap.get(succId) ?? "Unknown",
-            });
+          const brokenDeps = featureDeps.map((d) => ({
+            predecessorId: d.predecessorId,
+            successorId: d.successorId,
+            predecessorTitle: featureTitleMap.get(d.predecessorId) ?? "Unknown",
+            successorTitle: featureTitleMap.get(d.successorId) ?? "Unknown",
+          }));
+
+          const bridgedDeps: PendingMove["bridgedDeps"] = [];
+          for (const predId of predecessorIds) {
+            for (const succId of successorIds) {
+              bridgedDeps.push({
+                predecessorTitle: featureTitleMap.get(predId) ?? "Unknown",
+                successorTitle: featureTitleMap.get(succId) ?? "Unknown",
+              });
+            }
           }
-        }
 
-        setPendingMove({
-          featureId: draggedFeature.id,
-          featureTitle: draggedFeature.title,
-          targetProjectId: targetMilestoneId,
-          targetMilestoneName: targetMilestone.name,
-          brokenDeps,
-          bridgedDeps,
-        });
-      } else {
-        // No deps — move immediately
-        onMoveFeature?.(draggedFeature.id, targetMilestoneId);
+          setPendingMove({
+            featureId: draggedFeature.id,
+            featureTitle: draggedFeature.title,
+            targetProjectId: targetMilestoneId,
+            targetMilestoneName: targetMilestone.name,
+            brokenDeps,
+            bridgedDeps,
+          });
+        } else {
+          onMoveFeature?.(draggedFeature.id, targetMilestoneId);
+        }
+        return;
       }
+
+      // --- Within-section reorder (dropped on another feature) ---
+      const overFeature = features.find((f) => f.id === overId);
+      if (!overFeature) return;
+
+      // Only reorder within the same milestone
+      if (draggedFeature.projectId !== overFeature.projectId) return;
+
+      // Same position — no-op
+      if (active.id === over.id) return;
+
+      const section = sections.find(
+        (s) => s.milestone.id === draggedFeature.projectId
+      );
+      if (!section || section.features.length < 2) return;
+
+      const currentIds = section.features.map((f) => f.id);
+      const oldIndex = currentIds.indexOf(String(active.id));
+      const newIndex = currentIds.indexOf(overId);
+
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+
+      const newOrder = arrayMove(currentIds, oldIndex, newIndex);
+      onReorderFeatures?.(draggedFeature.projectId, newOrder);
     },
-    [features, milestones, dependencies, featureTitleMap, onMoveFeature]
+    [features, milestones, dependencies, featureTitleMap, onMoveFeature, onReorderFeatures, sections]
   );
 
   const handleDragCancel = useCallback(() => {
@@ -331,6 +375,7 @@ export function FeaturesSectionList({
     <>
       <DndContext
         sensors={sensors}
+        collisionDetection={pointerCollision}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
@@ -366,7 +411,7 @@ export function FeaturesSectionList({
                       collapsed={isCollapsed}
                       isDropTarget={isOver}
                       onToggle={() => toggleSection(section.milestone.id)}
-                      onAddFeature={() => onAddFeature?.(section.milestone.id)}
+                      onAddFeature={(e) => onAddFeature?.(section.milestone.id, e)}
                       onEditMilestone={() => onEditMilestone?.(section.milestone.id)}
                       onDeleteMilestone={() => onDeleteMilestone?.(section.milestone.id)}
                       onUpdateAppearance={(data) => onUpdateAppearance?.(section.milestone.id, data)}
@@ -382,7 +427,7 @@ export function FeaturesSectionList({
                       <div className="overflow-hidden">
                         {section.features.length === 0 ? (
                           <button
-                            onClick={() => onAddFeature?.(section.milestone.id)}
+                            onClick={(e) => onAddFeature?.(section.milestone.id, e)}
                             className="w-full px-4 py-3.5 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer"
                           >
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center">
@@ -391,25 +436,31 @@ export function FeaturesSectionList({
                             <span className="text-sm">Add a feature</span>
                           </button>
                         ) : (
-                          section.features.map((feature) => (
-                            <DraggableFeatureRow
-                              key={feature.id}
-                              id={feature.id}
-                              title={feature.title}
-                              status={feature.status}
-                              priority={feature.priority}
-                              duration={feature.duration}
-                              startDate={feature.startDate}
-                              endDate={feature.endDate}
-                              teamDurations={teamDurationsMap?.get(feature.id)}
-                              selected={selectedIds.has(feature.id)}
-                              selectMode={selectMode}
-                              onSelect={(e) => handleSelect(feature.id, e)}
-                              onClick={() => onFeatureClick(feature)}
-                              onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}
-                              onStatusChange={(newStatus) => onStatusChange?.(feature.id, newStatus)}
-                            />
-                          ))
+                          <SortableContext
+                            items={section.features.map((f) => f.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {section.features.map((feature) => (
+                              <SortableFeatureRow
+                                key={feature.id}
+                                id={feature.id}
+                                title={feature.title}
+                                status={feature.status}
+                                priority={feature.priority}
+                                duration={feature.duration}
+                                startDate={feature.startDate}
+                                endDate={feature.endDate}
+                                teamDurations={teamDurationsMap?.get(feature.id)}
+                                selected={selectedIds.has(feature.id)}
+                                selectMode={selectMode}
+                                isAnyDragging={!!activeId}
+                                onSelect={(e) => handleSelect(feature.id, e)}
+                                onClick={() => onFeatureClick(feature)}
+                                onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}
+                                onStatusChange={(newStatus) => onStatusChange?.(feature.id, newStatus)}
+                              />
+                            ))}
+                          </SortableContext>
                         )}
                       </div>
                     </div>
@@ -433,23 +484,15 @@ export function FeaturesSectionList({
           )}
         </div>
 
-        <DragOverlay>
+        <DragOverlay dropAnimation={null}>
           {activeFeature ? (
-            <FeatureRow
-              id={activeFeature.id}
-              title={activeFeature.title}
-              status={activeFeature.status}
-              priority={activeFeature.priority}
-              duration={activeFeature.duration}
-              startDate={activeFeature.startDate}
-              endDate={activeFeature.endDate}
-              teamDurations={teamDurationsMap?.get(activeFeature.id)}
-              selected={false}
-              selectMode={false}
-              isOverlay
-              onSelect={() => {}}
-              onClick={() => {}}
-            />
+            <div className="flex items-center gap-2 px-4 py-3.5 max-w-xs bg-background border rounded-lg shadow-lg cursor-grabbing">
+              <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+              <span className="truncate text-sm">{activeFeature.title}</span>
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground tabular-nums">
+                {formatDuration(activeFeature.duration)}
+              </span>
+            </div>
           ) : null}
         </DragOverlay>
       </DndContext>

@@ -438,6 +438,118 @@ export function useReorderMilestones() {
   });
 }
 
+// Feature reorder hook
+interface ReorderFeaturesResponse {
+  success: boolean;
+  cascadedUpdates: CascadedUpdate[];
+  teamCascadedUpdates?: TeamCascadedUpdate[];
+  newRootUpdate: CascadedUpdate & { duration: number };
+}
+
+export function useReorderFeatures() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      orderedFeatureIds,
+    }: {
+      projectId: string;
+      orderedFeatureIds: string[];
+    }) => {
+      const response = await fetch("/api/features/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, orderedFeatureIds }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to reorder features");
+      }
+      return response.json() as Promise<ReorderFeaturesResponse>;
+    },
+    onSuccess: (data, variables) => {
+      // Apply all cascaded updates + root update to caches
+      const allUpdates = [
+        data.newRootUpdate,
+        ...(data.cascadedUpdates || []),
+      ];
+      const updateMap = new Map(allUpdates.map((u) => [u.id, u]));
+
+      // Build sortOrder map from the new order
+      const sortOrderMap = new Map(
+        variables.orderedFeatureIds.map((id, i) => [id, i])
+      );
+
+      queryClient.setQueriesData(
+        { queryKey: ["milestones"] },
+        (old: MilestonesResponse | undefined) => {
+          if (!old) return old;
+          const newMilestones = old.milestones.map((m) => {
+            const update = updateMap.get(m.id);
+            const newSortOrder = sortOrderMap.get(m.id);
+            if (update || newSortOrder !== undefined) {
+              return {
+                ...m,
+                ...(update
+                  ? {
+                      startDate: update.startDate,
+                      endDate: update.endDate,
+                      ...(update.duration !== undefined
+                        ? { duration: update.duration }
+                        : {}),
+                    }
+                  : {}),
+                ...(newSortOrder !== undefined
+                  ? { sortOrder: newSortOrder }
+                  : {}),
+              };
+            }
+            return m;
+          });
+
+          let newTeamDurations = old.teamDurations || [];
+          if (data.teamCascadedUpdates?.length) {
+            const teamUpdateMap = new Map(
+              data.teamCascadedUpdates.map((u) => [
+                `${u.id}__${u.teamId}`,
+                u,
+              ])
+            );
+            newTeamDurations = newTeamDurations.map((td) => {
+              const update = teamUpdateMap.get(
+                `${td.milestoneId}__${td.teamId}`
+              );
+              if (update) {
+                return {
+                  ...td,
+                  startDate: new Date(update.startDate),
+                  endDate: new Date(update.endDate),
+                  duration: update.duration,
+                };
+              }
+              return td;
+            });
+          }
+
+          // Sort by new sortOrder so the cache reflects the reorder immediately
+          newMilestones.sort((a, b) => a.sortOrder - b.sortOrder);
+
+          return {
+            ...old,
+            milestones: newMilestones,
+            teamDurations: newTeamDurations,
+          };
+        }
+      );
+
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+      queryClient.invalidateQueries({ queryKey: ["dependencies"] });
+      queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+    },
+  });
+}
+
 // Dependencies hooks
 export function useDependencies(projectId: string) {
   return useQuery({
@@ -693,7 +805,7 @@ export function useUpdateTeam() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { id: string; name?: string; color?: string }) => {
+    mutationFn: async (data: { id: string; name?: string; color?: string; autoAdd?: boolean }) => {
       const response = await fetch("/api/teams", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

@@ -37,10 +37,13 @@ interface MilestoneInfo {
 
 interface MilestoneInfoPanelProps {
   milestone: MilestoneInfo;
+  /** Override the default back/close behavior (defaults to drilldown pop) */
+  onBack?: () => void;
 }
 
-export function MilestoneInfoPanel({ milestone }: MilestoneInfoPanelProps) {
+export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProps) {
   const { pop } = useDrilldown();
+  const handleBack = onBack ?? pop;
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -108,7 +111,7 @@ export function MilestoneInfoPanel({ milestone }: MilestoneInfoPanelProps) {
     <div className="p-8">
       {/* Navigation header */}
       <div className="flex items-center justify-between mb-6">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={pop}>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBack}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <DropdownMenu>
@@ -131,7 +134,7 @@ export function MilestoneInfoPanel({ milestone }: MilestoneInfoPanelProps) {
 
       {/* Icon + Name */}
       <div className="mb-8">
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           <ColorIconPicker
             color={milestone.color}
             icon={milestone.icon}
@@ -158,7 +161,7 @@ export function MilestoneInfoPanel({ milestone }: MilestoneInfoPanelProps) {
             onKeyDown={(e) => {
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
-            className="flex-1 text-3xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
+            className="flex-1 min-w-0 bg-transparent text-3xl font-bold placeholder:text-muted-foreground/40 outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors text-foreground overflow-hidden text-ellipsis"
             placeholder="Milestone name..."
           />
         </div>

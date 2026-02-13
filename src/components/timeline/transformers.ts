@@ -48,6 +48,7 @@ export function formatDuration(days: number): string {
  * e.g., start=Jan 1, days=7 → Jan 7 (inclusive)
  */
 export function computeEndDateFromDuration(start: Date, durationDays: number): Date {
+  if (durationDays === 0) return start;
   return addDays(start, Math.max(durationDays, 1) - 1);
 }
 
@@ -81,7 +82,8 @@ export function toLocalMidnight(date: Date | string): Date {
 export function milestoneToTimelineTask(milestone: Milestone): TimelineTask {
   const startDate = toLocalMidnight(milestone.startDate);
   const endDate = toLocalMidnight(milestone.endDate);
-  const days = computeDurationDays(startDate, endDate);
+  // Use the stored duration (supports 0-duration milestones)
+  const days = milestone.duration;
 
   return {
     id: milestone.id,
@@ -111,7 +113,8 @@ export function teamDurationToTimelineTask(
 ): TimelineTask {
   const startDate = toLocalMidnight(td.startDate);
   const endDate = toLocalMidnight(td.endDate);
-  const days = computeDurationDays(startDate, endDate);
+  // Use the stored duration (supports 0-duration tracks)
+  const days = td.duration;
 
   return {
     id: makeTeamTrackId(milestone.id, td.teamId),

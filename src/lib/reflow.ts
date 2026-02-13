@@ -61,7 +61,7 @@ export function expandDurationsFromTeamTracks(
         newDuration: maxTeam,
       });
       m.duration = maxTeam;
-      m.endDate = addDays(m.startDate, maxTeam - 1);
+      m.endDate = maxTeam === 0 ? m.startDate : addDays(m.startDate, maxTeam - 1);
     }
   }
 
@@ -96,7 +96,7 @@ export function deriveTeamTrackDates(
     if (!parent) continue;
 
     const startDate = parent.startDate;
-    const endDate = addDays(startDate, td.duration - 1);
+    const endDate = td.duration === 0 ? startDate : addDays(startDate, td.duration - 1);
 
     results.push({
       milestoneId: td.milestoneId,
@@ -188,8 +188,8 @@ export function reflowProject(
       newStart = addDays(maxPredEnd, 1);
     }
 
-    // Compute end from duration (inclusive end date)
-    const newEnd = addDays(newStart, ms.duration - 1);
+    // Compute end from duration (inclusive end date; 0-duration → endDate = startDate)
+    const newEnd = ms.duration === 0 ? newStart : addDays(newStart, ms.duration - 1);
 
     // Check if dates actually changed
     const startChanged = newStart.getTime() !== ms.startDate.getTime();

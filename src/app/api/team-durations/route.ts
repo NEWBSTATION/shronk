@@ -20,7 +20,7 @@ function toLocalMidnight(date: Date | string): Date {
 const upsertSchema = z.object({
   milestoneId: z.string().uuid(),
   teamId: z.string().uuid(),
-  duration: z.number().int().min(1),
+  duration: z.number().int().min(0),
 });
 
 const deleteSchema = z.object({
@@ -118,7 +118,7 @@ export async function PUT(request: NextRequest) {
 
     // Upsert the team duration (start/end will be derived by unified reflow)
     const startDate = toLocalMidnight(milestone.startDate);
-    const endDate = addDays(startDate, data.duration - 1);
+    const endDate = data.duration === 0 ? startDate : addDays(startDate, data.duration - 1);
 
     const existing = await db.query.teamMilestoneDurations.findFirst({
       where: and(

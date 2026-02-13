@@ -11,6 +11,7 @@ interface TimelineBarsProps {
   pixelsPerDay: number;
   timelineStart: Date;
   onTaskClick?: (taskId: string) => void;
+  hideTeamTracks?: boolean;
 }
 
 const BAR_HEIGHT = 40;
@@ -54,7 +55,7 @@ function buildTooltipHTML(task: TimelineTask): string {
   return lines.join('');
 }
 
-export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick }: TimelineBarsProps) {
+export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, hideTeamTracks }: TimelineBarsProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const taskMapRef = useRef<Map<string, TimelineTask>>(new Map());
@@ -65,18 +66,24 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick }
       left: number;
       width: number;
       top: number;
+      adjustedTop: number;
       rowIndex: number;
+      isTeamTrack: boolean;
     }> = [];
 
     const map = new Map<string, TimelineTask>();
     let rowIndex = 0;
+    let adjustedRowIndex = 0;
     for (const task of tasks) {
       const left = dateToPixel(task.startDate, timelineStart, pixelsPerDay);
-      const width = durationToPixels(task.duration, pixelsPerDay);
+      const width = durationToPixels(Math.max(1, task.duration), pixelsPerDay);
       const top = rowIndex * ROW_HEIGHT;
-      result.push({ task, left, width, top, rowIndex });
+      const isTeam = !!task.$custom?.isTeamTrack;
+      const adjustedTop = adjustedRowIndex * ROW_HEIGHT;
+      result.push({ task, left, width, top, adjustedTop, rowIndex, isTeamTrack: isTeam });
       map.set(task.id, task);
       rowIndex++;
+      if (!isTeam) adjustedRowIndex++;
     }
     taskMapRef.current = map;
 
@@ -210,33 +217,40 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick }
 
   return (
     <div ref={layerRef} className="timeline-bars-layer" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-      {bars.map(({ task, left, width, top }) => {
-        if (width <= 0 || task.duration === 0) return null;
+      {bars.map(({ task, left, width, top, adjustedTop, isTeamTrack: isTeam }) => {
+        if (width <= 0 && task.duration !== 0) return null;
 
         const custom = task.$custom;
-        const isTeamTrack = custom?.isTeamTrack;
         const teamColor = custom?.teamColor;
         const isSummary = task.type === 'summary';
-        const barHeight = isTeamTrack ? TEAM_BAR_HEIGHT : BAR_HEIGHT;
-        const barTop = top + (isTeamTrack ? TEAM_BAR_TOP_PAD : BAR_TOP_PAD);
+        const isChainEnd = !!custom?.isChainEnd;
+        const barHeight = isTeam ? TEAM_BAR_HEIGHT : BAR_HEIGHT;
+        const baseTop = hideTeamTracks ? adjustedTop : top;
+        const barTop = baseTop + (isTeam ? TEAM_BAR_TOP_PAD : BAR_TOP_PAD);
+        const barOpacity = hideTeamTracks && isTeam ? 0 : 1;
 
         return (
           <div
             key={task.id}
-            className={`timeline-bar${isTeamTrack ? ' timeline-bar-team-track' : ''}${isSummary ? ' timeline-bar-summary' : ''}`}
+            className={`timeline-bar${isTeam ? ' timeline-bar-team-track' : ''}${isSummary ? ' timeline-bar-summary' : ''}${isChainEnd ? ' timeline-bar-chain-end' : ''}${custom?.status === 'completed' ? ' timeline-bar-completed' : ''}`}
             data-task-id={task.id}
             style={{
               position: 'absolute',
-              pointerEvents: 'auto',
+              pointerEvents: hideTeamTracks && isTeam ? 'none' : 'auto',
               left,
               top: barTop,
               width,
               height: barHeight,
-              ...(isTeamTrack && teamColor
+              opacity: barOpacity,
+              transition: 'top 200ms ease, opacity 150ms ease',
+              ...(isTeam && teamColor
                 ? {
+                    '--team-color': teamColor,
                     backgroundColor: `color-mix(in srgb, ${teamColor} 40%, var(--background))`,
                     backgroundImage: `repeating-linear-gradient(-45deg, transparent, transparent 3px, ${teamColor}18 3px, ${teamColor}18 6px)`,
-                  }
+                    backgroundSize: '8.49px 8.49px',
+                    border: `1.5px solid color-mix(in srgb, ${teamColor} 35%, transparent)`,
+                  } as React.CSSProperties
                 : {}),
             }}
             onClick={(e) => {
@@ -244,6 +258,9 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick }
               onTaskClick?.(task.id);
             }}
           >
+            {/* Inner fill for chain-end fade mask */}
+            {isChainEnd && !isTeam && <div className="timeline-bar-fill" />}
+
             {/* Left resize handle */}
             <div className="timeline-bar-handle timeline-bar-handle-left" />
 
@@ -251,19 +268,23 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick }
             <div className="timeline-bar-handle timeline-bar-handle-right" />
 
             {/* Connection handles — only on parent/milestone bars, not team tracks */}
-            {!isTeamTrack && (
+            {!isTeam && (
               <>
                 <div className="timeline-connect-handle timeline-connect-handle-left" />
                 <div className="timeline-connect-handle timeline-connect-handle-right" />
               </>
             )}
 
-            {/* Label + duration badge — positioned past the right connect handle (hidden for team tracks) */}
-            {task.text && !isTeamTrack && (
+            {/* Label + duration/done badge — positioned past the right connect handle (hidden for team tracks) */}
+            {task.text && !isTeam && (
               <div className="timeline-bar-label">
-                {task.text}
-                {task.durationText && (
-                  <span className="timeline-bar-duration">{task.durationText}</span>
+                <span className="timeline-bar-label-text">{task.text}</span>
+                {custom?.status === 'completed' ? (
+                  <span className="timeline-bar-done-badge">Done</span>
+                ) : (
+                  task.durationText && (
+                    <span className="timeline-bar-duration">{task.durationText}</span>
+                  )
                 )}
               </div>
             )}

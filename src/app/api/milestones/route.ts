@@ -18,7 +18,7 @@ const createMilestoneSchema = z.object({
   description: z.string().optional(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
-  duration: z.number().int().min(1).optional(),
+  duration: z.number().int().min(0).optional(),
   status: z.enum(["not_started", "in_progress", "on_hold", "completed", "cancelled"]).default("not_started"),
   priority: z.enum(["none", "low", "medium", "high", "critical"]).default("none"),
   progress: z.number().min(0).max(100).default(0),
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
 
     const startDate = new Date(data.startDate);
     const endDate = new Date(data.endDate);
-    const duration = data.duration ?? Math.max(1, differenceInDays(endDate, startDate) + 1);
+    const duration = data.duration ?? Math.max(0, differenceInDays(endDate, startDate) + 1);
 
     const [milestone] = await db
       .insert(milestones)

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { format, getYear } from "date-fns";
+import { formatDuration } from "@/lib/format-duration";
 import { ChevronDown, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { MilestoneIcon } from "@/lib/milestone-icon";
 import { getColorStyles } from "@/lib/milestone-theme";
@@ -34,7 +35,7 @@ interface SectionHeaderProps {
   collapsed: boolean;
   isDropTarget?: boolean;
   onToggle: () => void;
-  onAddFeature?: () => void;
+  onAddFeature?: (e: React.MouseEvent) => void;
   onEditMilestone?: () => void;
   onDeleteMilestone?: () => void;
   onUpdateAppearance?: (data: { color: string; icon: string }) => void;
@@ -149,10 +150,10 @@ export function SectionHeader({
                 <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground tabular-nums">
                   {dateRangeLabel ? (
                     <>
-                      {dateRangeLabel}{"\u00A0\u00A0"}({totalDuration}d)
+                      {dateRangeLabel}{"\u00A0\u00A0"}({formatDuration(totalDuration)})
                     </>
                   ) : (
-                    <>{totalDuration}d</>
+                    <>{formatDuration(totalDuration)}</>
                   )}
                 </span>
               )}
@@ -163,10 +164,10 @@ export function SectionHeader({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onAddFeature();
+                  onAddFeature(e);
                 }}
                 className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent/50 transition-all"
-                title="Add feature"
+                title="Add feature (Shift+click to chain)"
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>

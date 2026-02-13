@@ -27,9 +27,10 @@ import { getColorStyles } from "@/lib/milestone-theme";
 interface MilestoneDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCreated?: (projectId: string) => void;
 }
 
-export function MilestoneDialog({ open, onOpenChange }: MilestoneDialogProps) {
+export function MilestoneDialog({ open, onOpenChange, onCreated }: MilestoneDialogProps) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,12 +67,14 @@ export function MilestoneDialog({ open, onOpenChange }: MilestoneDialogProps) {
         throw new Error("Failed to create milestone");
       }
 
+      const created = await response.json();
       toast.success("Milestone created");
       onOpenChange(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
       queryClient.invalidateQueries({ queryKey: ["milestoneStats"] });
+      onCreated?.(created.id);
     } catch (err) {
       setError((err as Error).message || "Failed to create milestone");
     } finally {

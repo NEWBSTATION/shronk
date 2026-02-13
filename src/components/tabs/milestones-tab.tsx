@@ -77,7 +77,7 @@ export function MilestonesTab({ createIntent = 0 }: { createIntent?: number }) {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-6 py-8 overflow-y-auto">
+    <div className="flex flex-col flex-1 min-h-0 px-6 pt-8 pb-32 overflow-y-auto">
       <div className="mx-auto w-full max-w-5xl">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-base font-medium">Milestones</h1>

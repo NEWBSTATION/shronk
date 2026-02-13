@@ -13,7 +13,7 @@ const updateMilestoneSchema = z.object({
   description: z.string().optional().nullable(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
-  duration: z.number().int().min(1).optional(),
+  duration: z.number().int().min(0).optional(),
   status: z.enum(["not_started", "in_progress", "on_hold", "completed", "cancelled"]).optional(),
   priority: z.enum(["none", "low", "medium", "high", "critical"]).optional(),
   progress: z.number().min(0).max(100).optional(),
@@ -79,28 +79,28 @@ export async function PATCH(
         ? new Date(data.startDate)
         : existingMilestone.startDate;
       updateData.startDate = start;
-      updateData.endDate = addDays(start, data.duration - 1);
+      updateData.endDate = data.duration === 0 ? start : addDays(start, data.duration - 1);
     } else if (data.endDate !== undefined && data.startDate !== undefined) {
       // Both dates sent (drag resize or move): derive duration
       const start = new Date(data.startDate);
       const end = new Date(data.endDate);
-      const duration = differenceInDays(end, start) + 1;
+      const duration = Math.max(0, differenceInDays(end, start) + 1);
       updateData.startDate = start;
       updateData.endDate = end;
-      updateData.duration = Math.max(1, duration);
+      updateData.duration = duration;
     } else if (data.endDate !== undefined) {
       // Only endDate (resize right edge): derive duration
       const end = new Date(data.endDate);
       const start = existingMilestone.startDate;
-      const duration = differenceInDays(end, start) + 1;
+      const duration = Math.max(0, differenceInDays(end, start) + 1);
       updateData.endDate = end;
-      updateData.duration = Math.max(1, duration);
+      updateData.duration = duration;
     } else if (data.startDate !== undefined) {
       // Only startDate (root move): keep duration, compute new end
       const start = new Date(data.startDate);
       const duration = existingMilestone.duration;
       updateData.startDate = start;
-      updateData.endDate = addDays(start, duration - 1);
+      updateData.endDate = duration === 0 ? start : addDays(start, duration - 1);
       updateData.duration = duration;
     }
 

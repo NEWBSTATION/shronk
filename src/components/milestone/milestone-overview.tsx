@@ -52,122 +52,136 @@ interface MilestoneRow {
 /*  Column definitions (Dougly style — sortable ghost buttons)                 */
 /* -------------------------------------------------------------------------- */
 
-const columns: ColumnDef<MilestoneRow>[] = [
-  {
-    accessorKey: "name",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="-ml-3 text-muted-foreground"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Title
-        <ArrowUpDown className="ml-2 h-3.5 w-3.5" />
-      </Button>
-    ),
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2 font-medium">
-        <span
-          className={cn(
-            "h-2 w-2 rounded-full shrink-0",
-            row.original.isCompleted
-              ? "bg-green-500"
-              : row.original.isOverdue
-                ? "bg-destructive"
-                : row.original.progress > 0
-                  ? "bg-primary"
-                  : "bg-muted-foreground/40"
-          )}
-        />
-        {row.getValue("name")}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "startDate",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="-ml-3 text-muted-foreground"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Date Range
-        <ArrowUpDown className="ml-2 h-3.5 w-3.5" />
-      </Button>
-    ),
-    cell: ({ row }) => {
-      const start = row.original.startDate;
-      const end = row.original.endDate;
-      return (
-        <div className="text-muted-foreground">
-          {start && end
-            ? `${format(start, "MMM d")} – ${format(end, "MMM d")}`
-            : "—"}
+function buildColumns(onSelectMilestone: (id: string) => void): ColumnDef<MilestoneRow>[] {
+  return [
+    {
+      accessorKey: "name",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-3 text-muted-foreground"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Title
+          <ArrowUpDown className="ml-2 h-3.5 w-3.5" />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2 font-medium">
+          <span
+            className={cn(
+              "h-2 w-2 rounded-full shrink-0",
+              row.original.isCompleted
+                ? "bg-green-500"
+                : row.original.isOverdue
+                  ? "bg-destructive"
+                  : row.original.progress > 0
+                    ? "bg-primary"
+                    : "bg-muted-foreground/40"
+            )}
+          />
+          {row.getValue("name")}
         </div>
-      );
+      ),
     },
-  },
-  {
-    accessorKey: "progress",
-    header: "Progress",
-    cell: ({ row }) => {
-      const { featureCount, completedFeatureCount, progress, isCompleted, isOverdue } =
-        row.original;
-      if (featureCount === 0) {
-        return <span className="text-muted-foreground">—</span>;
-      }
-      return (
-        <div className="flex items-center gap-2 min-w-24">
-          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all duration-500 ease-out",
-                isCompleted
-                  ? "bg-green-500"
-                  : isOverdue
-                    ? "bg-destructive"
-                    : "bg-primary"
-              )}
-              style={{ width: `${progress}%` }}
-            />
+    {
+      accessorKey: "startDate",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-3 text-muted-foreground"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Date Range
+          <ArrowUpDown className="ml-2 h-3.5 w-3.5" />
+        </Button>
+      ),
+      cell: ({ row }) => {
+        const start = row.original.startDate;
+        const end = row.original.endDate;
+        return (
+          <div className="text-muted-foreground">
+            {start && end
+              ? `${format(start, "MMM d")} – ${format(end, "MMM d")}`
+              : "—"}
           </div>
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {completedFeatureCount}/{featureCount}
-          </span>
-        </div>
-      );
+        );
+      },
     },
-  },
-  {
-    accessorKey: "isCompleted",
-    header: "Status",
-    cell: ({ row }) => {
-      const { isCompleted, isOverdue, daysRemaining } = row.original;
-      if (isCompleted) {
+    {
+      accessorKey: "progress",
+      header: "Progress",
+      cell: ({ row }) => {
+        const { featureCount, completedFeatureCount, progress, isCompleted, isOverdue } =
+          row.original;
+        if (featureCount === 0) {
+          return (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-primary transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectMilestone(row.original.id);
+              }}
+            >
+              <Plus className="h-3 w-3" />
+              Add feature
+            </button>
+          );
+        }
         return (
-          <span className="text-xs font-medium text-green-600 dark:text-green-400">
-            Complete
-          </span>
+          <div className="flex items-center gap-2 min-w-24">
+            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-500 ease-out",
+                  isCompleted
+                    ? "bg-green-500"
+                    : isOverdue
+                      ? "bg-destructive"
+                      : "bg-primary"
+                )}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {completedFeatureCount}/{featureCount}
+            </span>
+          </div>
         );
-      }
-      if (isOverdue) {
-        return (
-          <span className="text-xs font-medium text-destructive">Overdue</span>
-        );
-      }
-      if (daysRemaining !== null) {
-        return (
-          <span className="text-xs text-muted-foreground">
-            {daysRemaining}d left
-          </span>
-        );
-      }
-      return <span className="text-xs text-muted-foreground">Active</span>;
+      },
     },
-  },
-];
+    {
+      accessorKey: "isCompleted",
+      header: "Status",
+      cell: ({ row }) => {
+        const { isCompleted, isOverdue, daysRemaining } = row.original;
+        if (isCompleted) {
+          return (
+            <span className="text-xs font-medium text-green-600 dark:text-green-400">
+              Complete
+            </span>
+          );
+        }
+        if (isOverdue) {
+          return (
+            <span className="text-xs font-medium text-destructive">Overdue</span>
+          );
+        }
+        if (daysRemaining !== null) {
+          return (
+            <span className="text-xs text-muted-foreground">
+              {daysRemaining}d left
+            </span>
+          );
+        }
+        return <span className="text-xs text-muted-foreground">Active</span>;
+      },
+    },
+  ];
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Component                                                                  */
@@ -187,6 +201,7 @@ export function MilestoneOverview({
   onCreateMilestone,
 }: MilestoneOverviewProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const columns = useMemo(() => buildColumns(onSelectMilestone), [onSelectMilestone]);
 
   // Flatten milestones + stats into table row data — must be memoized so
   // useReactTable doesn't see a new reference on every render (which triggers

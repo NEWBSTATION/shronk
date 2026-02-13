@@ -27,6 +27,7 @@ export interface TimelineTask {
     sortOrder: number;
     description: string | null;
     isTeamTrack?: boolean;
+    isChainEnd?: boolean;
     teamColor?: string;
     teamName?: string;
   };

@@ -8,7 +8,10 @@ import { differenceInDays } from "date-fns";
 import { ChartGantt } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { FeatureDetailPanel } from "@/components/drilldown/panels/feature-detail-panel";
+import { FeatureDetailPanel, type PanelChainTo } from "@/components/drilldown/panels/feature-detail-panel";
+import { MilestoneInfoPanel } from "@/components/drilldown/panels/milestone-info-panel";
+import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
+import { topoSortFeatures } from "@/lib/topo-sort";
 import {
   useProjects,
   useMilestones,
@@ -21,9 +24,10 @@ import {
   useDeleteDependency,
   useUpsertTeamDuration,
   useDeleteTeamDuration,
+  useReorderFeatures,
 } from "@/hooks/use-milestones";
 import type { CascadedUpdate } from "@/hooks/use-milestones";
-import type { Milestone, MilestoneStatus } from "@/db/schema";
+import type { Milestone, MilestoneStatus, Project } from "@/db/schema";
 
 const SVARTimelineView = dynamic(
   () =>
@@ -128,7 +132,8 @@ interface TimelineTabProps {
 
 type PanelContent =
   | { mode: "edit"; feature: Milestone }
-  | { mode: "create" };
+  | { mode: "create"; chain?: boolean }
+  | { mode: "milestone"; project: Project };
 
 export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTabProps) {
   const { data: projectsData, isLoading: isLoadingProjects } = useProjects();
@@ -137,6 +142,8 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<
     string | null
   >(initialMilestoneId ?? null);
+
+  const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
 
   // Local side panel state (not the global drilldown)
   const [panelContent, setPanelContent] = useState<PanelContent | null>(null);
@@ -181,9 +188,12 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
   useEffect(() => {
     if (!panelVisible) return;
     const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        closePanel();
-      }
+      const target = e.target as HTMLElement;
+      // Don't close if clicking inside the panel itself
+      if (panelRef.current && panelRef.current.contains(target)) return;
+      // Don't close if clicking inside Radix portals (Select, Popover, DropdownMenu, Dialog, etc.)
+      if (target.closest("[data-radix-popper-content-wrapper], [role='dialog'], [data-radix-select-viewport], [data-radix-menu-content]")) return;
+      closePanel();
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -221,6 +231,18 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
     [depsData?.dependencies]
   );
 
+  // Chain info: last feature in topo-sorted order for chain-to behavior
+  const panelChainTo = useMemo((): PanelChainTo | null => {
+    if (features.length === 0) return null;
+    const sorted = topoSortFeatures(features, dependencies);
+    const last = sorted[sorted.length - 1];
+    return {
+      featureId: last.id,
+      featureTitle: last.title,
+      endDate: new Date(last.endDate),
+    };
+  }, [features, dependencies]);
+
   const createFeatureMutation = useCreateMilestone();
   const updateFeatureMutation = useUpdateMilestone();
   const deleteFeatureMutation = useDeleteMilestone();
@@ -228,6 +250,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
   const deleteDependencyMutation = useDeleteDependency();
   const upsertTeamDurationMutation = useUpsertTeamDuration();
   const deleteTeamDurationMutation = useDeleteTeamDuration();
+  const reorderMutation = useReorderFeatures();
 
   const handleEditFeature = useCallback(
     (feature: Milestone) => {
@@ -236,9 +259,24 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
     [openPanel]
   );
 
-  const handleAddFeature = useCallback(() => {
-    openPanel({ mode: "create" });
+  const handleAddFeature = useCallback((opts?: { chain?: boolean }) => {
+    openPanel({ mode: "create", chain: !!opts?.chain });
   }, [openPanel]);
+
+  const handleMilestoneClick = useCallback(
+    (project: Project) => {
+      openPanel({ mode: "milestone", project });
+    },
+    [openPanel]
+  );
+
+  const handleAddMilestone = useCallback(() => {
+    setMilestoneDialogOpen(true);
+  }, []);
+
+  const handleMilestoneCreated = useCallback((projectId: string) => {
+    setSelectedMilestoneId(projectId);
+  }, []);
 
   const handleUpdateFeature = useCallback(
     async (data: Partial<Milestone> & { id: string; duration?: number }) => {
@@ -322,7 +360,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
           startDate,
           endDate,
           duration:
-            duration ?? Math.max(1, differenceInDays(endDate, startDate) + 1),
+            duration ?? Math.max(0, differenceInDays(endDate, startDate) + 1),
         });
         return result.cascadedUpdates || [];
       } catch {
@@ -386,10 +424,10 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
   );
 
   const handleQuickCreate = useCallback(
-    async (name: string, startDate: Date, endDate: Date, duration: number) => {
+    async (name: string, startDate: Date, endDate: Date, duration: number, chainToId?: string) => {
       if (!selectedMilestoneId) return;
       try {
-        await createFeatureMutation.mutateAsync({
+        const newFeature = await createFeatureMutation.mutateAsync({
           projectId: selectedMilestoneId,
           title: name,
           startDate,
@@ -398,12 +436,20 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
           status: 'not_started',
           sortOrder: features.length,
         });
-        toast.success("Feature created");
+        if (chainToId) {
+          await createDependencyMutation.mutateAsync({
+            predecessorId: chainToId,
+            successorId: newFeature.id,
+          });
+          toast.success("Feature created & chained");
+        } else {
+          toast.success("Feature created");
+        }
       } catch {
         toast.error("Failed to create feature");
       }
     },
-    [selectedMilestoneId, createFeatureMutation, features.length]
+    [selectedMilestoneId, createFeatureMutation, createDependencyMutation, features.length]
   );
 
   const handleDeleteTeamDuration = useCallback(
@@ -416,6 +462,17 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
       }
     },
     [deleteTeamDurationMutation]
+  );
+
+  const handleReorderFeatures = useCallback(
+    async (projectId: string, orderedFeatureIds: string[]) => {
+      try {
+        await reorderMutation.mutateAsync({ projectId, orderedFeatureIds });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to reorder features");
+      }
+    },
+    [reorderMutation]
   );
 
   // Loading state — show skeleton while projects are being fetched
@@ -476,10 +533,19 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
               onQuickCreate={handleQuickCreate}
               onCreateDependency={handleCreateDependency}
               onDeleteDependency={handleDeleteDependency}
+              onReorderFeatures={handleReorderFeatures}
+              onMilestoneClick={handleMilestoneClick}
+              onAddMilestone={handleAddMilestone}
             />
           </div>
         </div>
       )}
+
+      <MilestoneDialog
+        open={milestoneDialogOpen}
+        onOpenChange={setMilestoneDialogOpen}
+        onCreated={handleMilestoneCreated}
+      />
 
       {/* Right-side detail panel — floating island within timeline bounds */}
       {panelContent && (
@@ -493,7 +559,12 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
           )}
         >
           <div className="h-full overflow-y-auto overflow-x-hidden">
-            {panelContent.mode === "edit" ? (
+            {panelContent.mode === "milestone" ? (
+              <MilestoneInfoPanel
+                milestone={panelContent.project}
+                onBack={closePanel}
+              />
+            ) : panelContent.mode === "edit" ? (
               <FeatureDetailPanel
                 feature={panelContent.feature}
                 teams={teams}
@@ -518,14 +589,22 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
                 teams={teams}
                 projectName={selectedMilestone?.name}
                 onBack={closePanel}
+                chainTo={panelChainTo}
+                chainEnabled={panelContent.mode === "create" && !!panelContent.chain}
                 onCreate={async (formData) => {
                   if (!selectedMilestoneId) return;
-                  const { teamTracks, ...milestoneData } = formData;
+                  const { teamTracks, chainToId, ...milestoneData } = formData;
                   try {
                     const newMilestone = await createFeatureMutation.mutateAsync({
                       projectId: selectedMilestoneId,
                       ...milestoneData,
                     });
+                    if (chainToId) {
+                      await createDependencyMutation.mutateAsync({
+                        predecessorId: chainToId,
+                        successorId: newMilestone.id,
+                      });
+                    }
                     if (teamTracks && teamTracks.length > 0) {
                       await Promise.all(
                         teamTracks.map((tt) =>
@@ -537,7 +616,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
                         )
                       );
                     }
-                    toast.success("Feature added");
+                    toast.success(chainToId ? "Feature created & chained" : "Feature added");
                   } catch {
                     toast.error("Failed to add feature");
                   }

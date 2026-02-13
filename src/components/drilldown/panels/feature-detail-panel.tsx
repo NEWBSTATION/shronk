@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { Switch } from "@/components/ui/switch";
 import { PropertyRow } from "@/components/ui/property-row";
 import {
   Select,
@@ -50,6 +51,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { formatDuration } from "@/lib/format-duration";
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
 import {
   computeDurationDays,
@@ -77,6 +79,12 @@ interface MilestoneOption {
   name: string;
 }
 
+export interface PanelChainTo {
+  featureId: string;
+  featureTitle: string;
+  endDate: Date;
+}
+
 interface FeatureDetailPanelProps {
   feature?: Milestone | null;
   teams: Team[];
@@ -92,6 +100,7 @@ interface FeatureDetailPanelProps {
     duration?: number;
     status: MilestoneStatus;
     teamTracks?: { teamId: string; duration: number }[];
+    chainToId?: string;
   }) => void;
   onDelete?: (id: string) => Promise<void>;
   onUpsertTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
@@ -102,6 +111,10 @@ interface FeatureDetailPanelProps {
   onMilestoneChange?: (id: string | null) => void;
   /** Override the default back/close behavior (defaults to drilldown pop) */
   onBack?: () => void;
+  /** Chain to a predecessor feature (create mode only) */
+  chainTo?: PanelChainTo | null;
+  /** Whether chain should be initially enabled */
+  chainEnabled?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -164,6 +177,8 @@ export function FeatureDetailPanel({
   selectedMilestoneId,
   onMilestoneChange,
   onBack: onBackProp,
+  chainTo,
+  chainEnabled: chainEnabledProp = false,
 }: FeatureDetailPanelProps) {
   const { pop } = useDrilldown();
   const back = onBackProp ?? pop;
@@ -180,6 +195,7 @@ export function FeatureDetailPanel({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [pendingTeamTracks, setPendingTeamTracks] = useState<Map<string, number>>(new Map());
+  const [chainActive, setChainActive] = useState(false);
 
   const completed = status === "completed";
   const prevStatusRef = useRef<MilestoneStatus>("not_started");
@@ -211,12 +227,26 @@ export function FeatureDetailPanel({
       setDescription("");
       setStatus("not_started");
       setPriority("medium");
-      setStartDate(new Date());
-      setEndDate(computeEndDateFromDuration(new Date(), 14));
+      const shouldChain = chainEnabledProp && !!chainTo;
+      setChainActive(shouldChain);
+      if (shouldChain && chainTo) {
+        const chainStart = new Date(chainTo.endDate);
+        chainStart.setDate(chainStart.getDate() + 1);
+        setStartDate(chainStart);
+        setEndDate(computeEndDateFromDuration(chainStart, 14));
+      } else {
+        setStartDate(new Date());
+        setEndDate(computeEndDateFromDuration(new Date(), 14));
+      }
       setDurationValue(2);
       setDurationUnit("weeks");
+      // Pre-populate team tracks from teams with autoAdd enabled
+      const autoAddTeams = teams.filter((t) => t.autoAdd);
+      if (autoAddTeams.length > 0) {
+        setPendingTeamTracks(new Map(autoAddTeams.map((t) => [t.id, 14])));
+      }
     }
-  }, [feature]);
+  }, [feature, chainTo, chainEnabledProp, teams]);
 
   /* ---- Inline save helpers ---- */
 
@@ -334,9 +364,10 @@ export function FeatureDetailPanel({
       duration: totalDays,
       status,
       teamTracks,
+      chainToId: chainActive && chainTo ? chainTo.featureId : undefined,
     });
     back();
-  }, [onCreate, title, durationValue, durationUnit, startDate, status, description, back, pendingTeamTracks]);
+  }, [onCreate, title, durationValue, durationUnit, startDate, status, description, back, pendingTeamTracks, chainActive, chainTo]);
 
   return (
     <div className="p-6 md:p-8 min-w-0">
@@ -417,7 +448,7 @@ export function FeatureDetailPanel({
               }}
               placeholder="Feature title"
               className={cn(
-                "flex-1 min-w-0 bg-transparent text-3xl font-bold placeholder:text-muted-foreground/40 outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors",
+                "flex-1 min-w-0 bg-transparent text-3xl font-bold placeholder:text-muted-foreground/40 outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors overflow-hidden text-ellipsis",
                 completed
                   ? "text-muted-foreground line-through decoration-muted-foreground/50"
                   : "text-foreground"
@@ -434,7 +465,7 @@ export function FeatureDetailPanel({
               }}
               placeholder="Feature title"
               autoFocus
-              className="flex-1 min-w-0 bg-transparent text-3xl font-bold placeholder:text-muted-foreground/40 outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors text-foreground"
+              className="flex-1 min-w-0 bg-transparent text-3xl font-bold placeholder:text-muted-foreground/40 outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors text-foreground overflow-hidden text-ellipsis"
             />
           )}
         </div>
@@ -536,15 +567,17 @@ export function FeatureDetailPanel({
 
         {/* Start Date */}
         <PropertyRow icon={CalendarIcon} label="Start Date" type="custom">
-          {isChained ? (
+          {isChained || chainActive ? (
             <div className="flex items-center gap-2 h-8 px-2">
               <span className="text-sm text-muted-foreground">
                 {format(startDate, "MMM d, yyyy")}
               </span>
-              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 bg-muted px-1.5 py-0.5 rounded">
-                <Link className="h-2.5 w-2.5" />
-                Dependency
-              </span>
+              {isChained && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 bg-muted px-1.5 py-0.5 rounded">
+                  <Link className="h-2.5 w-2.5" />
+                  Dependency
+                </span>
+              )}
             </div>
           ) : (
             <Popover>
@@ -629,16 +662,36 @@ export function FeatureDetailPanel({
 
       {/* Create mode footer */}
       {!isEditMode && (
-        <div className="flex justify-end gap-2 mt-6 pt-6 border-t border-border">
-          <Button variant="outline" onClick={back}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreateSubmit}
-            disabled={!title.trim()}
-          >
-            Create Feature
-          </Button>
+        <div className="flex items-center gap-2 mt-6 pt-6 border-t border-border">
+          {chainTo && (
+            <label className="flex items-center gap-2 cursor-pointer select-none mr-auto">
+              <Switch
+                size="sm"
+                checked={chainActive}
+                onCheckedChange={(checked) => {
+                  setChainActive(checked);
+                  if (checked && chainTo) {
+                    const chainStart = new Date(chainTo.endDate);
+                    chainStart.setDate(chainStart.getDate() + 1);
+                    setStartDate(chainStart);
+                    setEndDate(computeEndDateFromDuration(chainStart, durationValue * DURATION_UNIT_MULTIPLIERS[durationUnit]));
+                  }
+                }}
+              />
+              <span className="text-xs text-muted-foreground">Auto-Chain</span>
+            </label>
+          )}
+          <div className="flex gap-2 ml-auto">
+            <Button variant="outline" onClick={back}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateSubmit}
+              disabled={!title.trim()}
+            >
+              Create Feature
+            </Button>
+          </div>
         </div>
       )}
 
@@ -782,14 +835,14 @@ function TeamTrackRow({
   const handleClose = useCallback(
     (newOpen: boolean) => {
       if (!newOpen && localDuration !== td.duration) {
-        onUpsertTeamDuration?.(feature.id, td.teamId, Math.max(1, localDuration));
+        onUpsertTeamDuration?.(feature.id, td.teamId, Math.max(0, localDuration));
       }
       setOpen(newOpen);
     },
     [localDuration, td.duration, td.teamId, feature.id, onUpsertTeamDuration]
   );
 
-  const durationLabel = `${td.duration}d`;
+  const durationLabel = formatDuration(td.duration);
   const dateRange =
     td.startDate && td.endDate
       ? `${format(new Date(td.startDate), "MMM d")} – ${format(new Date(td.endDate), "MMM d")}`
@@ -823,8 +876,8 @@ function TeamTrackRow({
             <div className="flex items-center gap-2">
               <NumberStepper
                 value={localDuration}
-                onChange={(v) => setLocalDuration(Math.max(1, v))}
-                min={1}
+                onChange={(v) => setLocalDuration(Math.max(0, v))}
+                min={0}
                 className="w-20"
               />
               <span className="text-sm text-muted-foreground">
@@ -959,7 +1012,7 @@ function PendingTeamTrackRow({
   const handleClose = useCallback(
     (newOpen: boolean) => {
       if (!newOpen && localDuration !== duration) {
-        onUpdateDuration(Math.max(1, localDuration));
+        onUpdateDuration(Math.max(0, localDuration));
       }
       setOpen(newOpen);
     },
@@ -993,8 +1046,8 @@ function PendingTeamTrackRow({
             <div className="flex items-center gap-2">
               <NumberStepper
                 value={localDuration}
-                onChange={(v) => setLocalDuration(Math.max(1, v))}
-                min={1}
+                onChange={(v) => setLocalDuration(Math.max(0, v))}
+                min={0}
                 className="w-20"
               />
               <span className="text-sm text-muted-foreground">
@@ -1043,7 +1096,7 @@ function DurationPopover({
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       if (localValue !== durationValue || localUnit !== durationUnit) {
-        onSave(Math.max(1, localValue), localUnit);
+        onSave(Math.max(0, localValue), localUnit);
       }
     }
     setOpen(newOpen);
@@ -1066,8 +1119,8 @@ function DurationPopover({
         <div className="flex items-center gap-2">
           <NumberStepper
             value={localValue}
-            onChange={(v) => setLocalValue(Math.max(1, v))}
-            min={1}
+            onChange={(v) => setLocalValue(Math.max(0, v))}
+            min={0}
             className="w-20"
           />
           <Select

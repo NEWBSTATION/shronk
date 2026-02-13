@@ -1,0 +1,1 @@
+ALTER TABLE "teams" ADD COLUMN "auto_add" boolean DEFAULT false NOT NULL;

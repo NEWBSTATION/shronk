@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, X, Loader2, Pencil, Check, ChevronRight, Trash2, Users } from "lucide-react";
+import { Plus, X, Loader2, Pencil, Check, ChevronRight, Trash2, Users, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -25,6 +25,7 @@ import {
   useUpdateTeam,
   useDeleteTeam,
 } from "@/hooks/use-milestones";
+import { Switch } from "@/components/ui/switch";
 import { MILESTONE_COLORS, getColorStyles } from "@/lib/milestone-theme";
 import { cn } from "@/lib/utils";
 
@@ -84,9 +85,10 @@ function TeamRow({
   onSaveEdit,
   onCancelEdit,
   onDelete,
+  onToggleAutoAdd,
   isSaving,
 }: {
-  team: { id: string; name: string; color: string };
+  team: { id: string; name: string; color: string; autoAdd: boolean };
   isEditing: boolean;
   editName: string;
   editColor: string;
@@ -96,6 +98,7 @@ function TeamRow({
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDelete: () => void;
+  onToggleAutoAdd: () => void;
   isSaving: boolean;
 }) {
   if (isEditing) {
@@ -150,6 +153,20 @@ function TeamRow({
         <span className="text-sm font-medium flex-1 truncate text-left">
           {team.name}
         </span>
+
+        {/* Auto-add toggle */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1.5 shrink-0"
+          title="Auto-add to new features"
+        >
+          <Zap className={cn("h-3 w-3 transition-colors", team.autoAdd ? "text-amber-500" : "text-muted-foreground/30")} />
+          <Switch
+            size="sm"
+            checked={team.autoAdd}
+            onCheckedChange={onToggleAutoAdd}
+          />
+        </div>
 
         {/* Actions — appear on hover */}
         <div className="flex items-center gap-1 shrink-0">
@@ -349,6 +366,7 @@ export function TeamsTab() {
             onSaveEdit={saveEdit}
             onCancelEdit={() => setEditingId(null)}
             onDelete={() => setDeleteTarget({ id: team.id, name: team.name })}
+            onToggleAutoAdd={() => updateTeam.mutate({ id: team.id, autoAdd: !team.autoAdd })}
             isSaving={updateTeam.isPending}
           />
         ))}

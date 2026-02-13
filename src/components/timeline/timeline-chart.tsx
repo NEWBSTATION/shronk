@@ -4,7 +4,7 @@ import { useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 
 import { TimelineScales } from './timeline-scales';
 import { TimelineBars } from './timeline-bars';
 import { TimelineLinks } from './timeline-links';
-import { AddFeatureChartRow } from './add-feature-chart-row';
+import { AddFeatureChartRow, type ChainInfo } from './add-feature-chart-row';
 import { ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { dateToPixel, getTotalWidth } from './date-math';
 import type { TimePeriod, TimelineTask, TimelineLink } from './types';
@@ -91,7 +91,9 @@ interface TimelineChartProps {
   onScroll?: (scrollLeft: number, scrollTop: number) => void;
   onTaskClick?: (taskId: string) => void;
   addFeatureRowIndex?: number;
-  onQuickCreate?: (name: string, startDate: Date, endDate: Date, duration: number) => Promise<void>;
+  onQuickCreate?: (name: string, startDate: Date, endDate: Date, duration: number, chainToId?: string) => Promise<void>;
+  chainInfo?: ChainInfo | null;
+  hideTeamTracks?: boolean;
 }
 
 export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>(
@@ -108,6 +110,8 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
       onTaskClick,
       addFeatureRowIndex,
       onQuickCreate,
+      chainInfo,
+      hideTeamTracks,
     },
     ref
   ) {
@@ -127,6 +131,9 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
     }));
 
     const totalWidth = getTotalWidth(windowStart, windowEnd, pixelsPerDay);
+    const visibleRowCount = hideTeamTracks
+      ? tasks.filter(t => !t.$custom?.isTeamTrack).length
+      : tasks.length;
 
     const handleScroll = useCallback(() => {
       const el = scrollRef.current;
@@ -180,7 +187,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
           totalWidth={totalWidth}
         />
         {/* Scroll area wrapper — contains fixed column overlay + scrollable content */}
-        <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+        <div className="timeline-scroll-wrapper" style={{ position: 'relative', flex: 1, minHeight: 0 }}>
           {/* Dashed column lines — stays fixed vertically, syncs horizontally via scroll handler */}
           <div
             ref={columnsRef}
@@ -209,7 +216,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
             className="timeline-scroll-area"
             style={{ overflow: 'auto', position: 'absolute', inset: 0, zIndex: 1 }}
           >
-            <div style={{ width: totalWidth, height: tasks.length * ROW_HEIGHT, minHeight: '100%', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ width: totalWidth, height: visibleRowCount * ROW_HEIGHT, minHeight: '100%', position: 'relative', overflow: 'hidden', transition: 'height 200ms ease' }}>
               {/* Weekend columns */}
               <WeekendColumns
                 windowStart={windowStart}
@@ -224,6 +231,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
                 links={links}
                 pixelsPerDay={pixelsPerDay}
                 timelineStart={windowStart}
+                hideTeamTracks={hideTeamTracks}
               />
 
               {/* Task bars (on top of links) */}
@@ -232,6 +240,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
                 pixelsPerDay={pixelsPerDay}
                 timelineStart={windowStart}
                 onTaskClick={onTaskClick}
+                hideTeamTracks={hideTeamTracks}
               />
 
               {/* Quick-create overlay on the add-feature row */}
@@ -241,6 +250,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
                   totalWidth={totalWidth}
                   pixelsPerDay={pixelsPerDay}
                   timelineStart={windowStart}
+                  chainInfo={chainInfo}
                   onQuickCreate={onQuickCreate}
                 />
               )}
