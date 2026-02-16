@@ -87,6 +87,11 @@ export function CursorMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeig
 
         const absoluteX = viewportX + scrollEl.scrollLeft;
 
+        if (!ganttContainer) {
+          hide();
+          return;
+        }
+
         // Position line in ganttContainer using viewport-relative coords (like today marker)
         const containerRect = ganttContainer.getBoundingClientRect();
         const chartLeft = scrollRect.left - containerRect.left;
