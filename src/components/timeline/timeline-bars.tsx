@@ -162,7 +162,7 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
     let tooltipTimer: ReturnType<typeof setTimeout> | null = null;
 
     function highlightLinks(taskId: string | null) {
-      const svg = layer.parentElement?.querySelector('.timeline-links-overlay');
+      const svg = layer?.parentElement?.querySelector('.timeline-links-overlay');
       if (!svg) return;
       svg.querySelectorAll('[data-link-id].link-highlight').forEach((g) => g.classList.remove('link-highlight'));
       if (!taskId) return;
