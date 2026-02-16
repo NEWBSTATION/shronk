@@ -98,7 +98,7 @@ export function ProfileTab() {
               className="group relative shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <Avatar className="h-12 w-12">
-                <AvatarImage src={user.imageUrl} alt={currentDisplayName} />
+                {user.hasImage && <AvatarImage src={user.imageUrl} alt={currentDisplayName} />}
                 <AvatarFallback className="text-sm">{initials}</AvatarFallback>
               </Avatar>
               <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">

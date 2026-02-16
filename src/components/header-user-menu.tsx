@@ -92,7 +92,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8 rounded-full">
-            <AvatarImage src={user.imageUrl} alt={displayName} />
+            {user.hasImage && <AvatarImage src={user.imageUrl} alt={displayName} />}
             <AvatarFallback className="rounded-full text-xs">
               {initials}
             </AvatarFallback>
@@ -103,7 +103,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
         <DropdownMenuLabel className="p-0 font-normal">
           <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
             <Avatar className="h-8 w-8 rounded-full">
-              <AvatarImage src={user.imageUrl} alt={displayName} />
+              {user.hasImage && <AvatarImage src={user.imageUrl} alt={displayName} />}
               <AvatarFallback className="rounded-full text-xs">
                 {initials}
               </AvatarFallback>

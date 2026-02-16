@@ -40,7 +40,7 @@ export async function GET() {
             name:
               [user.firstName, user.lastName].filter(Boolean).join(" ") ||
               member.email,
-            imageUrl: user.imageUrl,
+            imageUrl: user.hasImage ? user.imageUrl : null,
           };
         } catch {
           return {
