@@ -84,7 +84,8 @@
       "WebFetch(domain:www.codeproject.com)",
       "WebFetch(domain:people.eng.unimelb.edu.au)",
       "Bash(git merge:*)",
-      "Bash(set:*)"
+      "Bash(set:*)",
+      "Bash(psql:*)"
     ]
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import {
   useMembers,
@@ -29,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, X, Mail, Clock, ShieldCheck, Trash2, Check } from "lucide-react";
+import { Loader2, Plus, X, Mail, Clock, ShieldCheck, Trash2, Check, Search } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { formatDistanceToNow } from "date-fns";
 import { getColorStyles } from "@/lib/milestone-theme";
@@ -170,8 +170,30 @@ export function MembersTab() {
     name: string;
   } | null>(null);
 
+  // Search
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   const members = membersData?.members || [];
   const pendingInvites = invitesData?.invites || [];
+
+  const filteredMembers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter(
+      (m) =>
+        m.name.toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q)
+    );
+  }, [members, searchQuery]);
+
+  const filteredInvites = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return pendingInvites;
+    return pendingInvites.filter((inv) =>
+      inv.email.toLowerCase().includes(q)
+    );
+  }, [pendingInvites, searchQuery]);
 
   const handleInvite = () => {
     if (!inviteEmail.trim()) return;
@@ -239,6 +261,41 @@ export function MembersTab() {
 
   return (
     <div className="space-y-4">
+      {/* Search input */}
+      {(members.length > 0 || pendingInvites.length > 0) && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search members..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-9"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                searchInputRef.current?.focus();
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {searchQuery && filteredMembers.length === 0 && filteredInvites.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Search className="h-10 w-10 text-muted-foreground/40" />
+          <p className="mt-3 text-sm text-muted-foreground">
+            No members matching &quot;{searchQuery.trim()}&quot;
+          </p>
+        </div>
+      ) : (
+      <>
       {/* Members card */}
       <div className="rounded-2xl overflow-hidden border">
         {/* Header — mirrors teams tab */}
@@ -259,7 +316,7 @@ export function MembersTab() {
             <div className="flex flex-1 items-center gap-2 min-w-0">
               <span className="text-sm font-medium truncate">Members</span>
               <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                {members.length}
+                {filteredMembers.length}
               </span>
             </div>
 
@@ -274,7 +331,7 @@ export function MembersTab() {
         </div>
 
         {/* Member rows */}
-        {members.map((member) => (
+        {filteredMembers.map((member) => (
           <MemberRow
             key={member.id}
             member={member}
@@ -285,7 +342,7 @@ export function MembersTab() {
         ))}
 
         {/* Pending invites — inline in the same card */}
-        {pendingInvites.map((invite) => (
+        {filteredInvites.map((invite) => (
           <InviteRow
             key={invite.id}
             invite={invite}
@@ -357,6 +414,8 @@ export function MembersTab() {
           </button>
         )}
       </div>
+      </>
+      )}
 
       {/* Remove confirmation */}
       <AlertDialog

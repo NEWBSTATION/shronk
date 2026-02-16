@@ -68,6 +68,8 @@ interface TimelineGridProps {
   onProjectChange?: (id: string) => void;
   onMilestoneClick?: (project: Project) => void;
   onAddMilestone?: () => void;
+  /** When non-null, search is active: dim rows not in this set */
+  searchMatchIds?: Set<string> | null;
 }
 
 export function TimelineGrid({
@@ -85,6 +87,7 @@ export function TimelineGrid({
   onProjectChange,
   onMilestoneClick,
   onAddMilestone,
+  searchMatchIds,
 }: TimelineGridProps) {
 
   // Feature IDs (excludes team tracks and sentinel)
@@ -335,12 +338,14 @@ export function TimelineGrid({
 
             if (isTeamTrack) {
               const hideTrack = isDragging;
+              const parentId = task.parent;
+              const isTeamSearchDimmed = !hideTrack && searchMatchIds != null && parentId != null && !searchMatchIds.has(parentId);
               return (
                 <div
                   key={task.id}
                   style={{
                     height: hideTrack ? 0 : ROW_HEIGHT,
-                    opacity: hideTrack ? 0 : 1,
+                    opacity: hideTrack ? 0 : isTeamSearchDimmed ? 0.4 : 1,
                     transition: 'height 200ms ease, opacity 150ms ease',
                   }}
                   className="flex items-center gap-1.5 min-w-0 pl-7 pr-3 cursor-pointer border-b border-border overflow-hidden"
@@ -363,16 +368,20 @@ export function TimelineGrid({
             // Feature row (manually sortable)
             if (featureIdSet.has(task.id)) {
               const isDragSource = task.id === activeId;
+              const isSearchDimmed = searchMatchIds != null && !searchMatchIds.has(task.id);
+              const isSearchMatch = searchMatchIds != null && searchMatchIds.has(task.id);
 
               return (
                 <div
                   key={task.id}
                   style={{
                     height: ROW_HEIGHT,
-                    opacity: isDragSource ? 0.3 : 1,
+                    opacity: isDragSource ? 0.3 : isSearchDimmed ? 0.4 : 1,
                     transition: 'opacity 150ms ease',
                   }}
-                  className={`flex items-center gap-1.5 min-w-0 px-3 cursor-pointer border-b border-border bg-background ${
+                  className={`flex items-center gap-1.5 min-w-0 px-3 cursor-pointer border-b border-border ${
+                    isSearchMatch ? 'bg-primary/[0.06]' : 'bg-background'
+                  } ${
                     isDragging ? '' : 'group/gridrow'
                   }`}
                   onClick={() => { if (!dragJustEndedRef.current) onRowClick(task); }}

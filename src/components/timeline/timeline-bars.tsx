@@ -12,6 +12,8 @@ interface TimelineBarsProps {
   timelineStart: Date;
   onTaskClick?: (taskId: string) => void;
   hideTeamTracks?: boolean;
+  /** When non-null, search is active: feature IDs that match */
+  searchMatchIds?: Set<string> | null;
 }
 
 const BAR_HEIGHT = 40;
@@ -55,7 +57,7 @@ function buildTooltipHTML(task: TimelineTask): string {
   return lines.join('');
 }
 
-export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, hideTeamTracks }: TimelineBarsProps) {
+export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, hideTeamTracks, searchMatchIds }: TimelineBarsProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const taskMapRef = useRef<Map<string, TimelineTask>>(new Map());
@@ -227,7 +229,10 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
         const barHeight = isTeam ? TEAM_BAR_HEIGHT : BAR_HEIGHT;
         const baseTop = hideTeamTracks ? adjustedTop : top;
         const barTop = baseTop + (isTeam ? TEAM_BAR_TOP_PAD : BAR_TOP_PAD);
-        const barOpacity = hideTeamTracks && isTeam ? 0 : 1;
+        // Search dimming: match against feature ID (or parent for team tracks)
+        const featureId = isTeam && task.parent ? task.parent : task.id;
+        const isSearchDimmed = searchMatchIds != null && !searchMatchIds.has(featureId);
+        const barOpacity = hideTeamTracks && isTeam ? 0 : isSearchDimmed ? 0.35 : 1;
 
         return (
           <div

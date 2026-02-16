@@ -2,8 +2,9 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import { startOfDay, addDays, addMonths, subMonths, differenceInDays } from 'date-fns';
-import { Plus, Minus, GitBranch, Users } from 'lucide-react';
+import { Plus, Minus, GitBranch, Users, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -169,6 +170,15 @@ export function TimelineView({
   );
   const [showDependencies, setShowDependencies] = useState(true);
   const [isGridDragging, setIsGridDragging] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Compute set of feature IDs that match the search query (null = no search active)
+  const searchMatchIds = useMemo((): Set<string> | null => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return null;
+    return new Set(features.filter((f) => f.title.toLowerCase().includes(q)).map((f) => f.id));
+  }, [searchQuery, features]);
 
   const chartRef = useRef<TimelineChartHandle>(null);
   const ganttContainerRef = useRef<HTMLDivElement>(null);
@@ -920,6 +930,29 @@ export function TimelineView({
           )}
         </div>
 
+        {/* Search */}
+        <div className="relative ml-auto">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-7 w-40 pl-8 pr-7 text-xs rounded-md"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                searchInputRef.current?.focus();
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main content */}
@@ -939,6 +972,7 @@ export function TimelineView({
           onProjectChange={onProjectChange}
           onMilestoneClick={onMilestoneClick}
           onAddMilestone={onAddMilestone}
+          searchMatchIds={searchMatchIds}
         />
 
         <div
@@ -972,6 +1006,7 @@ export function TimelineView({
             onQuickCreate={onQuickCreate}
             chainInfo={chainInfo}
             hideTeamTracks={isGridDragging}
+            searchMatchIds={searchMatchIds}
           />
 
           <TodayMarker

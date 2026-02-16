@@ -69,6 +69,10 @@ interface FeaturesSectionListProps {
   milestones: MilestoneOption[];
   dependencies?: Dependency[];
   teamDurationsMap?: Map<string, TeamDurationInfo[]>;
+  /** When non-null, search is active: feature IDs that match */
+  searchMatchIds?: Set<string> | null;
+  /** When non-null, milestone IDs that contain at least one match */
+  searchMatchMilestoneIds?: Set<string> | null;
   onFeatureClick: (feature: any) => void;
   onToggleComplete?: (featureId: string, currentStatus: string) => void;
   onStatusChange?: (featureId: string, newStatus: string) => void;
@@ -131,6 +135,8 @@ export function FeaturesSectionList({
   milestones,
   dependencies = [],
   teamDurationsMap,
+  searchMatchIds,
+  searchMatchMilestoneIds,
   onFeatureClick,
   onToggleComplete,
   onStatusChange,
@@ -383,6 +389,7 @@ export function FeaturesSectionList({
         <div className="space-y-4">
           {sections.map((section) => {
             const isCollapsed = collapsedSections.has(section.milestone.id);
+            const isSectionDimmed = searchMatchMilestoneIds != null && !searchMatchMilestoneIds.has(section.milestone.id);
             return (
               <DroppableSection
                 key={section.milestone.id}
@@ -391,12 +398,11 @@ export function FeaturesSectionList({
               >
                 {(isOver) => (
                   <div
-                    className="rounded-2xl overflow-hidden border transition-shadow"
-                    style={
-                      isOver
-                        ? { boxShadow: "0 0 0 2px hsl(var(--primary) / 0.3)" }
-                        : undefined
-                    }
+                    className="rounded-2xl overflow-hidden border transition-[box-shadow,opacity] duration-200"
+                    style={{
+                      ...(isOver ? { boxShadow: "0 0 0 2px hsl(var(--primary) / 0.3)" } : undefined),
+                      opacity: isSectionDimmed ? 0.4 : 1,
+                    }}
                   >
                     <SectionHeader
                       milestoneId={section.milestone.id}
@@ -454,6 +460,7 @@ export function FeaturesSectionList({
                                 selected={selectedIds.has(feature.id)}
                                 selectMode={selectMode}
                                 isAnyDragging={!!activeId}
+                                dimmed={searchMatchIds != null && !searchMatchIds.has(feature.id)}
                                 onSelect={(e) => handleSelect(feature.id, e)}
                                 onClick={() => onFeatureClick(feature)}
                                 onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}

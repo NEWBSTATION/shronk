@@ -17,6 +17,7 @@ import { HeaderUserMenu } from "@/components/header-user-menu";
 import type { SettingsSection } from "@/components/settings/settings-panel";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import { useThemeStore } from "@/store/theme-store";
 
 export type TabId = "dashboard" | "features" | "timeline" | "calendar";
 export type CreateAction = "milestone" | "feature";
@@ -110,10 +111,15 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
     return () => document.removeEventListener("keydown", handler);
   }, [createOpen, setCreateOpen, onCreateAction]);
 
+  const currentPresetKey = useThemeStore((s) => s.currentPresetKey);
+  const themeMode = useThemeStore((s) => s.mode);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const indicatorRef = useRef<HTMLDivElement>(null);
   const hasAnimated = useRef(false);
+  const prevPresetRef = useRef(currentPresetKey);
+  const prevModeRef = useRef(themeMode);
 
   useLayoutEffect(() => {
     const indicator = indicatorRef.current;
@@ -123,10 +129,30 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
     const left = `${button.offsetLeft}px`;
     const width = `${button.offsetWidth}px`;
 
+    // On theme change, snap instantly (no animation) since text may have reflowed
+    const themeChanged =
+      prevPresetRef.current !== currentPresetKey ||
+      prevModeRef.current !== themeMode;
+    prevPresetRef.current = currentPresetKey;
+    prevModeRef.current = themeMode;
+
     if (!hasAnimated.current) {
+      indicator.style.transition = "none";
       indicator.style.left = left;
       indicator.style.width = width;
       hasAnimated.current = true;
+      return;
+    }
+
+    if (themeChanged) {
+      // Wait a frame for the new font/radius to render, then re-measure
+      requestAnimationFrame(() => {
+        const btn = buttonRefs.current[activeTab];
+        if (!btn || !indicator) return;
+        indicator.style.transition = "none";
+        indicator.style.left = `${btn.offsetLeft}px`;
+        indicator.style.width = `${btn.offsetWidth}px`;
+      });
       return;
     }
 
@@ -139,7 +165,7 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
       "left 500ms cubic-bezier(0.16, 1, 0.3, 1), width 500ms cubic-bezier(0.16, 1, 0.3, 1)";
     indicator.style.left = left;
     indicator.style.width = width;
-  }, [activeTab]);
+  }, [activeTab, currentPresetKey, themeMode]);
 
   return (
     <header className="flex shrink-0 items-center bg-background px-6 py-6 relative z-10 after:pointer-events-none after:absolute after:left-0 after:right-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-background after:to-transparent">

@@ -3,7 +3,8 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Layers } from "lucide-react";
+import { Layers, Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +30,8 @@ import {
   useUpdateMilestone,
   useDeleteMilestone,
   useReorderFeatures,
+  useUpsertTeamDuration,
+  useDeleteTeamDuration,
 } from "@/hooks/use-milestones";
 import type { Milestone, MilestoneStatus } from "@/db/schema";
 
@@ -116,6 +119,8 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
   const [deletingMilestoneId, setDeletingMilestoneId] = useState<string | null>(null);
   const [chainTo, setChainTo] = useState<ChainTo | null>(null);
   const [chainEnabled, setChainEnabled] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["allFeatures"],
@@ -124,6 +129,23 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
 
   const features = data?.features || [];
   const milestoneOptions = data?.milestones || [];
+
+  // Compute matching feature IDs for search (null = no search active)
+  const searchMatchIds = useMemo((): Set<string> | null => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return null;
+    return new Set(features.filter((f) => f.title.toLowerCase().includes(q)).map((f) => f.id));
+  }, [features, searchQuery]);
+
+  // Milestone IDs that contain at least one matching feature
+  const searchMatchMilestoneIds = useMemo((): Set<string> | null => {
+    if (!searchMatchIds) return null;
+    const ids = new Set<string>();
+    for (const f of features) {
+      if (searchMatchIds.has(f.id)) ids.add(f.projectId);
+    }
+    return ids;
+  }, [searchMatchIds, features]);
 
   // Build per-feature team duration map for display in feature rows
   const teamDurationsMap = useMemo(() => {
@@ -154,6 +176,8 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
   const updateMutation = useUpdateMilestone();
   const deleteMutation = useDeleteMilestone();
   const reorderMutation = useReorderFeatures();
+  const upsertTeamDurationMutation = useUpsertTeamDuration();
+  const deleteTeamDurationMutation = useDeleteTeamDuration();
 
   const handleUpdateFeature = useCallback(
     async (data: Partial<Milestone> & { id: string; duration?: number }) => {
@@ -233,6 +257,31 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
       }
     },
     [reorderMutation, queryClient]
+  );
+
+  const handleUpsertTeamDuration = useCallback(
+    async (milestoneId: string, teamId: string, duration: number) => {
+      try {
+        await upsertTeamDurationMutation.mutateAsync({ milestoneId, teamId, duration });
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      } catch {
+        toast.error("Failed to update team duration");
+      }
+    },
+    [upsertTeamDurationMutation, queryClient]
+  );
+
+  const handleDeleteTeamDuration = useCallback(
+    async (milestoneId: string, teamId: string) => {
+      try {
+        await deleteTeamDurationMutation.mutateAsync({ milestoneId, teamId });
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+        toast.success("Team track removed");
+      } catch {
+        toast.error("Failed to remove team track");
+      }
+    },
+    [deleteTeamDurationMutation, queryClient]
   );
 
   const handleAddFeatureForMilestone = useCallback(
@@ -352,8 +401,11 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
           teams={teams}
           projectName={feature.milestoneName}
           dependencies={dependencies}
+          teamDurations={data?.teamDurations as any}
           onUpdate={handleUpdateFeature}
           onDelete={handleDeleteFeature}
+          onUpsertTeamDuration={handleUpsertTeamDuration}
+          onDeleteTeamDuration={handleDeleteTeamDuration}
           milestoneOptions={milestoneOptions}
           selectedMilestoneId={feature.projectId}
           onMilestoneChange={(targetId) => {
@@ -364,7 +416,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
         />
       );
     },
-    [push, teams, dependencies, handleUpdateFeature, handleDeleteFeature]
+    [push, teams, dependencies, data?.teamDurations, handleUpdateFeature, handleDeleteFeature, handleUpsertTeamDuration, handleDeleteTeamDuration]
   );
 
   // Escape key exits select mode (only when drilldown is not open)
@@ -377,6 +429,18 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [selectMode, isOpen, clearSelection]);
+
+  // Cmd+K / Ctrl+K focuses the search input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   if (isLoading) {
     return (
@@ -417,11 +481,47 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
   return (
     <div className="flex flex-col flex-1 min-h-0 px-6 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_16px)]">
       <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl flex flex-col min-h-0 pt-8 pb-32">
+        {/* Search input */}
+        {(features.length > 0 || milestoneOptions.length > 0) && (
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search features..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-9"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  searchInputRef.current?.focus();
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {searchMatchIds && searchMatchIds.size === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Search className="h-10 w-10 text-muted-foreground/40" />
+            <p className="mt-3 text-sm text-muted-foreground">
+              No features matching &quot;{searchQuery.trim()}&quot;
+            </p>
+          </div>
+        ) : (
         <FeaturesSectionList
           features={features}
           milestones={milestoneOptions}
           dependencies={data?.dependencies}
           teamDurationsMap={teamDurationsMap}
+          searchMatchIds={searchMatchIds}
+          searchMatchMilestoneIds={searchMatchMilestoneIds}
           onFeatureClick={handleFeatureClick}
           onToggleComplete={handleToggleComplete}
           onStatusChange={handleStatusChange}
@@ -433,6 +533,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
           onMoveFeature={handleMoveFeature}
           onReorderFeatures={handleReorderFeatures}
         />
+        )}
 
         <BulkActionBar />
       </div>

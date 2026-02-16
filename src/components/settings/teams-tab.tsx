@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { Plus, X, Loader2, Pencil, Check, ChevronRight, Trash2, Users, Zap } from "lucide-react";
+import { Plus, X, Loader2, Pencil, Check, ChevronRight, Trash2, Users, Zap, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -148,13 +148,37 @@ function TeamRow({
         />
       </div>
 
-      {/* Name */}
+      {/* Name + right actions */}
       <div className="flex flex-1 ml-3 min-w-0 items-center gap-3">
         <span className="text-sm font-medium flex-1 truncate text-left">
           {team.name}
         </span>
 
-        {/* Auto-add toggle */}
+        {/* Actions — appear on hover, to the left of the switch */}
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartEdit();
+            }}
+            className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 transition-all"
+            title="Edit team"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+            title="Delete team"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Auto-add toggle — always visible, right-aligned */}
         <div
           onClick={(e) => e.stopPropagation()}
           className="flex items-center gap-1.5 shrink-0"
@@ -166,31 +190,6 @@ function TeamRow({
             checked={team.autoAdd}
             onCheckedChange={onToggleAutoAdd}
           />
-        </div>
-
-        {/* Actions — appear on hover */}
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onStartEdit();
-            }}
-            className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent/50 transition-all"
-            title="Edit team"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
-            title="Delete team"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
     </div>
@@ -206,6 +205,16 @@ export function TeamsTab() {
   const createTeam = useCreateTeam();
   const updateTeam = useUpdateTeam();
   const deleteTeam = useDeleteTeam();
+
+  // Search
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredTeams = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return teams;
+    return teams.filter((t) => t.name.toLowerCase().includes(q));
+  }, [teams, searchQuery]);
 
   // New team form
   const [newName, setNewName] = useState("");
@@ -317,6 +326,41 @@ export function TeamsTab() {
 
   return (
     <div className="space-y-4">
+      {/* Search input */}
+      {teams.length > 0 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search teams..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-9"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                searchInputRef.current?.focus();
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {searchQuery && filteredTeams.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Search className="h-10 w-10 text-muted-foreground/40" />
+          <p className="mt-3 text-sm text-muted-foreground">
+            No teams matching &quot;{searchQuery.trim()}&quot;
+          </p>
+        </div>
+      ) : (
+      <>
       {/* Teams card */}
       <div className="rounded-2xl overflow-hidden border">
         {/* Header — mirrors milestone SectionHeader */}
@@ -338,7 +382,7 @@ export function TeamsTab() {
             <div className="flex flex-1 items-center gap-2 min-w-0">
               <span className="text-sm font-medium truncate">Teams</span>
               <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                {teams.length}
+                {filteredTeams.length}
               </span>
             </div>
 
@@ -353,7 +397,7 @@ export function TeamsTab() {
         </div>
 
         {/* Team rows */}
-        {teams.map((team) => (
+        {filteredTeams.map((team) => (
           <TeamRow
             key={team.id}
             team={team}
@@ -422,6 +466,8 @@ export function TeamsTab() {
           </button>
         )}
       </div>
+      </>
+      )}
 
       {/* Delete confirmation */}
       <AlertDialog

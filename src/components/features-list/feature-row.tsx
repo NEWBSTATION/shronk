@@ -62,6 +62,7 @@ interface FeatureRowProps {
   isDragging?: boolean;
   isAnyDragging?: boolean;
   isOverlay?: boolean;
+  dimmed?: boolean;
   dragHandleProps?: Record<string, unknown>;
   nodeRef?: (node: HTMLElement | null) => void;
   style?: React.CSSProperties;
@@ -84,6 +85,7 @@ export function FeatureRow({
   isDragging,
   isAnyDragging,
   isOverlay,
+  dimmed,
   dragHandleProps,
   nodeRef,
   style,
@@ -119,10 +121,11 @@ export function FeatureRow({
       style={style}
       onClick={onClick}
       className={cn(
-        "relative flex items-center px-4 py-3.5 transition-colors cursor-pointer bg-background border-b last:border-b-0",
+        "relative flex items-center px-4 py-3.5 transition-[colors,opacity] duration-200 cursor-pointer bg-background border-b last:border-b-0",
         !isAnyDragging && "group hover:bg-accent/50",
         selected && "bg-accent",
         isDragging && "opacity-30",
+        dimmed && !isDragging && "opacity-40",
         isOverlay && "border rounded-lg shadow-lg"
       )}
     >
@@ -298,7 +301,7 @@ export function SortableFeatureRow(
   props: Omit<
     FeatureRowProps,
     "isDragging" | "isOverlay" | "dragHandleProps" | "nodeRef" | "style"
-  >
+  > & { dimmed?: boolean }
 ) {
   const {
     attributes,

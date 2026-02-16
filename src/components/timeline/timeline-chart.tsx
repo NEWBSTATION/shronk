@@ -94,6 +94,7 @@ interface TimelineChartProps {
   onQuickCreate?: (name: string, startDate: Date, endDate: Date, duration: number, chainToId?: string) => Promise<void>;
   chainInfo?: ChainInfo | null;
   hideTeamTracks?: boolean;
+  searchMatchIds?: Set<string> | null;
 }
 
 export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>(
@@ -112,6 +113,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
       onQuickCreate,
       chainInfo,
       hideTeamTracks,
+      searchMatchIds,
     },
     ref
   ) {
@@ -241,6 +243,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
                 timelineStart={windowStart}
                 onTaskClick={onTaskClick}
                 hideTeamTracks={hideTeamTracks}
+                searchMatchIds={searchMatchIds}
               />
 
               {/* Quick-create overlay on the add-feature row */}
