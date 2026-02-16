@@ -3,7 +3,8 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Layers, Search, X } from "lucide-react";
+import { Layers, Search, X, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -468,13 +469,23 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
 
   if (features.length === 0 && milestoneOptions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
-        <Layers className="h-16 w-16 text-muted-foreground/50" />
-        <h3 className="mt-4 text-lg font-semibold">No features yet</h3>
-        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-          Create a milestone first, then add features to it to see them here.
-        </p>
-      </div>
+      <>
+        <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
+          <Layers className="h-16 w-16 text-muted-foreground/50" />
+          <h3 className="mt-4 text-lg font-semibold">No features yet</h3>
+          <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+            Create a milestone first, then add features to it to see them here.
+          </p>
+          <Button className="mt-4" onClick={() => setMilestoneDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Create Milestone
+          </Button>
+        </div>
+        <MilestoneDialog
+          open={milestoneDialogOpen}
+          onOpenChange={setMilestoneDialogOpen}
+        />
+      </>
     );
   }
 

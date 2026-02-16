@@ -3,7 +3,10 @@
 import { useState, useMemo, useCallback, useEffect, useRef, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, RefreshCw } from "lucide-react";
+import { CalendarDays, Plus, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
+import { FeatureDialog } from "@/components/feature/feature-dialog";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeatureDetailPanel } from "@/components/drilldown/panels/feature-detail-panel";
@@ -121,6 +124,9 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
   const milestoneOptions = data?.milestones ?? [];
   const teamDurations = data?.teamDurations ?? [];
   const responseTeams = data?.teams ?? [];
+
+  const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
+  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
 
   const { data: teamsData } = useTeams();
   const teams = useMemo(() => teamsData?.teams ?? [], [teamsData?.teams]);
@@ -364,14 +370,42 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
   }
 
   if (features.length === 0) {
+    const hasMilestones = milestoneOptions.length > 0;
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
-        <CalendarDays className="h-16 w-16 text-muted-foreground/50" />
-        <h3 className="mt-4 text-lg font-semibold">No features yet</h3>
-        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-          Create a milestone and add features to see them on the calendar.
-        </p>
-      </div>
+      <>
+        <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
+          <CalendarDays className="h-16 w-16 text-muted-foreground/50" />
+          <h3 className="mt-4 text-lg font-semibold">
+            {hasMilestones ? "No features yet" : "No milestones yet"}
+          </h3>
+          <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+            {hasMilestones
+              ? "Add features to your milestones to see them on the calendar."
+              : "Create a milestone and add features to see them on the calendar."}
+          </p>
+          <Button
+            className="mt-4"
+            onClick={() =>
+              hasMilestones
+                ? setFeatureDialogOpen(true)
+                : setMilestoneDialogOpen(true)
+            }
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            {hasMilestones ? "Create Feature" : "Create Milestone"}
+          </Button>
+        </div>
+        <MilestoneDialog
+          open={milestoneDialogOpen}
+          onOpenChange={setMilestoneDialogOpen}
+        />
+        <FeatureDialog
+          open={featureDialogOpen}
+          onOpenChange={setFeatureDialogOpen}
+          milestones={milestoneOptions}
+          teams={teams}
+        />
+      </>
     );
   }
 

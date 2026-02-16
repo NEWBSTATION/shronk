@@ -5,7 +5,8 @@ import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { differenceInDays } from "date-fns";
-import { ChartGantt } from "lucide-react";
+import { ChartGantt, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { FeatureDetailPanel, type PanelChainTo } from "@/components/drilldown/panels/feature-detail-panel";
@@ -498,13 +499,23 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
   // No milestones at all
   if (projects.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 text-center px-4">
-        <ChartGantt className="h-16 w-16 text-muted-foreground/50" />
-        <h3 className="mt-4 text-lg font-semibold">No milestones yet</h3>
-        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-          Create a milestone first to view its timeline.
-        </p>
-      </div>
+      <>
+        <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
+          <ChartGantt className="h-16 w-16 text-muted-foreground/50" />
+          <h3 className="mt-4 text-lg font-semibold">No milestones yet</h3>
+          <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+            Create a milestone first to view its timeline.
+          </p>
+          <Button className="mt-4" onClick={() => setMilestoneDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Create Milestone
+          </Button>
+        </div>
+        <MilestoneDialog
+          open={milestoneDialogOpen}
+          onOpenChange={setMilestoneDialogOpen}
+        />
+      </>
     );
   }
 

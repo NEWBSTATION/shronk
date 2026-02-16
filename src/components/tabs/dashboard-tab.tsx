@@ -66,6 +66,7 @@ import {
 import { useDrilldown } from "@/components/drilldown/drilldown-context";
 import { FeatureDetailPanel } from "@/components/drilldown/panels/feature-detail-panel";
 import { FeatureDialog } from "@/components/feature/feature-dialog";
+import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
 import { toast } from "sonner";
 import type {
   Milestone,
@@ -710,6 +711,7 @@ export function DashboardTab() {
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
+  const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!selectedProjectId && projects.length > 0) {
@@ -774,13 +776,23 @@ export function DashboardTab() {
 
   if (projects.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
-        <TrendingUp className="h-16 w-16 text-muted-foreground/50" />
-        <h3 className="mt-4 text-lg font-semibold">No data yet</h3>
-        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-          Create a project and add milestones to see your dashboard come alive.
-        </p>
-      </div>
+      <>
+        <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
+          <TrendingUp className="h-16 w-16 text-muted-foreground/50" />
+          <h3 className="mt-4 text-lg font-semibold">No data yet</h3>
+          <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+            Create a milestone to see your dashboard come alive.
+          </p>
+          <Button className="mt-4" onClick={() => setMilestoneDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Create Milestone
+          </Button>
+        </div>
+        <MilestoneDialog
+          open={milestoneDialogOpen}
+          onOpenChange={setMilestoneDialogOpen}
+        />
+      </>
     );
   }
 
@@ -810,20 +822,18 @@ export function DashboardTab() {
             </div>
           </div>
         ) : total === 0 ? (
-          <div className="flex flex-col items-center justify-center h-[40vh] text-center">
-            <Gem className="h-12 w-12 text-muted-foreground/50" />
-            <h3 className="mt-4 text-base font-semibold">No features yet</h3>
-            <p className="mt-1 text-sm text-muted-foreground max-w-sm">
-              Add features to this project to see dashboard analytics.
+          <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
+            <Gem className="h-16 w-16 text-muted-foreground/50" />
+            <h3 className="mt-4 text-lg font-semibold">No features yet</h3>
+            <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+              Add features to this milestone to see dashboard analytics.
             </p>
             <Button
-              variant="outline"
-              size="sm"
               className="mt-4"
               onClick={() => setFeatureDialogOpen(true)}
             >
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Add Feature
+              <Plus className="h-4 w-4 mr-1.5" />
+              Create Feature
             </Button>
           </div>
         ) : (
