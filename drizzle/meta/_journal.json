@@ -57,6 +57,13 @@
       "when": 1771011355060,
       "tag": "0007_add-team-auto-add",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1771364539334,
+      "tag": "0008_smooth_taskmaster",
+      "breakpoints": true
     }
   ]
 }

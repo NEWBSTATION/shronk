@@ -1,15 +1,23 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { MagneticOrc } from "@/components/magnetic-orc";
 import { ArrowRight } from "lucide-react";
+import { WORKSPACE_COOKIE } from "@/lib/workspace";
 
 export default async function HomePage() {
   const { userId } = await auth();
 
   if (userId) {
-    redirect("/dashboard");
+    const cookieStore = await cookies();
+    const hasWorkspace = cookieStore.get(WORKSPACE_COOKIE)?.value;
+    if (hasWorkspace) {
+      redirect("/dashboard");
+    } else {
+      redirect("/workspace-select");
+    }
   }
 
   return (

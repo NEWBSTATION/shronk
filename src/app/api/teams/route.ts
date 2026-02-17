@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { teams } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 
 const createTeamSchema = z.object({
   name: z.string().min(1).max(255),
@@ -24,15 +24,18 @@ const deleteTeamSchema = z.object({
 
 export async function GET() {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
-    const result = await db.select().from(teams);
+    const result = await db
+      .select()
+      .from(teams)
+      .where(eq(teams.workspaceId, ctx.workspaceId));
 
     return NextResponse.json({ teams: result });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error fetching teams:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -43,18 +46,24 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = createTeamSchema.parse(body);
 
-    const [team] = await db.insert(teams).values(data).returning();
+    const [team] = await db
+      .insert(teams)
+      .values({
+        workspaceId: ctx.workspaceId,
+        ...data,
+      })
+      .returning();
 
     return NextResponse.json(team, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },
@@ -71,16 +80,13 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = updateTeamSchema.parse(body);
 
     const existingTeam = await db.query.teams.findFirst({
-      where: eq(teams.id, data.id),
+      where: and(eq(teams.id, data.id), eq(teams.workspaceId, ctx.workspaceId)),
     });
 
     if (!existingTeam) {
@@ -100,6 +106,9 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json(updated);
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },
@@ -116,16 +125,13 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = deleteTeamSchema.parse(body);
 
     const existingTeam = await db.query.teams.findFirst({
-      where: eq(teams.id, data.id),
+      where: and(eq(teams.id, data.id), eq(teams.workspaceId, ctx.workspaceId)),
     });
 
     if (!existingTeam) {
@@ -136,6 +142,9 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },

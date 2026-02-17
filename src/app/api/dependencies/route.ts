@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
 import { milestoneDependencies, milestones, projects } from "@/db/schema";
 import { eq, and, or, inArray } from "drizzle-orm";
@@ -44,7 +44,7 @@ async function wouldCreateCycle(
       )
     );
 
-  // Build successor adjacency (predecessorId → successorIds[])
+  // Build successor adjacency (predecessorId -> successorIds[])
   const successorMap = new Map<string, string[]>();
   for (const dep of deps) {
     const list = successorMap.get(dep.predecessorId) || [];
@@ -73,10 +73,7 @@ async function wouldCreateCycle(
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const searchParams = request.nextUrl.searchParams;
     const projectId = searchParams.get("projectId");
@@ -88,9 +85,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify user owns the project
+    // Verify workspace owns the project
     const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, projectId), eq(projects.userId, userId)),
+      where: and(eq(projects.id, projectId), eq(projects.workspaceId, ctx.workspaceId)),
     });
 
     if (!project) {
@@ -122,6 +119,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ dependencies });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error fetching dependencies:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -132,15 +132,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = createDependencySchema.parse(body);
 
-    // Verify both milestones exist and belong to user's projects
+    // Verify both milestones exist and belong to workspace's projects
     const [predecessor, successor] = await Promise.all([
       db.query.milestones.findFirst({
         where: eq(milestones.id, data.predecessorId),
@@ -160,8 +157,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (
-      predecessor.project.userId !== userId ||
-      successor.project.userId !== userId
+      predecessor.project.workspaceId !== ctx.workspaceId ||
+      successor.project.workspaceId !== ctx.workspaceId
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
@@ -233,6 +230,9 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },
@@ -249,10 +249,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = deleteDependencySchema.parse(body);
@@ -274,7 +271,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (existingDependency.predecessor.project.userId !== userId) {
+    if (existingDependency.predecessor.project.workspaceId !== ctx.workspaceId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -305,6 +302,9 @@ export async function DELETE(request: NextRequest) {
       })),
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },

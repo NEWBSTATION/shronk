@@ -8,6 +8,12 @@ const isPublicRoute = createRouteMatcher([
   "/invite(.*)",
 ]);
 
+// Routes that require auth but NOT a workspace cookie
+const isWorkspaceOptionalRoute = createRouteMatcher([
+  "/workspace-select",
+  "/workspace-create",
+]);
+
 // Route redirects: old sidebar routes → new tab query params
 const TAB_REDIRECTS: Record<string, string> = {
   "/dashboard/features": "/dashboard?tab=features",
@@ -41,15 +47,26 @@ export default clerkMiddleware(async (auth, request) => {
     return NextResponse.redirect(url);
   }
 
-  // Redirect bare /dashboard to default tab
-  if (pathname === "/dashboard" && !request.nextUrl.searchParams.has("tab")) {
-    const url = request.nextUrl.clone();
-    url.searchParams.set("tab", "features");
-    return NextResponse.redirect(url);
-  }
-
+  // Protect non-public routes
   if (!isPublicRoute(request)) {
     await auth.protect();
+  }
+
+  // For dashboard routes, check for workspace cookie
+  if (pathname.startsWith("/dashboard")) {
+    const workspaceCookie = request.cookies.get("shronk-workspace-id");
+    if (!workspaceCookie?.value) {
+      return NextResponse.redirect(
+        new URL("/workspace-select", request.url)
+      );
+    }
+
+    // Redirect bare /dashboard to default tab
+    if (pathname === "/dashboard" && !request.nextUrl.searchParams.has("tab")) {
+      const url = request.nextUrl.clone();
+      url.searchParams.set("tab", "features");
+      return NextResponse.redirect(url);
+    }
   }
 });
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
 import { milestones, projects } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
@@ -30,10 +30,7 @@ const bulkReorderSchema = z.object({
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
 
@@ -41,9 +38,9 @@ export async function PATCH(request: NextRequest) {
     if (body.items && body.projectId) {
       const data = bulkReorderSchema.parse(body);
 
-      // Verify user owns the project
+      // Verify workspace owns the project
       const project = await db.query.projects.findFirst({
-        where: and(eq(projects.id, data.projectId), eq(projects.userId, userId)),
+        where: and(eq(projects.id, data.projectId), eq(projects.workspaceId, ctx.workspaceId)),
       });
 
       if (!project) {
@@ -77,9 +74,9 @@ export async function PATCH(request: NextRequest) {
       with: { project: true },
     });
 
-    // Verify all milestones belong to user's projects
+    // Verify all milestones belong to workspace's projects
     const unauthorized = existingMilestones.some(
-      (m) => m.project.userId !== userId
+      (m) => m.project.workspaceId !== ctx.workspaceId
     );
     if (unauthorized) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -112,6 +109,9 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, updatedCount: data.ids.length });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },
@@ -128,10 +128,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = bulkDeleteSchema.parse(body);
@@ -142,9 +139,9 @@ export async function DELETE(request: NextRequest) {
       with: { project: true },
     });
 
-    // Verify all milestones belong to user's projects
+    // Verify all milestones belong to workspace's projects
     const unauthorized = existingMilestones.some(
-      (m) => m.project.userId !== userId
+      (m) => m.project.workspaceId !== ctx.workspaceId
     );
     if (unauthorized) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -154,6 +151,9 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, deletedCount: data.ids.length });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },

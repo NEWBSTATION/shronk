@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
 import { milestones, milestoneDependencies, projects, teamMilestoneDurations, teams } from "@/db/schema";
 import { eq, and, inArray, asc, desc, ilike, or } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.getAll("status");
@@ -23,7 +20,7 @@ export async function GET(request: NextRequest) {
     const userProjects = await db
       .select({ id: projects.id })
       .from(projects)
-      .where(eq(projects.userId, userId));
+      .where(eq(projects.workspaceId, ctx.workspaceId));
 
     const projectIds = userProjects.map((p) => p.id);
 
@@ -122,7 +119,7 @@ export async function GET(request: NextRequest) {
         description: projects.description,
       })
       .from(projects)
-      .where(eq(projects.userId, userId))
+      .where(eq(projects.workspaceId, ctx.workspaceId))
       .orderBy(asc(projects.name));
 
     // Get all dependencies for user's milestones
@@ -160,6 +157,9 @@ export async function GET(request: NextRequest) {
       teams: allTeams,
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error fetching features:", error);
     return NextResponse.json(
       { error: "Internal server error" },

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { projects } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { capitalizeWords } from "@/lib/capitalize";
+import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 
 const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
@@ -31,19 +31,19 @@ const deleteProjectSchema = z.object({
 
 export async function GET() {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const result = await db
       .select()
       .from(projects)
-      .where(eq(projects.userId, userId))
+      .where(eq(projects.workspaceId, ctx.workspaceId))
       .orderBy(projects.createdAt);
 
     return NextResponse.json({ projects: result });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error fetching projects:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -54,10 +54,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = createProjectSchema.parse(body);
@@ -65,7 +62,8 @@ export async function POST(request: NextRequest) {
     const [project] = await db
       .insert(projects)
       .values({
-        userId,
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
         name: capitalizeWords(data.name),
         description: data.description,
         ...(data.color && { color: data.color }),
@@ -77,6 +75,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(project, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },
@@ -93,10 +94,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = updateProjectSchema.parse(body);
@@ -114,7 +112,7 @@ export async function PUT(request: NextRequest) {
     const [project] = await db
       .update(projects)
       .set(updateData)
-      .where(and(eq(projects.id, data.id), eq(projects.userId, userId)))
+      .where(and(eq(projects.id, data.id), eq(projects.workspaceId, ctx.workspaceId)))
       .returning();
 
     if (!project) {
@@ -123,6 +121,9 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(project);
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },
@@ -139,17 +140,14 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = deleteProjectSchema.parse(body);
 
     const [project] = await db
       .delete(projects)
-      .where(and(eq(projects.id, data.id), eq(projects.userId, userId)))
+      .where(and(eq(projects.id, data.id), eq(projects.workspaceId, ctx.workspaceId)))
       .returning();
 
     if (!project) {
@@ -158,6 +156,9 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },

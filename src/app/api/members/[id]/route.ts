@@ -1,51 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { members } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { z } from "zod";
+import { requireWorkspaceAdmin, AuthError } from "@/lib/api-workspace";
 
 const updateRoleSchema = z.object({
   role: z.enum(["admin", "member"]),
 });
-
-async function requireAdmin(userId: string) {
-  const member = await db.query.members.findFirst({
-    where: eq(members.userId, userId),
-  });
-  if (!member || member.role !== "admin") return null;
-  return member;
-}
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const admin = await requireAdmin(userId);
-    if (!admin) {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-    }
+    const ctx = await requireWorkspaceAdmin();
 
     const { id } = await params;
     const body = await request.json();
     const data = updateRoleSchema.parse(body);
 
-    // Find target member
+    // Find target member (scoped to workspace)
     const target = await db.query.members.findFirst({
-      where: eq(members.id, id),
+      where: and(eq(members.id, id), eq(members.workspaceId, ctx.workspaceId)),
     });
     if (!target) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
     // Cannot change own role
-    if (target.userId === userId) {
+    if (target.userId === ctx.userId) {
       return NextResponse.json(
         { error: "Cannot change your own role" },
         { status: 400 }
@@ -57,7 +41,12 @@ export async function PATCH(
       const [adminCount] = await db
         .select({ count: count() })
         .from(members)
-        .where(eq(members.role, "admin"));
+        .where(
+          and(
+            eq(members.workspaceId, ctx.workspaceId),
+            eq(members.role, "admin")
+          )
+        );
       if (adminCount.count <= 1) {
         return NextResponse.json(
           { error: "Cannot demote the last admin" },
@@ -74,6 +63,9 @@ export async function PATCH(
 
     return NextResponse.json({ member: updated });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },
@@ -93,27 +85,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const admin = await requireAdmin(userId);
-    if (!admin) {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-    }
+    const ctx = await requireWorkspaceAdmin();
 
     const { id } = await params;
 
     const target = await db.query.members.findFirst({
-      where: eq(members.id, id),
+      where: and(eq(members.id, id), eq(members.workspaceId, ctx.workspaceId)),
     });
     if (!target) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
     // Cannot remove self
-    if (target.userId === userId) {
+    if (target.userId === ctx.userId) {
       return NextResponse.json(
         { error: "Cannot remove yourself" },
         { status: 400 }
@@ -125,7 +109,12 @@ export async function DELETE(
       const [adminCount] = await db
         .select({ count: count() })
         .from(members)
-        .where(eq(members.role, "admin"));
+        .where(
+          and(
+            eq(members.workspaceId, ctx.workspaceId),
+            eq(members.role, "admin")
+          )
+        );
       if (adminCount.count <= 1) {
         return NextResponse.json(
           { error: "Cannot remove the last admin" },
@@ -138,6 +127,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error removing member:", error);
     return NextResponse.json(
       { error: "Internal server error" },

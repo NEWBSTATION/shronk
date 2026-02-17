@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
 import {
   teamMilestoneDurations,
@@ -30,10 +30,7 @@ const deleteSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const searchParams = request.nextUrl.searchParams;
     const projectId = searchParams.get("projectId");
@@ -46,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, projectId), eq(projects.userId, userId)),
+      where: and(eq(projects.id, projectId), eq(projects.workspaceId, ctx.workspaceId)),
     });
 
     if (!project) {
@@ -72,6 +69,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ teamDurations: durations });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error fetching team durations:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -82,15 +82,12 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = upsertSchema.parse(body);
 
-    // Verify milestone exists and user owns it
+    // Verify milestone exists and workspace owns it
     const milestone = await db.query.milestones.findFirst({
       where: eq(milestones.id, data.milestoneId),
       with: { project: true },
@@ -103,7 +100,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (milestone.project.userId !== userId) {
+    if (milestone.project.workspaceId !== ctx.workspaceId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -178,6 +175,9 @@ export async function PUT(request: NextRequest) {
       })),
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },
@@ -194,10 +194,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = deleteSchema.parse(body);
@@ -215,7 +212,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (milestone.project.userId !== userId) {
+    if (milestone.project.workspaceId !== ctx.workspaceId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -251,6 +248,9 @@ export async function DELETE(request: NextRequest) {
       })),
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },

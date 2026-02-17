@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
 import { milestones, milestoneDependencies, projects } from "@/db/schema";
 import { eq, and, or, inArray } from "drizzle-orm";
@@ -13,10 +13,7 @@ const moveFeatureSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = moveFeatureSchema.parse(body);
@@ -34,7 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (feature.project.userId !== userId) {
+    if (feature.project.workspaceId !== ctx.workspaceId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -42,7 +39,7 @@ export async function POST(request: NextRequest) {
     const targetProject = await db.query.projects.findFirst({
       where: and(
         eq(projects.id, data.targetProjectId),
-        eq(projects.userId, userId)
+        eq(projects.workspaceId, ctx.workspaceId)
       ),
     });
 
@@ -213,6 +210,9 @@ export async function POST(request: NextRequest) {
       })),
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },

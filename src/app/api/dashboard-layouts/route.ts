@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { requireWorkspaceMember, requireWorkspaceAdmin, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
-import { dashboardLayouts, members } from "@/db/schema";
+import { dashboardLayouts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { generateDefaultLayout } from "@/lib/dashboard-defaults";
@@ -38,10 +38,7 @@ const putSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    await requireWorkspaceMember();
 
     const projectId = request.nextUrl.searchParams.get("projectId");
     if (!projectId) {
@@ -71,6 +68,9 @@ export async function GET(request: NextRequest) {
       isDefault: false,
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error fetching dashboard layout:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -81,22 +81,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Admin check
-    const member = await db.query.members.findFirst({
-      where: eq(members.userId, userId),
-    });
-
-    if (!member || member.role !== "admin") {
-      return NextResponse.json(
-        { error: "Only admins can modify dashboard layouts" },
-        { status: 403 }
-      );
-    }
+    const ctx = await requireWorkspaceAdmin();
 
     const body = await request.json();
     const data = putSchema.parse(body);
@@ -113,14 +98,14 @@ export async function PUT(request: NextRequest) {
         projectId: data.projectId,
         widgets: widgetsJson,
         globalFilters: globalFiltersJson,
-        updatedBy: userId,
+        updatedBy: ctx.userId,
       })
       .onConflictDoUpdate({
         target: dashboardLayouts.projectId,
         set: {
           widgets: widgetsJson,
           globalFilters: globalFiltersJson,
-          updatedBy: userId,
+          updatedBy: ctx.userId,
           updatedAt: new Date(),
         },
       })
@@ -133,6 +118,9 @@ export async function PUT(request: NextRequest) {
         : { status: [], priority: [], teamId: [] },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },

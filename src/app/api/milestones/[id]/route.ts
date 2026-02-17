@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
 import { milestones } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -25,10 +25,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const { id } = await params;
     const body = await request.json();
@@ -47,7 +44,7 @@ export async function PATCH(
       );
     }
 
-    if (existingMilestone.project.userId !== userId) {
+    if (existingMilestone.project.workspaceId !== ctx.workspaceId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -158,6 +155,9 @@ export async function PATCH(
       })),
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },
@@ -177,10 +177,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const { id } = await params;
 
@@ -197,7 +194,7 @@ export async function DELETE(
       );
     }
 
-    if (existingMilestone.project.userId !== userId) {
+    if (existingMilestone.project.workspaceId !== ctx.workspaceId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -227,6 +224,9 @@ export async function DELETE(
       })),
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error deleting milestone:", error);
     return NextResponse.json(
       { error: "Internal server error" },

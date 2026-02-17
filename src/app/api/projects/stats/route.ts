@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { projects, milestones } from "@/db/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
-    // Get all projects (milestones in the new terminology) with feature counts
     const result = await db
       .select({
         milestoneId: projects.id,
@@ -20,11 +16,14 @@ export async function GET(request: NextRequest) {
       })
       .from(projects)
       .leftJoin(milestones, eq(projects.id, milestones.projectId))
-      .where(eq(projects.userId, userId))
+      .where(eq(projects.workspaceId, ctx.workspaceId))
       .groupBy(projects.id);
 
     return NextResponse.json({ stats: result });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error fetching project stats:", error);
     return NextResponse.json(
       { error: "Internal server error" },

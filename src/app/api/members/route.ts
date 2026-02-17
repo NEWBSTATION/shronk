@@ -1,33 +1,20 @@
 import { NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { members } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { requireWorkspaceMember } from "@/lib/api-workspace";
+import { AuthError } from "@/lib/api-workspace";
 
 export async function GET() {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
-    // Bootstrap: if no members exist, insert current user as admin
-    const allMembers = await db.select().from(members);
-    if (allMembers.length === 0) {
-      const clerk = await clerkClient();
-      const user = await clerk.users.getUser(userId);
-      const email =
-        user.emailAddresses.find(
-          (e) => e.id === user.primaryEmailAddressId
-        )?.emailAddress || "";
-
-      const [newMember] = await db
-        .insert(members)
-        .values({ userId, email, role: "admin" })
-        .returning();
-
-      allMembers.push(newMember);
-    }
+    // Get all members for this workspace
+    const allMembers = await db
+      .select()
+      .from(members)
+      .where(eq(members.workspaceId, ctx.workspaceId));
 
     // Fetch Clerk user info for each member
     const clerk = await clerkClient();
@@ -53,7 +40,7 @@ export async function GET() {
     );
 
     // Determine current user's role
-    const currentMember = allMembers.find((m) => m.userId === userId);
+    const currentMember = allMembers.find((m) => m.userId === ctx.userId);
     const currentUserRole = currentMember?.role || null;
 
     return NextResponse.json({
@@ -61,6 +48,9 @@ export async function GET() {
       currentUserRole,
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error fetching members:", error);
     return NextResponse.json(
       { error: "Internal server error" },

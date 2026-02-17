@@ -1,39 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { invites, members } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { invites } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { addDays } from "date-fns";
 import { sendInviteEmail } from "@/lib/email";
-
-async function requireAdmin(userId: string) {
-  const member = await db.query.members.findFirst({
-    where: eq(members.userId, userId),
-  });
-  if (!member || member.role !== "admin") return null;
-  return member;
-}
+import { requireWorkspaceAdmin, AuthError } from "@/lib/api-workspace";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const admin = await requireAdmin(userId);
-    if (!admin) {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-    }
+    const ctx = await requireWorkspaceAdmin();
 
     const { id } = await params;
 
     const invite = await db.query.invites.findFirst({
-      where: eq(invites.id, id),
+      where: and(
+        eq(invites.id, id),
+        eq(invites.workspaceId, ctx.workspaceId)
+      ),
     });
     if (!invite) {
       return NextResponse.json({ error: "Invite not found" }, { status: 404 });
@@ -57,13 +45,16 @@ export async function POST(
 
     // Send email
     const clerk = await clerkClient();
-    const user = await clerk.users.getUser(userId);
+    const user = await clerk.users.getUser(ctx.userId);
     const inviterName =
       [user.firstName, user.lastName].filter(Boolean).join(" ") || "Someone";
-    await sendInviteEmail(invite.email, token, inviterName);
+    await sendInviteEmail(invite.email, token, inviterName, ctx.workspace.name);
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error resending invite:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -77,20 +68,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const admin = await requireAdmin(userId);
-    if (!admin) {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-    }
+    const ctx = await requireWorkspaceAdmin();
 
     const { id } = await params;
 
     const invite = await db.query.invites.findFirst({
-      where: eq(invites.id, id),
+      where: and(
+        eq(invites.id, id),
+        eq(invites.workspaceId, ctx.workspaceId)
+      ),
     });
     if (!invite) {
       return NextResponse.json({ error: "Invite not found" }, { status: 404 });
@@ -110,6 +96,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error revoking invite:", error);
     return NextResponse.json(
       { error: "Internal server error" },

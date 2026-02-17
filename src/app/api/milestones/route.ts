@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
 import {
   milestones,
@@ -27,10 +27,7 @@ const createMilestoneSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const searchParams = request.nextUrl.searchParams;
     const projectId = searchParams.get("projectId");
@@ -47,9 +44,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify user owns the project
+    // Verify workspace owns the project
     const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, projectId), eq(projects.userId, userId)),
+      where: and(eq(projects.id, projectId), eq(projects.workspaceId, ctx.workspaceId)),
     });
 
     if (!project) {
@@ -133,6 +130,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ milestones: result, dependencies, teamDurations });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Error fetching milestones:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -143,17 +143,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
     const data = createMilestoneSchema.parse(body);
 
-    // Verify user owns the project
+    // Verify workspace owns the project
     const project = await db.query.projects.findFirst({
-      where: and(eq(projects.id, data.projectId), eq(projects.userId, userId)),
+      where: and(eq(projects.id, data.projectId), eq(projects.workspaceId, ctx.workspaceId)),
     });
 
     if (!project) {
@@ -184,6 +181,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(milestone, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },

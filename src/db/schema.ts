@@ -37,18 +37,42 @@ export const milestonePriorityEnum = pgEnum("milestone_priority", [
   "critical",
 ]);
 
-// Members table
-export const members = pgTable("members", {
+// Workspaces table
+export const workspaces = pgTable("workspaces", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: varchar("user_id", { length: 255 }).notNull().unique(),
-  email: varchar("email", { length: 255 }).notNull(),
-  role: memberRoleEnum("role").default("member").notNull(),
-  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  ownerId: varchar("owner_id", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// Members table
+export const members = pgTable(
+  "members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .references(() => workspaces.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: varchar("user_id", { length: 255 }).notNull(),
+    email: varchar("email", { length: 255 }).notNull(),
+    role: memberRoleEnum("role").default("member").notNull(),
+    joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("members_workspace_user_idx").on(
+      table.workspaceId,
+      table.userId
+    ),
+  ]
+);
 
 // Invites table
 export const invites = pgTable("invites", {
   id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .references(() => workspaces.id, { onDelete: "cascade" })
+    .notNull(),
   email: varchar("email", { length: 255 }).notNull(),
   role: memberRoleEnum("role").default("admin").notNull(),
   token: varchar("token", { length: 255 }).notNull().unique(),
@@ -61,6 +85,9 @@ export const invites = pgTable("invites", {
 // Projects table
 export const projects = pgTable("projects", {
   id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .references(() => workspaces.id, { onDelete: "cascade" })
+    .notNull(),
   userId: varchar("user_id", { length: 255 }).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
@@ -75,6 +102,9 @@ export const projects = pgTable("projects", {
 // Teams table (workspace-level — not scoped to a project)
 export const teams = pgTable("teams", {
   id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .references(() => workspaces.id, { onDelete: "cascade" })
+    .notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   color: varchar("color", { length: 7 }).default("#6366f1").notNull(),
   autoAdd: boolean("auto_add").default(false).notNull(),
@@ -151,7 +181,32 @@ export const teamMilestoneDurations = pgTable(
 );
 
 // Relations
+export const workspacesRelations = relations(workspaces, ({ many }) => ({
+  members: many(members),
+  invites: many(invites),
+  projects: many(projects),
+  teams: many(teams),
+}));
+
+export const membersRelations = relations(members, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [members.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const invitesRelations = relations(invites, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [invites.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
 export const projectsRelations = relations(projects, ({ many, one }) => ({
+  workspace: one(workspaces, {
+    fields: [projects.workspaceId],
+    references: [workspaces.id],
+  }),
   milestones: many(milestones),
   dashboardLayout: one(dashboardLayouts, {
     fields: [projects.id],
@@ -159,7 +214,11 @@ export const projectsRelations = relations(projects, ({ many, one }) => ({
   }),
 }));
 
-export const teamsRelations = relations(teams, ({ many }) => ({
+export const teamsRelations = relations(teams, ({ one, many }) => ({
+  workspace: one(workspaces, {
+    fields: [teams.workspaceId],
+    references: [workspaces.id],
+  }),
   teamMilestoneDurations: many(teamMilestoneDurations),
 }));
 
@@ -211,6 +270,8 @@ export const teamMilestoneDurationsRelations = relations(
 );
 
 // Types
+export type Workspace = typeof workspaces.$inferSelect;
+export type NewWorkspace = typeof workspaces.$inferInsert;
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Team = typeof teams.$inferSelect;

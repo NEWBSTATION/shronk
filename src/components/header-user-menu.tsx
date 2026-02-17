@@ -13,10 +13,15 @@ import {
   Monitor,
   Users,
   ShieldCheck,
+  Building2,
+  Plus,
 } from "lucide-react";
 import { usePreferencesStore } from "@/store/preferences-store";
 import { useThemeStore } from "@/store/theme-store";
 import { useMembers } from "@/hooks/use-members";
+import { useWorkspace } from "@/components/providers/workspace-provider";
+import { useWorkspaces, useSwitchWorkspace } from "@/hooks/use-workspaces";
+import { useRouter } from "next/navigation";
 import { themePresets } from "@/config/theme-presets";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -60,6 +65,12 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   const { currentPresetKey, mode, setPreset, setMode, getResolvedMode } = useThemeStore();
   const { data: membersData } = useMembers();
   const isAdmin = membersData?.currentUserRole === "admin";
+  const { workspaceId, workspaceName } = useWorkspace();
+  const { data: workspacesData } = useWorkspaces();
+  const switchWorkspace = useSwitchWorkspace();
+  const router = useRouter();
+  const workspaces = workspacesData?.workspaces ?? [];
+  const pendingCount = workspacesData?.pendingInvites?.length ?? 0;
   const resolvedMode = getResolvedMode();
   const sortedThemes = getSortedThemeEntries();
   const [mounted, setMounted] = React.useState(false);
@@ -116,6 +127,54 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
             </div>
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Workspace</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Building2 />
+              <span className="truncate">{workspaceName}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-52">
+              {workspaces.map((ws) => (
+                <DropdownMenuItem
+                  key={ws.id}
+                  onClick={() => {
+                    if (ws.id !== workspaceId) {
+                      switchWorkspace.mutate(ws.id);
+                    }
+                  }}
+                  className="cursor-pointer"
+                >
+                  <Building2 />
+                  <span className="flex-1 truncate">{ws.name}</span>
+                  {ws.id === workspaceId && (
+                    <Check className="h-3.5 w-3.5 shrink-0 ml-auto" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => router.push("/workspace-create")}
+                className="cursor-pointer"
+              >
+                <Plus />
+                Create workspace
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          {pendingCount > 0 && (
+            <DropdownMenuItem
+              onClick={() => router.push("/workspace-select")}
+              className="cursor-pointer"
+            >
+              <span className="flex-1">Pending invites</span>
+              <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none">
+                {pendingCount}
+              </span>
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={() => onOpenSettings?.("profile")}>
