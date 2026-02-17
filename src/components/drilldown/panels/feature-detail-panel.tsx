@@ -826,20 +826,29 @@ function TeamTrackRow({
   onDeleteTeamDuration?: (milestoneId: string, teamId: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
-  const [localDuration, setLocalDuration] = useState(td.duration);
+  const bestFit = useMemo(() => bestFitDurationUnit(td.duration), [td.duration]);
+  const [localValue, setLocalValue] = useState(bestFit.value);
+  const [localUnit, setLocalUnit] = useState<DurationUnit>(bestFit.unit);
 
   useEffect(() => {
-    if (open) setLocalDuration(td.duration);
+    if (open) {
+      const fit = bestFitDurationUnit(td.duration);
+      setLocalValue(fit.value);
+      setLocalUnit(fit.unit);
+    }
   }, [open, td.duration]);
 
   const handleClose = useCallback(
     (newOpen: boolean) => {
-      if (!newOpen && localDuration !== td.duration) {
-        onUpsertTeamDuration?.(feature.id, td.teamId, Math.max(0, localDuration));
+      if (!newOpen) {
+        const totalDays = Math.max(0, localValue * DURATION_UNIT_MULTIPLIERS[localUnit]);
+        if (totalDays !== td.duration) {
+          onUpsertTeamDuration?.(feature.id, td.teamId, totalDays);
+        }
       }
       setOpen(newOpen);
     },
-    [localDuration, td.duration, td.teamId, feature.id, onUpsertTeamDuration]
+    [localValue, localUnit, td.duration, td.teamId, feature.id, onUpsertTeamDuration]
   );
 
   const durationLabel = formatDuration(td.duration);
@@ -875,14 +884,25 @@ function TeamTrackRow({
           <PopoverContent className="w-auto p-3" align="end">
             <div className="flex items-center gap-2">
               <NumberStepper
-                value={localDuration}
-                onChange={(v) => setLocalDuration(Math.max(0, v))}
+                value={localValue}
+                onChange={(v) => setLocalValue(Math.max(0, v))}
                 min={0}
                 className="w-20"
               />
-              <span className="text-sm text-muted-foreground">
-                {localDuration === 1 ? "day" : "days"}
-              </span>
+              <Select
+                value={localUnit}
+                onValueChange={(v) => setLocalUnit(v as DurationUnit)}
+              >
+                <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="days">days</SelectItem>
+                  <SelectItem value="weeks">weeks</SelectItem>
+                  <SelectItem value="months">months</SelectItem>
+                  <SelectItem value="years">years</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </PopoverContent>
         </Popover>
@@ -1003,23 +1023,32 @@ function PendingTeamTrackRow({
   onRemove: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [localDuration, setLocalDuration] = useState(duration);
+  const bestFit = useMemo(() => bestFitDurationUnit(duration), [duration]);
+  const [localValue, setLocalValue] = useState(bestFit.value);
+  const [localUnit, setLocalUnit] = useState<DurationUnit>(bestFit.unit);
 
   useEffect(() => {
-    if (open) setLocalDuration(duration);
+    if (open) {
+      const fit = bestFitDurationUnit(duration);
+      setLocalValue(fit.value);
+      setLocalUnit(fit.unit);
+    }
   }, [open, duration]);
 
   const handleClose = useCallback(
     (newOpen: boolean) => {
-      if (!newOpen && localDuration !== duration) {
-        onUpdateDuration(Math.max(0, localDuration));
+      if (!newOpen) {
+        const totalDays = Math.max(0, localValue * DURATION_UNIT_MULTIPLIERS[localUnit]);
+        if (totalDays !== duration) {
+          onUpdateDuration(totalDays);
+        }
       }
       setOpen(newOpen);
     },
-    [localDuration, duration, onUpdateDuration]
+    [localValue, localUnit, duration, onUpdateDuration]
   );
 
-  const durationLabel = `${duration}d`;
+  const durationLabel = formatDuration(duration);
 
   return (
     <div className="flex items-center gap-3 min-h-8 py-1 rounded-md px-2 -mx-2 hover:bg-accent/30 group">
@@ -1045,14 +1074,25 @@ function PendingTeamTrackRow({
           <PopoverContent className="w-auto p-3" align="end">
             <div className="flex items-center gap-2">
               <NumberStepper
-                value={localDuration}
-                onChange={(v) => setLocalDuration(Math.max(0, v))}
+                value={localValue}
+                onChange={(v) => setLocalValue(Math.max(0, v))}
                 min={0}
                 className="w-20"
               />
-              <span className="text-sm text-muted-foreground">
-                {localDuration === 1 ? "day" : "days"}
-              </span>
+              <Select
+                value={localUnit}
+                onValueChange={(v) => setLocalUnit(v as DurationUnit)}
+              >
+                <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="days">days</SelectItem>
+                  <SelectItem value="weeks">weeks</SelectItem>
+                  <SelectItem value="months">months</SelectItem>
+                  <SelectItem value="years">years</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </PopoverContent>
         </Popover>

@@ -101,6 +101,19 @@ export function useCreateInvite() {
   });
 }
 
+export function useResendInvite() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/invites/${id}`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to resend invite");
+      }
+      return res.json();
+    },
+  });
+}
+
 export function useRevokeInvite() {
   const queryClient = useQueryClient();
 

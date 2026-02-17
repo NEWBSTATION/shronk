@@ -9,6 +9,7 @@ import {
   useInvites,
   useCreateInvite,
   useRevokeInvite,
+  useResendInvite,
 } from "@/hooks/use-members";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, X, Mail, Clock, ShieldCheck, Trash2, Check, Search } from "lucide-react";
+import { Loader2, Plus, X, Mail, Clock, ShieldCheck, Trash2, Check, Search, RotateCw } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { formatDistanceToNow } from "date-fns";
 import { getColorStyles } from "@/lib/milestone-theme";
@@ -111,11 +112,15 @@ function MemberRow({
 function InviteRow({
   invite,
   onRevoke,
+  onResend,
   isRevoking,
+  isResending,
 }: {
   invite: { id: string; email: string; role: string; createdAt: Date | string };
   onRevoke: (id: string) => void;
+  onResend: (id: string) => void;
   isRevoking: boolean;
+  isResending: boolean;
 }) {
   return (
     <div className="flex items-center px-4 py-3.5 transition-colors group bg-background hover:bg-accent/50 border-b last:border-b-0">
@@ -135,14 +140,26 @@ function InviteRow({
           </p>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <span className="text-xs text-muted-foreground capitalize px-1">
             {invite.role}
           </span>
           <button
+            onClick={() => onResend(invite.id)}
+            disabled={isResending}
+            className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all disabled:opacity-50"
+            title="Resend invite"
+          >
+            {isResending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <RotateCw className="size-3.5" />
+            )}
+          </button>
+          <button
             onClick={() => onRevoke(invite.id)}
             disabled={isRevoking}
-            className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
+            className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
             title="Revoke invite"
           >
             <X className="size-3.5" />
@@ -161,6 +178,7 @@ export function MembersTab() {
   const removeMember = useRemoveMember();
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
+  const resendInvite = useResendInvite();
 
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -240,6 +258,13 @@ export function MembersTab() {
   const handleRevoke = (id: string) => {
     revokeInvite.mutate(id, {
       onSuccess: () => toast.success("Invite revoked"),
+      onError: (error) => toast.error(error.message),
+    });
+  };
+
+  const handleResend = (id: string) => {
+    resendInvite.mutate(id, {
+      onSuccess: () => toast.success("Invite resent"),
       onError: (error) => toast.error(error.message),
     });
   };
@@ -347,7 +372,9 @@ export function MembersTab() {
             key={invite.id}
             invite={invite}
             onRevoke={handleRevoke}
+            onResend={handleResend}
             isRevoking={revokeInvite.isPending}
+            isResending={resendInvite.isPending}
           />
         ))}
 

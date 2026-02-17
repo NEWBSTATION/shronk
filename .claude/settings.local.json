@@ -85,7 +85,9 @@
       "WebFetch(domain:people.eng.unimelb.edu.au)",
       "Bash(git merge:*)",
       "Bash(set:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(pg_dump:*)",
+      "Bash(Milestone\" when none exist, \"Create Feature\" when milestones exist but\nhave no features.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

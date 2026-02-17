@@ -489,6 +489,7 @@ export function FeaturesSectionList({
               <span className="text-sm">New milestone</span>
             </button>
           )}
+          <div className="h-24" aria-hidden />
         </div>
 
         <DragOverlay dropAnimation={null}>

@@ -797,7 +797,7 @@ export function DashboardTab() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-6 py-8 overflow-y-auto">
+    <div className="flex flex-col flex-1 min-h-0 px-6 pt-8 overflow-y-auto">
       <div className="mx-auto w-full max-w-5xl space-y-6">
         {/* Project Selector */}
         <Select value={selectedProjectId ?? undefined} onValueChange={setSelectedProjectId}>
@@ -873,12 +873,13 @@ export function DashboardTab() {
             )}
 
             {/* 5. Risk & Upcoming */}
-            <div className="grid md:grid-cols-2 gap-4 pb-8">
+            <div className="grid md:grid-cols-2 gap-4">
               <RiskSummaryCard riskSummary={riskSummary} />
               <UpcomingCard upcoming={upcoming} onFeatureClick={handleFeatureClick} />
             </div>
           </>
         )}
+        <div className="h-24" aria-hidden />
       </div>
 
       <FeatureDialog

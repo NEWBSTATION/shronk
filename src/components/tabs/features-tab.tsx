@@ -491,7 +491,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
 
   return (
     <div className="flex flex-col flex-1 min-h-0 px-6 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_16px)]">
-      <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl flex flex-col min-h-0 pt-8 pb-32">
+      <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl flex flex-col min-h-0 pt-8">
         {/* Search input */}
         {(features.length > 0 || milestoneOptions.length > 0) && (
           <div className="relative mb-4">
