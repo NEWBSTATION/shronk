@@ -2,7 +2,7 @@
 
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useWorkspaces, useSwitchWorkspace } from "@/hooks/use-workspaces";
-import { Building2, ChevronsUpDown, Plus, Check } from "lucide-react";
+import { ChevronsUpDown, Plus, Check } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
+
+function stripWorkspaceSuffix(name: string) {
+  return name.replace(/\s+workspace$/i, "").trim();
+}
 
 export function WorkspaceSwitcher() {
   const { workspaceId, workspaceName } = useWorkspace();
@@ -25,8 +29,12 @@ export function WorkspaceSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors outline-none">
-        <Building2 className="h-3.5 w-3.5 shrink-0" />
-        <span className="max-w-[120px] truncate">{workspaceName}</span>
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary/10 text-primary text-[10px] font-semibold leading-none">
+          {stripWorkspaceSuffix(workspaceName).charAt(0).toUpperCase()}
+        </span>
+        <span className="max-w-[120px] truncate">
+          {stripWorkspaceSuffix(workspaceName)}
+        </span>
         <ChevronsUpDown className="h-3 w-3 opacity-50 shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
@@ -43,8 +51,12 @@ export function WorkspaceSwitcher() {
             }}
             className="flex items-center gap-2 cursor-pointer"
           >
-            <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="flex-1 truncate">{ws.name}</span>
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary/10 text-primary text-[10px] font-semibold leading-none">
+              {stripWorkspaceSuffix(ws.name).charAt(0).toUpperCase()}
+            </span>
+            <span className="flex-1 truncate">
+              {stripWorkspaceSuffix(ws.name)}
+            </span>
             {ws.id === workspaceId && (
               <Check className="h-3.5 w-3.5 shrink-0" />
             )}

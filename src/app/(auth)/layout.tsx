@@ -29,7 +29,7 @@ export default function AuthLayout({
         Back
       </Link>
 
-      <div className="relative z-10">{children}</div>
+      <div className="relative z-10 w-full flex justify-center">{children}</div>
     </div>
   );
 }

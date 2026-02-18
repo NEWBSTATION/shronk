@@ -28,26 +28,28 @@ export default function WorkspaceCreatePage() {
   };
 
   return (
-    <div className="w-full max-w-sm space-y-8">
+    <div className="w-full max-w-sm space-y-10">
       {/* Logo + heading */}
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-5">
         <Image
           src="/orc-head.svg"
           alt="Shronk"
-          width={32}
-          height={32}
+          width={44}
+          height={44}
           className="dark:invert-0 invert"
         />
         <div className="text-center">
-          <h1 className="text-xl font-semibold">Create a workspace</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Create a workspace
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             A workspace is where your team collaborates
           </p>
         </div>
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="name">Workspace name</Label>
           <Input
