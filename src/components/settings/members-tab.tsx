@@ -10,6 +10,9 @@ import {
   useCreateInvite,
   useRevokeInvite,
   useResendInvite,
+  useInviteLink,
+  useCreateInviteLink,
+  useUpdateInviteLinkRole,
 } from "@/hooks/use-members";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -30,7 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, X, Mail, Clock, ShieldCheck, Trash2, Check, Search, RotateCw } from "lucide-react";
+import { Loader2, Plus, X, Mail, Clock, ShieldCheck, Trash2, Check, Search, RotateCw, Link2, Copy, RefreshCw } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { formatDistanceToNow } from "date-fns";
 import { getColorStyles } from "@/lib/milestone-theme";
@@ -166,6 +169,127 @@ function InviteRow({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function InviteLinkSection() {
+  const { data, isLoading } = useInviteLink();
+  const createLink = useCreateInviteLink();
+  const updateRole = useUpdateInviteLinkRole();
+  const [copied, setCopied] = useState(false);
+
+  const inviteLink = data?.inviteLink ?? null;
+
+  const linkUrl = inviteLink
+    ? `${window.location.origin}/invite/join?token=${inviteLink.token}`
+    : "";
+
+  const handleCopy = () => {
+    if (!linkUrl) return;
+    navigator.clipboard.writeText(linkUrl);
+    setCopied(true);
+    toast.success("Invite link copied");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleReset = () => {
+    createLink.mutate(inviteLink?.role ?? "member", {
+      onSuccess: () => toast.success("Link reset — old link no longer works"),
+      onError: (error) => toast.error(error.message),
+    });
+  };
+
+  const handleRoleChange = (role: "admin" | "member") => {
+    updateRole.mutate(role, {
+      onError: (error) => toast.error(error.message),
+    });
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center h-9 rounded-lg border bg-background overflow-hidden">
+        {/* Link icon */}
+        <div className="shrink-0 flex items-center justify-center w-9 h-full text-muted-foreground border-r">
+          <Link2 className="size-3.5" />
+        </div>
+
+        {/* URL text — takes remaining space */}
+        {isLoading ? (
+          <div className="flex-1 px-3 py-2">
+            <div className="h-3.5 w-48 rounded bg-muted animate-pulse" />
+          </div>
+        ) : (
+          <div
+            className="flex-1 min-w-0 px-3 text-xs text-muted-foreground truncate select-all cursor-text font-mono leading-9"
+            onClick={(e) => {
+              // Select all text on click
+              const range = document.createRange();
+              range.selectNodeContents(e.currentTarget);
+              const sel = window.getSelection();
+              sel?.removeAllRanges();
+              sel?.addRange(range);
+            }}
+          >
+            {linkUrl}
+          </div>
+        )}
+
+        {/* Role selector — compact inline dropdown */}
+        <Select
+          value={inviteLink?.role ?? "member"}
+          onValueChange={(v) => handleRoleChange(v as "admin" | "member")}
+          disabled={isLoading}
+        >
+          <SelectTrigger className="shrink-0 h-full w-auto gap-1 rounded-none border-0 border-l shadow-none text-xs px-2.5 focus:ring-0 focus:ring-offset-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="member">Member</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Reset button */}
+        <button
+          onClick={handleReset}
+          disabled={createLink.isPending || isLoading}
+          className="shrink-0 flex items-center justify-center w-9 h-full border-l text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-50"
+          title="Reset link"
+        >
+          {createLink.isPending ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="size-3.5" />
+          )}
+        </button>
+
+        {/* Copy button */}
+        <button
+          onClick={handleCopy}
+          disabled={isLoading}
+          className="shrink-0 flex items-center justify-center w-9 h-full border-l text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-50"
+          title="Copy invite link"
+        >
+          {copied ? (
+            <Check className="size-3.5 text-green-500" />
+          ) : (
+            <Copy className="size-3.5" />
+          )}
+        </button>
+      </div>
+
+      {/* Expiry hint */}
+      {inviteLink && (
+        <p className="text-[11px] text-muted-foreground/60 px-1">
+          Expires{" "}
+          {formatDistanceToNow(new Date(inviteLink.expiresAt), {
+            addSuffix: true,
+          })}
+          {" · "}
+          Reset to generate a new link
+        </p>
+      )}
     </div>
   );
 }
@@ -321,6 +445,12 @@ export function MembersTab() {
         </div>
       ) : (
       <>
+      {/* Invite link */}
+      <div className="rounded-2xl overflow-hidden border px-4 py-3 space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">Invite link</p>
+        <InviteLinkSection />
+      </div>
+
       {/* Members card */}
       <div className="rounded-2xl overflow-hidden border">
         {/* Header — mirrors teams tab */}

@@ -5,15 +5,12 @@ import { useUser, useClerk } from "@clerk/nextjs";
 import type { SettingsSection } from "@/components/settings/settings-panel";
 import {
   LogOut,
-  User,
-  SlidersHorizontal,
+  Settings,
   Check,
   Moon,
   Sun,
   Monitor,
-  Users,
   ShieldCheck,
-  Building2,
   Plus,
 } from "lucide-react";
 import { usePreferencesStore } from "@/store/preferences-store";
@@ -52,6 +49,10 @@ function getSortedThemeEntries() {
   const otherEntries = entries.filter(([key]) => key !== "default");
   otherEntries.sort((a, b) => a[1].label.localeCompare(b[1].label));
   return defaultEntry ? [defaultEntry, ...otherEntries] : otherEntries;
+}
+
+function stripWorkspaceSuffix(name: string) {
+  return name.replace(/\s+workspace$/i, "").trim();
 }
 
 interface HeaderUserMenuProps {
@@ -110,157 +111,157 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56 rounded-lg" align="end" sideOffset={8}>
-        <DropdownMenuLabel className="p-0 font-normal">
-          <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
-            <Avatar className="h-8 w-8 rounded-full">
-              {user.hasImage && <AvatarImage src={user.imageUrl} alt={displayName} />}
-              <AvatarFallback className="rounded-full text-xs">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">{displayName}</span>
-              <span className="truncate text-xs text-muted-foreground">
-                {email}
-              </span>
+      <DropdownMenuContent className="w-64 rounded-lg p-0 overflow-hidden" align="end" sideOffset={8}>
+        {/* Upper section — popover bg */}
+        <div className="p-1">
+          {/* User profile header */}
+          <DropdownMenuLabel className="p-0 font-normal">
+            <div className="flex items-center gap-3 px-2 py-2 text-left text-sm">
+              <Avatar className="h-9 w-9 rounded-full">
+                {user.hasImage && <AvatarImage src={user.imageUrl} alt={displayName} />}
+                <AvatarFallback className="rounded-full text-xs">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="grid flex-1 text-left leading-tight">
+                <span className="truncate text-sm font-medium">{displayName}</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  {email}
+                </span>
+              </div>
             </div>
+          </DropdownMenuLabel>
+
+          <DropdownMenuSeparator />
+
+          {/* Settings + Members */}
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={() => onOpenSettings?.("profile")}>
+              <Settings />
+              Settings
+            </DropdownMenuItem>
+            {isAdmin && (
+              <DropdownMenuItem onClick={() => onOpenSettings?.("members")}>
+                <ShieldCheck />
+                Manage members
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <ModeIcon />
+                Theme
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-64 max-h-80 overflow-y-auto">
+                {/* Mode toggle */}
+                <div className="p-1.5 border-b">
+                  <div className="flex gap-1">
+                    {modeOptions.map((option) => {
+                      const Icon = option.icon;
+                      const isActive = mode === option.value;
+                      return (
+                        <Button
+                          key={option.value}
+                          variant={isActive ? "secondary" : "ghost"}
+                          size="sm"
+                          className={cn(
+                            "flex-1 gap-1.5 h-7",
+                            isActive && "bg-accent"
+                          )}
+                          onClick={() => setMode(option.value)}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                          <span className="text-xs">{option.label}</span>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Theme presets */}
+                {sortedThemes.map(([key, preset]) => (
+                  <DropdownMenuItem
+                    key={key}
+                    onClick={() => setPreset(key)}
+                    className="flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="h-3.5 w-3.5 rounded-full border shrink-0"
+                        style={{
+                          backgroundColor: preset.styles[resolvedMode].primary,
+                        }}
+                      />
+                      <span className="text-sm">{preset.label}</span>
+                    </div>
+                    {currentPresetKey === key && (
+                      <Check className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </DropdownMenuGroup>
+        </div>
+
+        {/* Lower section — tinted workspace area */}
+        <div className="bg-black/[0.08] dark:bg-black/20 border-t p-1">
+          <div className="px-2 pt-1.5 pb-1 flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              Switch Workspaces
+            </span>
+            {pendingCount > 0 && (
+              <span
+                className="text-[10px] bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none cursor-pointer"
+                onClick={() => router.push("/workspace-select")}
+              >
+                {pendingCount} pending
+              </span>
+            )}
           </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Workspace</DropdownMenuLabel>
-        <DropdownMenuGroup>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Building2 />
-              <span className="truncate">{workspaceName}</span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-52">
-              {workspaces.map((ws) => (
+          <DropdownMenuGroup>
+            {workspaces.map((ws) => {
+              const name = stripWorkspaceSuffix(ws.name);
+              const isCurrent = ws.id === workspaceId;
+              return (
                 <DropdownMenuItem
                   key={ws.id}
                   onClick={() => {
-                    if (ws.id !== workspaceId) {
-                      switchWorkspace.mutate(ws.id);
-                    }
+                    if (!isCurrent) switchWorkspace.mutate(ws.id);
                   }}
-                  className="cursor-pointer"
+                  className={cn(
+                    "cursor-pointer gap-3 px-3",
+                    isCurrent && "bg-accent"
+                  )}
                 >
-                  <Building2 />
-                  <span className="flex-1 truncate">{ws.name}</span>
-                  {ws.id === workspaceId && (
-                    <Check className="h-3.5 w-3.5 shrink-0 ml-auto" />
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary text-xs font-semibold">
+                    {name.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="flex-1 truncate text-sm">{name}</span>
+                  {isCurrent && (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   )}
                 </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => router.push("/workspace-create")}
-                className="cursor-pointer"
-              >
-                <Plus />
-                Create workspace
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          {pendingCount > 0 && (
+              );
+            })}
             <DropdownMenuItem
-              onClick={() => router.push("/workspace-select")}
-              className="cursor-pointer"
+              onClick={() => router.push("/workspace-create")}
+              className="cursor-pointer gap-3 px-3"
             >
-              <span className="flex-1">Pending invites</span>
-              <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none">
-                {pendingCount}
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground">
+                <Plus className="h-4 w-4" />
               </span>
+              <span className="text-sm">Create Workspace</span>
             </DropdownMenuItem>
-          )}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => onOpenSettings?.("profile")}>
-            <User />
-            Profile
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => signOut({ redirectUrl: "/" })}
+          >
+            <LogOut />
+            Sign out
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onOpenSettings?.("preferences")}>
-            <SlidersHorizontal />
-            Preferences
-          </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <ModeIcon />
-              Theme
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-64 max-h-80 overflow-y-auto">
-              {/* Mode toggle */}
-              <div className="p-1.5 border-b">
-                <div className="flex gap-1">
-                  {modeOptions.map((option) => {
-                    const Icon = option.icon;
-                    const isActive = mode === option.value;
-                    return (
-                      <Button
-                        key={option.value}
-                        variant={isActive ? "secondary" : "ghost"}
-                        size="sm"
-                        className={cn(
-                          "flex-1 gap-1.5 h-7",
-                          isActive && "bg-accent"
-                        )}
-                        onClick={() => setMode(option.value)}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                        <span className="text-xs">{option.label}</span>
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Theme presets */}
-              {sortedThemes.map(([key, preset]) => (
-                <DropdownMenuItem
-                  key={key}
-                  onClick={() => setPreset(key)}
-                  className="flex items-center justify-between cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="h-3.5 w-3.5 rounded-full border shrink-0"
-                      style={{
-                        backgroundColor: preset.styles[resolvedMode].primary,
-                      }}
-                    />
-                    <span className="text-sm">{preset.label}</span>
-                  </div>
-                  {currentPresetKey === key && (
-                    <Check className="h-3.5 w-3.5 shrink-0" />
-                  )}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => onOpenSettings?.("teams")}>
-            <Users />
-            Teams
-          </DropdownMenuItem>
-          {isAdmin && (
-            <DropdownMenuItem onClick={() => onOpenSettings?.("members")}>
-              <ShieldCheck />
-              Members
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="destructive"
-          onClick={() => signOut({ redirectUrl: "/" })}
-        >
-          <LogOut />
-          Sign out
-        </DropdownMenuItem>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

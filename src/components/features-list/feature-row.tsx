@@ -140,15 +140,18 @@ export function FeatureRow({
               : "w-0 opacity-0 mr-0 group-hover:w-10 group-hover:opacity-100 group-hover:gap-2 group-hover:mr-3"
         )}
       >
-        {!selectMode && (
-          <div
-            className="flex items-center justify-center cursor-grab active:cursor-grabbing shrink-0"
-            onClick={(e) => e.stopPropagation()}
-            {...dragHandleProps}
-          >
-            <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-          </div>
-        )}
+        <div
+          className={cn(
+            "flex items-center justify-center shrink-0",
+            selectMode
+              ? "text-muted-foreground/20"
+              : "cursor-grab active:cursor-grabbing"
+          )}
+          onClick={(e) => e.stopPropagation()}
+          {...(selectMode ? {} : dragHandleProps)}
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
         <div
           className="flex items-center justify-center shrink-0"
           onClick={(e) => {
@@ -156,7 +159,7 @@ export function FeatureRow({
             onSelect(e);
           }}
         >
-          <Checkbox checked={selected} className="h-4 w-4 border-muted-foreground/60" />
+          <Checkbox checked={selected} className="h-4 w-4" />
         </div>
       </div>
 

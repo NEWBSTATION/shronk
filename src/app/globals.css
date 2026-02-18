@@ -240,6 +240,11 @@ pre {
   }
 }
 
+/* Checkbox — ensure unchecked state has a visible border */
+[data-slot="checkbox"]:not([data-state="checked"]) {
+  border: 1.5px solid color-mix(in srgb, var(--foreground) 15%, transparent) !important;
+}
+
 /* Scrollbar styling - uses tweakcn theme variables */
 * {
   scrollbar-width: thin;

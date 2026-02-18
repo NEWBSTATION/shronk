@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Member, Invite } from "@/db/schema";
+import type { Member, Invite, InviteLink } from "@/db/schema";
 
 interface MemberWithInfo extends Member {
   name: string;
@@ -15,6 +15,10 @@ interface MembersResponse {
 
 interface InvitesResponse {
   invites: Invite[];
+}
+
+interface InviteLinkResponse {
+  inviteLink: InviteLink | null;
 }
 
 export function useMembers() {
@@ -145,6 +149,85 @@ export function useAcceptInvite() {
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to accept invite");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
+}
+
+// Invite link hooks
+
+export function useInviteLink() {
+  return useQuery<InviteLinkResponse>({
+    queryKey: ["invite-link"],
+    queryFn: async () => {
+      const res = await fetch("/api/invite-link");
+      if (!res.ok) throw new Error("Failed to fetch invite link");
+      return res.json();
+    },
+  });
+}
+
+export function useCreateInviteLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (role: "admin" | "member") => {
+      const res = await fetch("/api/invite-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to create invite link");
+      }
+      return res.json() as Promise<InviteLinkResponse>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invite-link"] });
+    },
+  });
+}
+
+export function useUpdateInviteLinkRole() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (role: "admin" | "member") => {
+      const res = await fetch("/api/invite-link", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update invite link role");
+      }
+      return res.json() as Promise<InviteLinkResponse>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invite-link"] });
+    },
+  });
+}
+
+export function useAcceptInviteLink() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const res = await fetch("/api/invite-link/accept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to accept invite link");
       }
       return res.json();
     },

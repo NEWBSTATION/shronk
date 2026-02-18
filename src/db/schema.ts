@@ -82,6 +82,19 @@ export const invites = pgTable("invites", {
   expiresAt: timestamp("expires_at").notNull(),
 });
 
+// Invite links table (shareable workspace invite URLs)
+export const inviteLinks = pgTable("invite_links", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .references(() => workspaces.id, { onDelete: "cascade" })
+    .notNull(),
+  role: memberRoleEnum("role").default("member").notNull(),
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  createdBy: varchar("created_by", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
 // Projects table
 export const projects = pgTable("projects", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -184,6 +197,7 @@ export const teamMilestoneDurations = pgTable(
 export const workspacesRelations = relations(workspaces, ({ many }) => ({
   members: many(members),
   invites: many(invites),
+  inviteLinks: many(inviteLinks),
   projects: many(projects),
   teams: many(teams),
 }));
@@ -198,6 +212,13 @@ export const membersRelations = relations(members, ({ one }) => ({
 export const invitesRelations = relations(invites, ({ one }) => ({
   workspace: one(workspaces, {
     fields: [invites.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const inviteLinksRelations = relations(inviteLinks, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [inviteLinks.workspaceId],
     references: [workspaces.id],
   }),
 }));
@@ -291,6 +312,8 @@ export type Member = typeof members.$inferSelect;
 export type NewMember = typeof members.$inferInsert;
 export type Invite = typeof invites.$inferSelect;
 export type NewInvite = typeof invites.$inferInsert;
+export type InviteLink = typeof inviteLinks.$inferSelect;
+export type NewInviteLink = typeof inviteLinks.$inferInsert;
 export type DashboardLayout = typeof dashboardLayouts.$inferSelect;
 export type NewDashboardLayout = typeof dashboardLayouts.$inferInsert;
 export type TeamMilestoneDuration = typeof teamMilestoneDurations.$inferSelect;
