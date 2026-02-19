@@ -71,6 +71,13 @@
       "when": 1771441049423,
       "tag": "0009_woozy_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1771471331253,
+      "tag": "0010_serious_chimera",
+      "breakpoints": true
     }
   ]
 }
