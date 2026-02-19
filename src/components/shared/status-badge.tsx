@@ -8,12 +8,73 @@ import {
   Pause,
   CircleCheck,
   XCircle,
-  AlertTriangle,
-  ArrowUp,
-  ArrowDown,
-  Minus,
-  CircleDashed,
 } from "lucide-react";
+
+// ---------- Linear-style priority icons ----------
+
+type IconProps = React.SVGProps<SVGSVGElement>;
+
+/** Three dots — "No Priority" */
+function PriorityNoneIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
+      <circle cx="3" cy="8" r="1.5" />
+      <circle cx="8" cy="8" r="1.5" />
+      <circle cx="13" cy="8" r="1.5" />
+    </svg>
+  );
+}
+
+/** 1 of 4 bars filled */
+function PriorityLowIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
+      <rect x="1" y="11" width="2.5" height="3" rx="0.5" opacity="1" />
+      <rect x="5" y="8" width="2.5" height="6" rx="0.5" opacity="0.2" />
+      <rect x="9" y="5" width="2.5" height="9" rx="0.5" opacity="0.2" />
+      <rect x="13" y="2" width="2.5" height="12" rx="0.5" opacity="0.2" />
+    </svg>
+  );
+}
+
+/** 2 of 4 bars filled */
+function PriorityMediumIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
+      <rect x="1" y="11" width="2.5" height="3" rx="0.5" opacity="1" />
+      <rect x="5" y="8" width="2.5" height="6" rx="0.5" opacity="1" />
+      <rect x="9" y="5" width="2.5" height="9" rx="0.5" opacity="0.2" />
+      <rect x="13" y="2" width="2.5" height="12" rx="0.5" opacity="0.2" />
+    </svg>
+  );
+}
+
+/** 3 of 4 bars filled */
+function PriorityHighIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
+      <rect x="1" y="11" width="2.5" height="3" rx="0.5" opacity="1" />
+      <rect x="5" y="8" width="2.5" height="6" rx="0.5" opacity="1" />
+      <rect x="9" y="5" width="2.5" height="9" rx="0.5" opacity="1" />
+      <rect x="13" y="2" width="2.5" height="12" rx="0.5" opacity="0.2" />
+    </svg>
+  );
+}
+
+/** Exclamation in rounded square — "Urgent" */
+function PriorityUrgentIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
+      <path
+        d="M3 1a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V3a2 2 0 00-2-2H3z"
+        fillOpacity="0.15"
+      />
+      <path d="M3 1a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V3a2 2 0 00-2-2H3zm0 1h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" />
+      <rect x="7" y="4" width="2" height="5" rx="1" />
+      <circle cx="8" cy="11.5" r="1" />
+    </svg>
+  );
+}
 
 const statusConfig: Record<
   MilestoneStatus,
@@ -51,29 +112,29 @@ const priorityConfig: Record<
   { label: string; icon: React.ElementType; className: string }
 > = {
   none: {
-    label: "None",
-    icon: CircleDashed,
+    label: "No Priority",
+    icon: PriorityNoneIcon,
     className: "bg-muted/50 text-muted-foreground/70",
   },
   low: {
     label: "Low",
-    icon: ArrowDown,
+    icon: PriorityLowIcon,
     className: "bg-muted text-muted-foreground",
   },
   medium: {
     label: "Medium",
-    icon: Minus,
-    className: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    icon: PriorityMediumIcon,
+    className: "bg-muted text-muted-foreground",
   },
   high: {
     label: "High",
-    icon: ArrowUp,
+    icon: PriorityHighIcon,
     className: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   },
   critical: {
-    label: "Critical",
-    icon: AlertTriangle,
-    className: "bg-red-500/10 text-red-600 dark:text-red-400",
+    label: "Urgent",
+    icon: PriorityUrgentIcon,
+    className: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   },
 };
 
@@ -146,11 +207,11 @@ export function getStatusColor(status: MilestoneStatus): string {
 
 export function getPriorityColor(priority: MilestonePriority): string {
   const colors: Record<MilestonePriority, string> = {
-    none: "hsl(var(--muted))",
-    low: "hsl(var(--muted))",
-    medium: "hsl(221, 83%, 53%)",
+    none: "hsl(var(--muted-foreground))",
+    low: "hsl(var(--muted-foreground))",
+    medium: "hsl(var(--muted-foreground))",
     high: "hsl(25, 95%, 53%)",
-    critical: "hsl(0, 84%, 60%)",
+    critical: "hsl(25, 95%, 53%)",
   };
   return colors[priority];
 }
