@@ -76,10 +76,12 @@ export function DrilldownProvider({ children }: { children: ReactNode }) {
     scheduleCleanup();
   }, [scheduleCleanup]);
 
-  // Escape key pops the top panel
+  // Escape key pops the top panel (only if no Radix overlay is open)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // If a popover/select/dropdown/dialog is open, let Radix handle the Escape first
+        if (document.querySelector("[data-radix-popper-content-wrapper], [data-radix-select-viewport], [data-radix-menu-content], [role=\"dialog\"][data-state=\"open\"]")) return;
         pop();
       }
     };

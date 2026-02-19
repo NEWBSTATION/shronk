@@ -27,6 +27,10 @@ export function DrilldownStack() {
       // Ignore clicks inside Radix portals (Select, Popover, DropdownMenu, Dialog, etc.)
       if (target.closest("[data-radix-popper-content-wrapper], [role=\"dialog\"], [data-radix-select-viewport], [data-radix-menu-content]")) return;
 
+      // If any Radix popover/select/dropdown/dialog is currently open in the DOM,
+      // this click is dismissing that overlay — don't also pop the drilldown.
+      if (document.querySelector("[data-radix-popper-content-wrapper], [data-radix-select-viewport], [data-radix-menu-content], [role=\"dialog\"][data-state=\"open\"]")) return;
+
       popRef.current();
     };
 

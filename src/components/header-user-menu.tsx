@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   Plus,
 } from "lucide-react";
-import { usePreferencesStore } from "@/store/preferences-store";
 import { useThemeStore } from "@/store/theme-store";
 import { useMembers } from "@/hooks/use-members";
 import { useWorkspace } from "@/components/providers/workspace-provider";
@@ -63,7 +62,6 @@ interface HeaderUserMenuProps {
 export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
-  const { showDisplayName } = usePreferencesStore();
   const { currentPresetKey, mode, setPreset, setMode, getResolvedMode, randomPreset } = useThemeStore();
   const { data: membersData } = useMembers();
   const isAdmin = membersData?.currentUserRole === "admin";
@@ -93,9 +91,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
     | string
     | undefined;
   const displayName =
-    showDisplayName && customDisplayName
-      ? customDisplayName
-      : user.fullName || user.firstName || "User";
+    customDisplayName || user.fullName || user.firstName || "User";
   const email = user.primaryEmailAddress?.emailAddress || "";
 
   const ModeIcon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
@@ -228,7 +224,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
         <div className="bg-muted/40 border-t p-1">
           <div className="px-2 pt-1.5 pb-1 flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">
-              Switch Workspaces
+              Switch Workspace
             </span>
             {pendingCount > 0 && (
               <span

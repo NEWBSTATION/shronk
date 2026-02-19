@@ -6,7 +6,6 @@ import { usePreferencesStore } from "@/store/preferences-store";
 import { useThemeStore } from "@/store/theme-store";
 import { themePresets } from "@/config/theme-presets";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -92,7 +91,7 @@ function formatTimezone(tz: string) {
 const allListedZones = new Set(Object.values(TIMEZONE_GROUPS).flat());
 
 export function PreferencesTab() {
-  const { timezone, showDisplayName, setTimezone, setShowDisplayName } =
+  const { timezone, setTimezone } =
     usePreferencesStore();
   const { currentPresetKey, mode, setPreset, setMode, getResolvedMode } =
     useThemeStore();
@@ -218,30 +217,6 @@ export function PreferencesTab() {
                 </p>
               )}
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Display Section */}
-      <div>
-        <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Display
-        </h3>
-        <div className="rounded-lg border">
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <div>
-              <Label htmlFor="show-display-name" className="text-sm font-medium">
-                Show display name
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Use your display name instead of your full name in the sidebar
-              </p>
-            </div>
-            <Switch
-              id="show-display-name"
-              checked={showDisplayName}
-              onCheckedChange={setShowDisplayName}
-            />
           </div>
         </div>
       </div>
