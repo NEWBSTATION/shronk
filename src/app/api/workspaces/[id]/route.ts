@@ -7,6 +7,7 @@ import { z } from "zod";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(255).optional(),
+  icon: z.string().nullable().optional(),
   newOwnerId: z.string().optional(),
 });
 
@@ -76,6 +77,7 @@ export async function PATCH(
         .set({
           ownerId: data.newOwnerId,
           ...(data.name ? { name: data.name } : {}),
+          ...("icon" in data ? { icon: data.icon ?? null } : {}),
           updatedAt: new Date(),
         })
         .where(eq(workspaces.id, id));
@@ -87,10 +89,14 @@ export async function PATCH(
           .set({ role: "admin" })
           .where(eq(members.id, newOwnerMember.id));
       }
-    } else if (data.name) {
+    } else if (data.name || "icon" in data) {
       await db
         .update(workspaces)
-        .set({ name: data.name, updatedAt: new Date() })
+        .set({
+          ...(data.name ? { name: data.name } : {}),
+          ...("icon" in data ? { icon: data.icon ?? null } : {}),
+          updatedAt: new Date(),
+        })
         .where(eq(workspaces.id, id));
     }
 

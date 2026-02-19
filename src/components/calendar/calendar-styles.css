@@ -36,7 +36,7 @@
 /* Events — rounded with left border accent */
 .fc-calendar-root .fc-daygrid-event,
 .fc-calendar-root .fc-timegrid-event {
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border-left-width: 3px;
   border-left-style: solid;
   font-size: 0.75rem;
@@ -74,14 +74,14 @@
 .fc-calendar-root .fc-more-popover {
   background: var(--popover);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 20px -4px color-mix(in srgb, var(--foreground) 15%, transparent);
 }
 
 .fc-calendar-root .fc-more-popover .fc-popover-header {
   background: var(--muted);
   border-bottom: 1px solid var(--border);
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   padding: 6px 10px;
   font-size: 0.75rem;
   font-weight: 500;
@@ -90,7 +90,7 @@
 
 /* Scrollgrid — rounded corners */
 .fc-calendar-root .fc-scrollgrid {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -175,12 +175,12 @@
   line-height: 1;
   color: #fff;
   padding: 2px 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
   max-width: 72px;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 0.5px 1px color-mix(in srgb, var(--foreground) 30%, transparent);
   cursor: pointer;
   transition: opacity 0.15s;
 }

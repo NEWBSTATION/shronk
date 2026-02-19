@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { format, getYear } from "date-fns";
 import { ChevronRight, GripVertical } from "lucide-react";
-import { formatDuration } from "@/lib/format-duration";
+import { formatDuration, formatDurationIn } from "@/lib/format-duration";
+import type { DurationUnit } from "@/store/features-list-store";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,6 +38,11 @@ const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
   low: { label: "Low", className: "bg-slate-500/10 text-slate-600 dark:text-slate-400" },
 };
 
+const PRIORITY_OPTIONS = Object.entries(PRIORITY_CONFIG) as [string, { label: string; className: string }][];
+
+/** Grid column template shared between header and rows */
+export const TABLE_GRID_COLS = "1fr 100px 72px 56px";
+
 export interface TeamDurationInfo {
   teamId: string;
   teamName: string;
@@ -59,6 +65,10 @@ interface FeatureRowProps {
   onClick: () => void;
   onToggleComplete?: () => void;
   onStatusChange?: (newStatus: string) => void;
+  onPriorityChange?: (newPriority: string) => void;
+  onRename?: (newTitle: string) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+  durationUnit?: DurationUnit;
   isDragging?: boolean;
   isAnyDragging?: boolean;
   isOverlay?: boolean;
@@ -82,6 +92,10 @@ export function FeatureRow({
   onClick,
   onToggleComplete,
   onStatusChange,
+  onPriorityChange,
+  onRename,
+  onContextMenu,
+  durationUnit = "days",
   isDragging,
   isAnyDragging,
   isOverlay,
@@ -95,6 +109,28 @@ export function FeatureRow({
   const hasTeams = teamDurations && teamDurations.length > 0;
   const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.not_started;
   const [statusOpen, setStatusOpen] = useState(false);
+  const [priorityOpen, setPriorityOpen] = useState(false);
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(title);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setTitleDraft(title); }, [title]);
+  useEffect(() => {
+    if (titleEditing) {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }
+  }, [titleEditing]);
+
+  const commitTitle = useCallback(() => {
+    setTitleEditing(false);
+    const trimmed = titleDraft.trim();
+    if (trimmed && trimmed !== title) {
+      onRename?.(trimmed);
+    } else {
+      setTitleDraft(title);
+    }
+  }, [titleDraft, title, onRename]);
 
   const dateRangeLabel = useMemo(() => {
     if (!startDateProp || !endDateProp) return null;
@@ -119,41 +155,48 @@ export function FeatureRow({
     <div
       ref={nodeRef}
       style={style}
-      onClick={onClick}
+      onContextMenu={(e) => {
+        if (onContextMenu) {
+          e.preventDefault();
+          onContextMenu(e);
+        }
+      }}
+      onClick={(e) => {
+        if (e.shiftKey || selectMode) {
+          e.preventDefault();
+          onSelect(e);
+          return;
+        }
+        onClick();
+      }}
       className={cn(
-        "relative flex items-center px-4 py-3.5 transition-[colors,opacity] duration-200 cursor-pointer bg-background border-b last:border-b-0",
-        !isAnyDragging && "group hover:bg-accent/50",
-        selected && "bg-accent",
+        "relative flex items-center px-3 py-3 border-b border-border/40 last:border-b-0 transition-colors duration-100 cursor-pointer",
+        !isAnyDragging && "group hover:bg-muted/40",
+        selected && "bg-muted/40",
         isDragging && "opacity-30",
         dimmed && !isDragging && "opacity-40",
-        isOverlay && "border rounded-lg shadow-lg"
+        isOverlay && "bg-background border rounded-lg shadow-lg"
       )}
     >
-      {/* Drag handle + Checkbox: collapsed by default, expand on hover/select */}
-      <div
-        className={cn(
-          "shrink-0 flex items-center overflow-hidden transition-all duration-150",
-          selectMode || selected || statusOpen
-            ? "w-10 opacity-100 gap-2 mr-3"
-            : isOverlay
-              ? "w-10 opacity-100 gap-2 mr-3"
-              : "w-0 opacity-0 mr-0 group-hover:w-10 group-hover:opacity-100 group-hover:gap-2 group-hover:mr-3"
-        )}
-      >
+      {/* Drag handle — absolute overlay on left edge, hover only */}
+      {!selectMode && (
         <div
           className={cn(
-            "flex items-center justify-center shrink-0",
-            selectMode
-              ? "text-muted-foreground/20"
-              : "cursor-grab active:cursor-grabbing"
+            "absolute left-0.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity",
+            !isAnyDragging && "group-hover:opacity-100",
+            isOverlay && "opacity-100"
           )}
           onClick={(e) => e.stopPropagation()}
-          {...(selectMode ? {} : dragHandleProps)}
+          {...dragHandleProps}
         >
-          <GripVertical className="h-4 w-4" />
+          <GripVertical className="h-4 w-4 text-muted-foreground/50 cursor-grab active:cursor-grabbing" />
         </div>
+      )}
+
+      {/* Checkbox — select mode only */}
+      {selectMode && (
         <div
-          className="flex items-center justify-center shrink-0"
+          className="shrink-0 flex items-center justify-center mr-2"
           onClick={(e) => {
             e.stopPropagation();
             onSelect(e);
@@ -161,16 +204,16 @@ export function FeatureRow({
         >
           <Checkbox checked={selected} className="h-4 w-4" />
         </div>
-      </div>
+      )}
 
-      {/* Completion toggle — 32px wide to align with milestone header icon */}
+      {/* Completion toggle */}
       <button
         onClick={(e) => {
           e.stopPropagation();
           onToggleComplete?.();
         }}
         className={cn(
-          "shrink-0 h-8 w-8 flex items-center justify-center rounded-full transition-colors",
+          "shrink-0 h-7 w-7 flex items-center justify-center rounded-full transition-colors",
           completed
             ? "text-green-500 hover:text-green-600"
             : "text-muted-foreground/40 hover:text-muted-foreground/70"
@@ -178,113 +221,178 @@ export function FeatureRow({
         title={completed ? "Mark incomplete" : "Mark completed"}
       >
         {completed ? (
-          <svg className="h-5 w-5" viewBox="0 -960 960 960" fill="currentColor">
+          <svg className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="currentColor">
             <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Z" />
           </svg>
         ) : (
-          <svg className="h-5 w-5" viewBox="0 -960 960 960" fill="currentColor">
+          <svg className="h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="currentColor">
             <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Zm0-72q130 0 221-91t91-221q0-130-91-221t-221-91q-130 0-221 91t-91 221q0 130 91 221t221 91Zm0-312Z" />
           </svg>
         )}
       </button>
 
-      {/* Feature name + status + team durations + metadata */}
-      <div className="flex flex-1 ml-3 min-w-0 gap-3">
-        <div className="flex flex-col flex-1 gap-1 min-w-0 justify-center">
-          {/* Title line */}
-          <div className="flex items-center gap-3">
+      {/* Content area — responsive grid */}
+      <div
+        className="flex-1 ml-2 min-w-0 grid grid-cols-1 md:grid-cols-[var(--table-cols)] items-center gap-x-3"
+        style={{ "--table-cols": TABLE_GRID_COLS } as React.CSSProperties}
+      >
+        {/* Col 1: Title + inline team dots */}
+        <div className="min-w-0 flex items-center gap-2">
+          {titleEditing ? (
+            <input
+              ref={titleInputRef}
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitTitle();
+                if (e.key === "Escape") { setTitleDraft(title); setTitleEditing(false); }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="text-sm font-medium bg-transparent outline-none ring-1 ring-ring rounded px-1 -mx-1 py-1 min-w-0"
+            />
+          ) : (
             <span
               className={cn(
-                "text-sm flex-1 truncate text-left",
-                completed && "text-muted-foreground line-through"
+                "text-sm font-medium truncate rounded px-1 -mx-1 hover:bg-foreground/[0.06] cursor-text transition-colors",
+                completed
+                  ? "text-muted-foreground/60 line-through"
+                  : "text-foreground"
               )}
+              onClick={(e) => {
+                e.stopPropagation();
+                setTitleDraft(title);
+                setTitleEditing(true);
+              }}
             >
               {title}
             </span>
-          </div>
+          )}
 
-          {/* Status + team durations subtitle */}
-          <div className="flex items-center gap-1.5 text-[11px] leading-none text-muted-foreground/70">
-            <Popover open={statusOpen} onOpenChange={setStatusOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                  className="inline-flex items-center rounded-sm px-0.5 -mx-0.5 hover:bg-accent/70 hover:text-foreground transition-colors"
-                >
-                  {statusCfg.label}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-36 p-1"
-                align="start"
-                sideOffset={4}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {STATUS_OPTIONS.map(([key, cfg]) => (
-                  <button
-                    key={key}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setStatusOpen(false);
-                      if (key !== status) {
-                        onStatusChange?.(key);
-                      }
-                    }}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-                      key === status
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-accent/50"
-                    )}
-                  >
-                    <span className={cn("h-2 w-2 rounded-full shrink-0", cfg.dotClass)} />
-                    {cfg.label}
-                  </button>
-                ))}
-              </PopoverContent>
-            </Popover>
-            {hasTeams && (
-              <>
-                <span className="text-muted-foreground/30">·</span>
-                {teamDurations.map((td) => (
-                  <span
-                    key={td.teamId}
-                    className="inline-flex items-center gap-1"
-                  >
+          {/* Team dots — inline, condensed */}
+          {hasTeams && (
+            <div className="hidden md:flex items-center gap-0.5 shrink-0">
+              {teamDurations.map((td) => (
+                <Tooltip key={td.teamId}>
+                  <TooltipTrigger asChild>
                     <span
-                      className="h-[5px] w-[5px] rounded-full shrink-0"
+                      className="h-2 w-2 rounded-full shrink-0"
                       style={{ backgroundColor: td.teamColor }}
                     />
-                    <span className="truncate max-w-[72px]">{td.teamName}</span>
-                    <span className="tabular-nums text-muted-foreground/50">
-                      {formatDuration(td.duration)}
-                    </span>
-                  </span>
-                ))}
-              </>
-            )}
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={4}>
+                    {td.teamName} ({formatDuration(td.duration)})
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          )}
+
+          {/* Mobile-only: inline metadata */}
+          <div className="flex md:hidden items-center gap-1.5 text-[11px] leading-none text-muted-foreground shrink-0">
+            <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", statusCfg.dotClass)} />
+            <span>{statusCfg.label}</span>
+            <span className="text-muted-foreground/30">&middot;</span>
+            <span className="tabular-nums">{formatDurationIn(duration, durationUnit)}</span>
           </div>
         </div>
 
-        {/* Right side: priority badge + duration badge + chevron */}
-        <div className="flex items-center gap-1.5 shrink-0 self-center">
-          {priority !== "none" && (
-            <span
-              className={cn(
-                "inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none",
-                priorityCfg.className
-              )}
+        {/* Col 2: Status — desktop only */}
+        <div className="hidden md:flex items-center">
+          <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1.5 rounded-md min-h-[28px] px-2 py-0.5 text-xs text-foreground/70 hover:text-foreground hover:bg-muted/60 transition-colors -ml-2"
+              >
+                <span className={cn("h-2 w-2 rounded-full shrink-0", statusCfg.dotClass)} />
+                <span>{statusCfg.label}</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-36 p-1"
+              align="start"
+              sideOffset={4}
+              onClick={(e) => e.stopPropagation()}
             >
-              {priorityCfg.label}
-            </span>
-          )}
+              {STATUS_OPTIONS.map(([key, cfg]) => (
+                <button
+                  key={key}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStatusOpen(false);
+                    if (key !== status) onStatusChange?.(key);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                    key === status
+                      ? "bg-accent text-accent-foreground"
+                      : "hover:bg-accent/50"
+                  )}
+                >
+                  <span className={cn("h-2 w-2 rounded-full shrink-0", cfg.dotClass)} />
+                  {cfg.label}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Col 3: Priority — desktop only */}
+        <div className="hidden md:flex items-center">
+          <Popover open={priorityOpen} onOpenChange={setPriorityOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => e.stopPropagation()}
+                className={cn(
+                  "inline-flex items-center justify-center rounded-md min-h-[28px] min-w-[48px] px-2 py-0.5 text-[11px] font-medium leading-none transition-colors -ml-2",
+                  priority !== "none"
+                    ? priorityCfg.className
+                    : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/60"
+                )}
+              >
+                {priority !== "none" ? priorityCfg.label : "\u2014"}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-36 p-1"
+              align="start"
+              sideOffset={4}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {PRIORITY_OPTIONS.map(([key, cfg]) => (
+                <button
+                  key={key}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPriorityOpen(false);
+                    if (key !== priority) onPriorityChange?.(key);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                    key === priority
+                      ? "bg-accent text-accent-foreground"
+                      : "hover:bg-accent/50"
+                  )}
+                >
+                  {key !== "none" && (
+                    <span className={cn("inline-block h-2 w-2 rounded-full shrink-0", cfg.className.split(" ")[0])} />
+                  )}
+                  {cfg.label}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Col 4: Duration — desktop only */}
+        <div className="hidden md:flex items-center justify-center">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none tabular-nums bg-muted text-muted-foreground">
-                {duration}d
+              <span className="text-xs tabular-nums text-foreground/50">
+                {formatDurationIn(duration, durationUnit)}
               </span>
             </TooltipTrigger>
             {dateRangeLabel && (
@@ -293,9 +401,11 @@ export function FeatureRow({
               </TooltipContent>
             )}
           </Tooltip>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
+
+      {/* Chevron — desktop only */}
+      <ChevronRight className="hidden md:block h-3.5 w-3.5 text-muted-foreground/40 ml-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
     </div>
   );
 }
@@ -304,7 +414,7 @@ export function SortableFeatureRow(
   props: Omit<
     FeatureRowProps,
     "isDragging" | "isOverlay" | "dragHandleProps" | "nodeRef" | "style"
-  > & { dimmed?: boolean }
+  > & { dimmed?: boolean; onContextMenu?: (e: React.MouseEvent) => void }
 ) {
   const {
     attributes,

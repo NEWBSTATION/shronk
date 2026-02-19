@@ -196,6 +196,7 @@
   --font-mono: var(--font-mono);
 
   /* Radius mappings */
+  --radius: var(--radius);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -210,6 +211,11 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Glass highlight — always slightly brighter than card */
+@utility glass-highlight {
+  background-color: color-mix(in srgb, white 10%, var(--card));
 }
 
 * {
@@ -344,7 +350,7 @@ pre {
    Custom Timeline - Container
    ================================================ */
 
-.svar-timeline-container {
+.timeline-container {
   --timeline-cell-width: 60px;
   --timeline-row-height: 52px;
   display: flex;
@@ -402,7 +408,7 @@ pre {
    ================================================ */
 
 .timeline-bar {
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background-color: color-mix(in srgb, var(--muted-foreground) 30%, var(--background));
   color: var(--foreground);
   cursor: grab;
@@ -500,12 +506,12 @@ pre {
 
 .timeline-bar-handle-left {
   left: -2px;
-  border-radius: 4px 0 0 4px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
 }
 
 .timeline-bar-handle-right {
   right: -2px;
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 /* Connection handles (radio-button style) */
@@ -515,7 +521,7 @@ pre {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background-color: #fff;
+  background-color: var(--background);
   border: 2px solid color-mix(in srgb, var(--foreground) 35%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 10%, transparent);
   transform: translateY(-50%);
@@ -575,7 +581,7 @@ pre {
   color: var(--muted-foreground);
   background: var(--muted);
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   line-height: 1.4;
   margin-left: 6px;
 }
@@ -586,10 +592,10 @@ pre {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #fff;
+  color: var(--background);
   background: #10b981;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   line-height: 1.5;
   margin-left: 6px;
   text-decoration: none;
@@ -613,7 +619,7 @@ pre {
   flex-direction: column;
   gap: 1px;
   padding: 6px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   background: var(--popover);
   color: var(--popover-foreground);
   border: 1px solid var(--border);
@@ -667,7 +673,7 @@ pre {
   color: var(--muted-foreground);
   background: var(--muted);
   padding: 0 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   line-height: 1.5;
 }
 
@@ -795,7 +801,7 @@ pre {
 /* Valid drop target — pulsing accent ring */
 .drag-link-active .drag-link-target-hover {
   border-color: var(--chart-2) !important;
-  background-color: #fff !important;
+  background-color: var(--background) !important;
   transform: translateY(-50%) scale(1.3) !important;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--chart-2) 30%, transparent) !important;
 }

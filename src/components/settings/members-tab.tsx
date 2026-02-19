@@ -16,6 +16,7 @@ import {
 } from "@/hooks/use-members";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -185,9 +186,21 @@ function InviteLinkSection() {
     ? `${window.location.origin}/invite/join?token=${inviteLink.token}`
     : "";
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (!linkUrl) return;
-    navigator.clipboard.writeText(linkUrl);
+    try {
+      await navigator.clipboard.writeText(linkUrl);
+    } catch {
+      // Fallback for non-secure contexts (HTTP / LAN)
+      const ta = document.createElement("textarea");
+      ta.value = linkUrl;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
     setCopied(true);
     toast.success("Invite link copied");
     setTimeout(() => setCopied(false), 2000);
@@ -367,9 +380,10 @@ export function MembersTab() {
   };
 
   const handleRemove = (id: string) => {
+    const name = removeTarget?.name;
     removeMember.mutate(id, {
       onSuccess: () => {
-        toast.success("Member removed");
+        toast.success("Member removed", { description: name ?? undefined });
         setRemoveTarget(null);
       },
       onError: (error) => {
@@ -380,15 +394,17 @@ export function MembersTab() {
   };
 
   const handleRevoke = (id: string) => {
+    const invite = pendingInvites.find((inv) => inv.id === id);
     revokeInvite.mutate(id, {
-      onSuccess: () => toast.success("Invite revoked"),
+      onSuccess: () => toast.success("Invite revoked", { description: invite?.email }),
       onError: (error) => toast.error(error.message),
     });
   };
 
   const handleResend = (id: string) => {
+    const invite = pendingInvites.find((inv) => inv.id === id);
     resendInvite.mutate(id, {
-      onSuccess: () => toast.success("Invite resent"),
+      onSuccess: () => toast.success("Invite resent", { description: invite?.email }),
       onError: (error) => toast.error(error.message),
     });
   };
@@ -396,13 +412,43 @@ export function MembersTab() {
   if (membersLoading) {
     return (
       <div className="space-y-4">
-        <div className="rounded-2xl border overflow-hidden">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b last:border-b-0">
-              <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
-              <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+        {/* Search bar */}
+        <Skeleton className="h-9 w-full rounded-md" />
+
+        {/* Invite link card */}
+        <div className="rounded-2xl overflow-hidden border px-4 py-3 space-y-2">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-9 w-full rounded-lg" />
+        </div>
+
+        {/* Members card */}
+        <div className="rounded-2xl overflow-hidden border">
+          {/* Header */}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-5 w-6 rounded-full" />
+            </div>
+          </div>
+
+          {/* Member rows */}
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center px-4 py-3.5 border-b last:border-b-0 gap-3">
+              <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-44" />
+              </div>
+              <Skeleton className="h-4 w-12" />
             </div>
           ))}
+
+          {/* Invite button row */}
+          <div className="flex items-center gap-3 px-4 py-3.5 border-t">
+            <Skeleton className="h-4 w-4" />
+            <Skeleton className="h-4 w-28" />
+          </div>
         </div>
       </div>
     );
@@ -420,7 +466,7 @@ export function MembersTab() {
             placeholder="Search members..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-9"
+            className="pl-9 pr-9 bg-transparent dark:bg-transparent"
           />
           {searchQuery && (
             <button

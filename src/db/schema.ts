@@ -41,6 +41,7 @@ export const milestonePriorityEnum = pgEnum("milestone_priority", [
 export const workspaces = pgTable("workspaces", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
+  icon: text("icon"),
   ownerId: varchar("owner_id", { length: 255 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

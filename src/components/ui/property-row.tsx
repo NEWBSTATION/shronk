@@ -133,7 +133,7 @@ function InlineTextInput({
             setEditing(false);
           }
         }}
-        className="flex-1 h-8 bg-transparent rounded px-2 py-1 -mx-2 -my-1 text-sm outline-none ring-1 ring-ring"
+        className="flex-1 h-8 bg-transparent rounded px-2 py-1.5 -mx-2 -my-1 text-sm leading-normal outline-none ring-1 ring-ring"
         placeholder={placeholder}
       />
     );

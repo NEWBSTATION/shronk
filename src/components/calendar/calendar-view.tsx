@@ -106,7 +106,7 @@ function TracksPopover({
                 className="flex items-center gap-2.5 w-full px-3 py-1.5 text-xs hover:bg-muted transition-colors cursor-pointer select-none"
               >
                 <div
-                  className="h-2.5 w-2.5 rounded-full shrink-0 ring-1 ring-black/10"
+                  className="h-2.5 w-2.5 rounded-full shrink-0 ring-1 ring-foreground/10"
                   style={{ backgroundColor: team.color }}
                 />
                 <span className="flex-1 text-left truncate">{team.name}</span>

@@ -28,9 +28,11 @@ interface MilestoneDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (projectId: string) => void;
+  /** Called when toast "Open" is clicked — receives created milestone ID */
+  onOpenMilestone?: (id: string) => void;
 }
 
-export function MilestoneDialog({ open, onOpenChange, onCreated }: MilestoneDialogProps) {
+export function MilestoneDialog({ open, onOpenChange, onCreated, onOpenMilestone }: MilestoneDialogProps) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +70,12 @@ export function MilestoneDialog({ open, onOpenChange, onCreated }: MilestoneDial
       }
 
       const created = await response.json();
-      toast.success("Milestone created");
+      const milestoneId = created.id;
+      const milestoneName = name.trim();
+      toast.success("Milestone created", {
+        description: milestoneName,
+        ...(onOpenMilestone ? { action: { label: "Open", onClick: () => onOpenMilestone(milestoneId) } } : {}),
+      });
       onOpenChange(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ["projects"] });

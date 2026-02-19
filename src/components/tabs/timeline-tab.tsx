@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { FeatureDetailPanel, type PanelChainTo } from "@/components/drilldown/panels/feature-detail-panel";
 import { MilestoneInfoPanel } from "@/components/drilldown/panels/milestone-info-panel";
 import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
+import { useFeatureContextMenu } from "@/components/shared/feature-context-menu";
 import { topoSortFeatures } from "@/lib/topo-sort";
 import {
   useProjects,
@@ -30,7 +31,7 @@ import {
 import type { CascadedUpdate } from "@/hooks/use-milestones";
 import type { Milestone, MilestoneStatus, Project } from "@/db/schema";
 
-const SVARTimelineView = dynamic(
+const DynamicTimelineView = dynamic(
   () =>
     import("@/components/timeline/timeline-view").then((m) => m.TimelineView),
   { ssr: false, loading: () => <TimelineSkeleton /> }
@@ -293,15 +294,16 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
 
   const handleDeleteFeature = useCallback(
     async (id: string) => {
+      const feature = features.find((f) => f.id === id);
       try {
         await deleteFeatureMutation.mutateAsync(id);
         closePanel();
-        toast.success("Feature deleted");
+        toast.success("Feature deleted", { description: feature?.title });
       } catch {
         toast.error("Failed to delete feature");
       }
     },
-    [deleteFeatureMutation, closePanel]
+    [deleteFeatureMutation, closePanel, features]
   );
 
   const queryClient = useQueryClient();
@@ -338,14 +340,15 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
 
   const handleDeleteFeatureFromTimeline = useCallback(
     async (id: string) => {
+      const feature = features.find((f) => f.id === id);
       try {
         await deleteFeatureMutation.mutateAsync(id);
-        toast.success("Feature deleted");
+        toast.success("Feature deleted", { description: feature?.title });
       } catch {
         toast.error("Failed to delete feature");
       }
     },
-    [deleteFeatureMutation]
+    [deleteFeatureMutation, features]
   );
 
   const handleUpdateDates = useCallback(
@@ -382,6 +385,35 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
       }
     },
     [updateFeatureMutation]
+  );
+
+  const handlePriorityChange = useCallback(
+    async (id: string, priority: string) => {
+      try {
+        await updateFeatureMutation.mutateAsync({ id, priority: priority as Milestone["priority"] });
+        toast.success("Priority updated");
+      } catch {
+        toast.error("Failed to update priority");
+      }
+    },
+    [updateFeatureMutation]
+  );
+
+  const { open: openContextMenu, menu: contextMenuEl } = useFeatureContextMenu({
+    onOpen: (id) => {
+      const feature = features.find((f) => f.id === id);
+      if (feature) handleEditFeature(feature);
+    },
+    onStatusChange: (id, status) => handleStatusChange(id, status as MilestoneStatus),
+    onPriorityChange: handlePriorityChange,
+    onDelete: handleDeleteFeatureFromTimeline,
+  });
+
+  const handleFeatureContextMenu = useCallback(
+    (featureId: string, status: string, priority: string, e: MouseEvent) => {
+      openContextMenu({ featureId, status, priority }, e);
+    },
+    [openContextMenu]
   );
 
   const handleCreateDependency = useCallback(
@@ -442,9 +474,9 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
             predecessorId: chainToId,
             successorId: newFeature.id,
           });
-          toast.success("Feature created & chained");
+          toast.success("Feature created & chained", { description: name });
         } else {
-          toast.success("Feature created");
+          toast.success("Feature created", { description: name });
         }
       } catch {
         toast.error("Failed to create feature");
@@ -480,13 +512,6 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
   if (isLoadingProjects) {
     return (
       <div className="flex flex-col flex-1 min-h-0">
-        <div className="flex items-center gap-2 px-6 py-2 border-b shrink-0">
-          <div className="flex items-center gap-1">
-            <Skeleton className="h-6 w-20 rounded-full" />
-            <Skeleton className="h-6 w-24 rounded-full" />
-          </div>
-          <Skeleton className="h-7 w-28 ml-auto rounded-md" />
-        </div>
         <div className="min-h-0 flex-1 p-6">
           <div className="h-full flex flex-col">
             <TimelineSkeleton />
@@ -525,7 +550,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
       {selectedMilestone && (
         <div className="min-h-0 flex-1 p-6">
           <div className="h-full flex flex-col">
-            <SVARTimelineView
+            <DynamicTimelineView
               key={selectedMilestone.id}
               project={selectedMilestone}
               allProjects={projects}
@@ -547,10 +572,13 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
               onReorderFeatures={handleReorderFeatures}
               onMilestoneClick={handleMilestoneClick}
               onAddMilestone={handleAddMilestone}
+              onFeatureContextMenu={handleFeatureContextMenu}
             />
           </div>
         </div>
       )}
+
+      {contextMenuEl}
 
       <MilestoneDialog
         open={milestoneDialogOpen}
@@ -627,7 +655,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
                         )
                       );
                     }
-                    toast.success(chainToId ? "Feature created & chained" : "Feature added");
+                    toast.success(chainToId ? "Feature created & chained" : "Feature added", { description: milestoneData.title });
                   } catch {
                     toast.error("Failed to add feature");
                   }

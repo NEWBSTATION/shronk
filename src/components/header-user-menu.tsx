@@ -7,6 +7,7 @@ import {
   LogOut,
   Settings,
   Check,
+  Dices,
   Moon,
   Sun,
   Monitor,
@@ -63,7 +64,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const { showDisplayName } = usePreferencesStore();
-  const { currentPresetKey, mode, setPreset, setMode, getResolvedMode } = useThemeStore();
+  const { currentPresetKey, mode, setPreset, setMode, getResolvedMode, randomPreset } = useThemeStore();
   const { data: membersData } = useMembers();
   const isAdmin = membersData?.currentUserRole === "admin";
   const { workspaceId, workspaceName } = useWorkspace();
@@ -102,14 +103,16 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8 rounded-full">
-            {user.hasImage && <AvatarImage src={user.imageUrl} alt={displayName} />}
-            <AvatarFallback className="rounded-full text-xs">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-        </Button>
+        <div className="inline-flex items-center rounded-2xl bg-card border border-border/50 p-1">
+          <button className="flex items-center justify-center h-8 w-8 rounded-xl hover:glass-highlight hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.7)] dark:hover:shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)] transition-all">
+            <Avatar className="h-7 w-7 rounded-lg">
+              {user.hasImage && <AvatarImage src={user.imageUrl} alt={displayName} />}
+              <AvatarFallback className="rounded-lg text-xs">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64 rounded-lg p-0 overflow-hidden" align="end" sideOffset={8}>
         {/* Upper section — popover bg */}
@@ -165,7 +168,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
                           size="sm"
                           className={cn(
                             "flex-1 gap-1.5 h-7",
-                            isActive && "bg-accent"
+                            isActive && "bg-accent text-accent-foreground"
                           )}
                           onClick={() => setMode(option.value)}
                         >
@@ -177,7 +180,19 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
                   </div>
                 </div>
 
-                {/* Theme presets */}
+                {/* Randomize + Theme presets */}
+                <DropdownMenuItem
+                  onClick={() => randomPreset()}
+                  className="flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Dices className="h-3.5 w-3.5 shrink-0" />
+                    <span className="text-sm">Randomize</span>
+                  </div>
+                  <kbd className="text-[10px] rounded bg-muted px-1.5 py-0.5 font-medium text-muted-foreground/60">
+                    ⌘\
+                  </kbd>
+                </DropdownMenuItem>
                 {sortedThemes.map(([key, preset]) => (
                   <DropdownMenuItem
                     key={key}
@@ -200,11 +215,17 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
                 ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+            <DropdownMenuItem
+              onClick={() => signOut({ redirectUrl: "/" })}
+            >
+              <LogOut />
+              Sign out
+            </DropdownMenuItem>
           </DropdownMenuGroup>
         </div>
 
         {/* Lower section — tinted workspace area */}
-        <div className="bg-black/[0.08] dark:bg-black/20 border-t p-1">
+        <div className="bg-muted/40 border-t p-1">
           <div className="px-2 pt-1.5 pb-1 flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">
               Switch Workspaces
@@ -230,12 +251,15 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
                   }}
                   className={cn(
                     "cursor-pointer gap-3 px-3",
-                    isCurrent && "bg-accent"
+                    isCurrent && "bg-accent text-accent-foreground"
                   )}
                 >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary text-xs font-semibold">
-                    {name.charAt(0).toUpperCase()}
-                  </span>
+                  <Avatar className="h-7 w-7 rounded-lg">
+                    {ws.icon && <AvatarImage src={ws.icon} alt={name} className="rounded-lg" />}
+                    <AvatarFallback className="rounded-lg text-xs bg-muted text-muted-foreground">
+                      {name.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                   <span className="flex-1 truncate text-sm">{name}</span>
                   {isCurrent && (
                     <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -253,14 +277,6 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
               <span className="text-sm">Create Workspace</span>
             </DropdownMenuItem>
           </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => signOut({ redirectUrl: "/" })}
-          >
-            <LogOut />
-            Sign out
-          </DropdownMenuItem>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

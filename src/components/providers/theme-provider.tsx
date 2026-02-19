@@ -10,7 +10,7 @@ interface ThemeProviderProps {
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [mounted, setMounted] = useState(false);
-  const { mode, getCurrentStyles, currentPresetKey, getResolvedMode } = useThemeStore();
+  const { mode, getCurrentStyles, currentPresetKey, getResolvedMode, randomPreset } = useThemeStore();
 
   // Wait for client-side hydration before rendering
   useEffect(() => {
@@ -43,6 +43,18 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [mounted, mode, getCurrentStyles, getResolvedMode]);
+
+  // Cmd+Shift+R / Ctrl+Shift+R → random theme
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        e.preventDefault();
+        randomPreset();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [randomPreset]);
 
   return <>{children}</>;
 }

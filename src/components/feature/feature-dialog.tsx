@@ -68,6 +68,8 @@ interface FeatureDialogProps {
   chainTo?: ChainTo | null;
   /** Whether chain toggle should start enabled */
   chainEnabled?: boolean;
+  /** Called when toast "Open" is clicked — receives created feature ID */
+  onOpenFeature?: (id: string) => void;
 }
 
 export function FeatureDialog({
@@ -78,6 +80,7 @@ export function FeatureDialog({
   teams = [],
   chainTo,
   chainEnabled: chainEnabledProp = false,
+  onOpenFeature,
 }: FeatureDialogProps) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
@@ -188,7 +191,12 @@ export function FeatureDialog({
         );
       }
 
-      toast.success(chainActive && chainTo ? "Feature created & chained" : "Feature created");
+      const featureId = newMilestone.id;
+      const featureName = title.trim();
+      toast.success(chainActive && chainTo ? "Feature created & chained" : "Feature created", {
+        description: featureName,
+        ...(onOpenFeature ? { action: { label: "Open", onClick: () => onOpenFeature(featureId) } } : {}),
+      });
       onOpenChange(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
@@ -240,7 +248,7 @@ export function FeatureDialog({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Feature name..."
-            className="w-full text-3xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
+            className="w-full text-3xl font-bold leading-normal bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
             autoFocus
             autoComplete="off"
             onKeyDown={(e) => {

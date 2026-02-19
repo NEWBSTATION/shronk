@@ -21,6 +21,11 @@ import {
 } from "@dnd-kit/sortable";
 import { Plus, GripVertical } from "lucide-react";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -30,11 +35,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useFeaturesListStore } from "@/store/features-list-store";
+import { useFeaturesListStore, type DurationUnit } from "@/store/features-list-store";
 import { topoSortFeatures } from "@/lib/topo-sort";
-import { formatDuration } from "@/lib/format-duration";
+import { formatDuration, formatDurationIn } from "@/lib/format-duration";
 import { SectionHeader } from "./section-header";
-import { SortableFeatureRow, type TeamDurationInfo } from "./feature-row";
+import { SortableFeatureRow, TABLE_GRID_COLS, type TeamDurationInfo } from "./feature-row";
+import { useFeatureContextMenu } from "@/components/shared/feature-context-menu";
 
 interface Feature {
   id: string;
@@ -76,6 +82,7 @@ interface FeaturesSectionListProps {
   onFeatureClick: (feature: any) => void;
   onToggleComplete?: (featureId: string, currentStatus: string) => void;
   onStatusChange?: (featureId: string, newStatus: string) => void;
+  onPriorityChange?: (featureId: string, newPriority: string) => void;
   onAddFeature?: (milestoneId: string, e?: React.MouseEvent) => void;
   onEditMilestone?: (milestoneId: string) => void;
   onDeleteMilestone?: (milestoneId: string) => void;
@@ -83,6 +90,9 @@ interface FeaturesSectionListProps {
   onAddMilestone?: () => void;
   onMoveFeature?: (featureId: string, targetProjectId: string) => void;
   onReorderFeatures?: (projectId: string, orderedFeatureIds: string[]) => void;
+  onRenameMilestone?: (milestoneId: string, newName: string) => void;
+  onRenameFeature?: (featureId: string, newTitle: string) => void;
+  onDeleteFeature?: (featureId: string) => void;
 }
 
 interface Section {
@@ -110,6 +120,63 @@ const pointerCollision: CollisionDetection = (args) => {
   if (pointer.length > 0) return pointer;
   return closestCenter(args);
 };
+
+import { cn } from "@/lib/utils";
+
+const DURATION_UNITS: { value: DurationUnit; label: string }[] = [
+  { value: "days", label: "Days" },
+  { value: "weeks", label: "Weeks" },
+  { value: "months", label: "Months" },
+  { value: "years", label: "Years" },
+];
+
+const DURATION_UNIT_SHORT: Record<DurationUnit, string> = {
+  days: "d",
+  weeks: "w",
+  months: "m",
+  years: "y",
+};
+
+function DurationUnitPicker({ value, onChange }: { value: DurationUnit; onChange: (unit: DurationUnit) => void }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span>Duration</span>
+          <span className="text-[10px] rounded px-1 py-0.5 bg-muted text-muted-foreground/70">{DURATION_UNIT_SHORT[value]}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-32 p-1"
+        align="center"
+        sideOffset={4}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {DURATION_UNITS.map((unit) => (
+          <button
+            key={unit.value}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(unit.value);
+            }}
+            className={cn(
+              "flex w-full items-center rounded-md px-2 py-1.5 text-xs transition-colors",
+              unit.value === value
+                ? "bg-accent text-accent-foreground"
+                : "hover:bg-accent/50"
+            )}
+          >
+            {unit.label}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function DroppableSection({
   milestoneId,
@@ -140,6 +207,7 @@ export function FeaturesSectionList({
   onFeatureClick,
   onToggleComplete,
   onStatusChange,
+  onPriorityChange,
   onAddFeature,
   onEditMilestone,
   onDeleteMilestone,
@@ -147,20 +215,37 @@ export function FeaturesSectionList({
   onAddMilestone,
   onMoveFeature,
   onReorderFeatures,
+  onRenameMilestone,
+  onRenameFeature,
+  onDeleteFeature,
 }: FeaturesSectionListProps) {
   const {
     collapsedSections,
     selectedIds,
     selectMode,
+    durationUnit,
     toggleSection,
     toggleSelected,
     rangeSelect,
     clearSelection,
+    selectIds,
+    deselectIds,
+    setDurationUnit,
   } = useFeaturesListStore();
 
   const lastClickedRef = useRef<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+
+  const { open: openContextMenu, menu: contextMenuEl } = useFeatureContextMenu({
+    onOpen: (id) => {
+      const feature = features.find((f) => f.id === id);
+      if (feature) onFeatureClick(feature);
+    },
+    onStatusChange: (id, status) => onStatusChange?.(id, status),
+    onPriorityChange: (id, priority) => onPriorityChange?.(id, priority),
+    onDelete: (id) => onDeleteFeature?.(id),
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -386,7 +471,7 @@ export function FeaturesSectionList({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="space-y-4">
+        <div className="space-y-6">
           {sections.map((section) => {
             const isCollapsed = collapsedSections.has(section.milestone.id);
             const isSectionDimmed = searchMatchMilestoneIds != null && !searchMatchMilestoneIds.has(section.milestone.id);
@@ -398,11 +483,8 @@ export function FeaturesSectionList({
               >
                 {(isOver) => (
                   <div
-                    className="rounded-2xl overflow-hidden border transition-[box-shadow,opacity] duration-200"
-                    style={{
-                      ...(isOver ? { boxShadow: "0 0 0 2px hsl(var(--primary) / 0.3)" } : undefined),
-                      opacity: isSectionDimmed ? 0.4 : 1,
-                    }}
+                    className="rounded-xl border bg-background overflow-hidden transition-opacity duration-200"
+                    style={{ opacity: isSectionDimmed ? 0.4 : 1 }}
                   >
                     <SectionHeader
                       milestoneId={section.milestone.id}
@@ -421,6 +503,10 @@ export function FeaturesSectionList({
                       onEditMilestone={() => onEditMilestone?.(section.milestone.id)}
                       onDeleteMilestone={() => onDeleteMilestone?.(section.milestone.id)}
                       onUpdateAppearance={(data) => onUpdateAppearance?.(section.milestone.id, data)}
+                      onRename={(newName) => onRenameMilestone?.(section.milestone.id, newName)}
+                      onSelectAll={() => selectIds(section.features.map((f) => f.id))}
+                      onDeselectAll={() => deselectIds(section.features.map((f) => f.id))}
+                      hasSelectedFeatures={section.features.some((f) => selectedIds.has(f.id))}
                     />
 
                     {/* Animated collapse container */}
@@ -434,40 +520,75 @@ export function FeaturesSectionList({
                         {section.features.length === 0 ? (
                           <button
                             onClick={(e) => onAddFeature?.(section.milestone.id, e)}
-                            className="w-full px-4 py-3.5 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer"
+                            className="w-full px-3 py-3 flex items-center gap-2 text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-colors cursor-pointer"
                           >
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-                              <Plus className="h-4 w-4" />
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                              <Plus className="h-3.5 w-3.5" />
                             </div>
                             <span className="text-sm">Add a feature</span>
                           </button>
                         ) : (
-                          <SortableContext
-                            items={section.features.map((f) => f.id)}
-                            strategy={verticalListSortingStrategy}
-                          >
-                            {section.features.map((feature) => (
-                              <SortableFeatureRow
-                                key={feature.id}
-                                id={feature.id}
-                                title={feature.title}
-                                status={feature.status}
-                                priority={feature.priority}
-                                duration={feature.duration}
-                                startDate={feature.startDate}
-                                endDate={feature.endDate}
-                                teamDurations={teamDurationsMap?.get(feature.id)}
-                                selected={selectedIds.has(feature.id)}
-                                selectMode={selectMode}
-                                isAnyDragging={!!activeId}
-                                dimmed={searchMatchIds != null && !searchMatchIds.has(feature.id)}
-                                onSelect={(e) => handleSelect(feature.id, e)}
-                                onClick={() => onFeatureClick(feature)}
-                                onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}
-                                onStatusChange={(newStatus) => onStatusChange?.(feature.id, newStatus)}
-                              />
-                            ))}
-                          </SortableContext>
+                          <>
+                            {/* Column headers — desktop only */}
+                            <div className="hidden md:flex items-center h-10 px-3 border-b border-border/40">
+                              <div className="shrink-0 w-7" />
+                              <div
+                                className="flex-1 ml-2 grid items-center gap-x-3"
+                                style={{ gridTemplateColumns: TABLE_GRID_COLS }}
+                              >
+                                <span className="text-xs font-medium text-muted-foreground">Name</span>
+                                <span className="text-xs font-medium text-muted-foreground">Status</span>
+                                <span className="text-xs font-medium text-muted-foreground">Priority</span>
+                                <div className="flex justify-center">
+                                  <DurationUnitPicker value={durationUnit} onChange={setDurationUnit} />
+                                </div>
+                              </div>
+                              <div className="shrink-0 w-5" />
+                            </div>
+                            <SortableContext
+                              items={section.features.map((f) => f.id)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {section.features.map((feature) => (
+                                <SortableFeatureRow
+                                  key={feature.id}
+                                  id={feature.id}
+                                  title={feature.title}
+                                  status={feature.status}
+                                  priority={feature.priority}
+                                  duration={feature.duration}
+                                  durationUnit={durationUnit}
+                                  startDate={feature.startDate}
+                                  endDate={feature.endDate}
+                                  teamDurations={teamDurationsMap?.get(feature.id)}
+                                  selected={selectedIds.has(feature.id)}
+                                  selectMode={selectMode}
+                                  isAnyDragging={!!activeId}
+                                  dimmed={searchMatchIds != null && !searchMatchIds.has(feature.id)}
+                                  onSelect={(e) => handleSelect(feature.id, e)}
+                                  onClick={() => onFeatureClick(feature)}
+                                  onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}
+                                  onStatusChange={(newStatus) => onStatusChange?.(feature.id, newStatus)}
+                                  onPriorityChange={(newPriority) => onPriorityChange?.(feature.id, newPriority)}
+                                  onRename={(newTitle) => onRenameFeature?.(feature.id, newTitle)}
+                                  onContextMenu={(e) => openContextMenu({
+                                    featureId: feature.id,
+                                    status: feature.status,
+                                    priority: feature.priority,
+                                  }, e)}
+                                />
+                              ))}
+                            </SortableContext>
+                            <button
+                              onClick={(e) => onAddFeature?.(section.milestone.id, e)}
+                              className="w-full px-3 py-3 flex items-center gap-2 text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-colors cursor-pointer"
+                            >
+                              <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                                <Plus className="h-3.5 w-3.5" />
+                              </div>
+                              <span className="text-sm">Add a feature</span>
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -481,9 +602,9 @@ export function FeaturesSectionList({
           {onAddMilestone && (
             <button
               onClick={onAddMilestone}
-              className="w-full rounded-2xl border border-dashed border-border px-4 py-3 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-accent/20 transition-colors"
+              className="w-full rounded-xl border border-dashed border-border/60 px-4 py-3 flex items-center gap-3 text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-colors"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
                 <Plus className="h-4 w-4" />
               </div>
               <span className="text-sm">New milestone</span>
@@ -504,6 +625,8 @@ export function FeaturesSectionList({
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {contextMenuEl}
 
       <AlertDialog
         open={!!pendingMove}

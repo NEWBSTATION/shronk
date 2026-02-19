@@ -56,7 +56,7 @@ export function ItemContextMenu({
                 <ContextMenuItem
                   key={key}
                   onClick={() => onStatusChange(key as MilestoneStatus)}
-                  className={currentStatus === key ? "bg-accent" : ""}
+                  className={currentStatus === key ? "bg-accent text-accent-foreground" : ""}
                 >
                   <Icon className="mr-2 h-4 w-4" />
                   {config.label}
@@ -78,7 +78,7 @@ export function ItemContextMenu({
                 <ContextMenuItem
                   key={key}
                   onClick={() => onPriorityChange(key as MilestonePriority)}
-                  className={currentPriority === key ? "bg-accent" : ""}
+                  className={currentPriority === key ? "bg-accent text-accent-foreground" : ""}
                 >
                   <Icon className="mr-2 h-4 w-4" />
                   {config.label}

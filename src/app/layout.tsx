@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -33,7 +34,7 @@ export default function RootLayout({
         <head>
           <script
             dangerouslySetInnerHTML={{
-              __html: `(function(){try{var d=JSON.parse(localStorage.getItem("shronk-theme-storage"));var m=d&&d.state&&d.state.mode;if(m==="system")m=window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";if(m==="dark")document.documentElement.classList.add("dark")}catch(e){}})()`,
+              __html: `(function(){try{var c=JSON.parse(localStorage.getItem("shronk-theme-cache"));if(c&&c.vars){if(c.mode==="dark")document.documentElement.classList.add("dark");var r=document.documentElement;var v=c.vars;for(var k in v)r.style.setProperty(k,v[k])}}catch(e){try{var d=JSON.parse(localStorage.getItem("shronk-theme-storage"));var m=d&&d.state&&d.state.mode;if(m==="system")m=window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";if(m==="dark")document.documentElement.classList.add("dark")}catch(e){}}})()`,
             }}
           />
         </head>
@@ -43,6 +44,7 @@ export default function RootLayout({
         >
           <QueryProvider>
             <ThemeProvider>{children}</ThemeProvider>
+            <Toaster />
           </QueryProvider>
         </body>
       </html>

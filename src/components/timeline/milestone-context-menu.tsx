@@ -81,7 +81,7 @@ export function MilestoneContextMenu({
                   key={status.value}
                   onClick={() => onStatusChange(milestone.id, status.value)}
                   className={cn(
-                    milestone.status === status.value && 'bg-accent'
+                    milestone.status === status.value && 'bg-accent text-accent-foreground'
                   )}
                 >
                   <status.icon className={cn('mr-2 h-4 w-4', status.color)} />
@@ -104,7 +104,7 @@ export function MilestoneContextMenu({
                   key={priority.value}
                   onClick={() => onPriorityChange(milestone.id, priority.value)}
                   className={cn(
-                    milestone.priority === priority.value && 'bg-accent'
+                    milestone.priority === priority.value && 'bg-accent text-accent-foreground'
                   )}
                 >
                   <Flag className={cn('mr-2 h-4 w-4', priority.color)} />

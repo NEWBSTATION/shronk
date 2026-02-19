@@ -35,6 +35,7 @@ export async function GET() {
     const userWorkspaces = userMembers.map((m) => ({
       id: m.workspace.id,
       name: m.workspace.name,
+      icon: m.workspace.icon,
       ownerId: m.workspace.ownerId,
       role: m.role,
       isOwner: m.workspace.ownerId === userId,

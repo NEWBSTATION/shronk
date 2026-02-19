@@ -5,6 +5,7 @@ import { createContext, useContext, type ReactNode } from "react";
 interface WorkspaceContextValue {
   workspaceId: string;
   workspaceName: string;
+  workspaceIcon: string | null;
   isOwner: boolean;
 }
 
@@ -14,10 +15,11 @@ export function WorkspaceProvider({
   children,
   workspaceId,
   workspaceName,
+  workspaceIcon,
   isOwner,
 }: WorkspaceContextValue & { children: ReactNode }) {
   return (
-    <WorkspaceContext.Provider value={{ workspaceId, workspaceName, isOwner }}>
+    <WorkspaceContext.Provider value={{ workspaceId, workspaceName, workspaceIcon, isOwner }}>
       {children}
     </WorkspaceContext.Provider>
   );

@@ -10,7 +10,7 @@ import {
 import { ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { MilestoneIcon } from '@/lib/milestone-icon';
 import { getColorStyles } from '@/lib/milestone-theme';
-import type { SVARTask } from './types';
+import type { TimelineTask } from './types';
 import type { Milestone, MilestoneStatus, Project } from '@/db/schema';
 
 const ADD_FEATURE_TASK_ID = '__add_feature__';
@@ -54,11 +54,11 @@ function StatusToggle({
 }
 
 interface TimelineGridProps {
-  tasks: SVARTask[];
+  tasks: TimelineTask[];
   features: Milestone[];
   width: number;
   scrollRef: RefObject<HTMLDivElement | null>;
-  onRowClick: (task: SVARTask) => void;
+  onRowClick: (task: TimelineTask) => void;
   onStatusChange: RefObject<(id: string, status: MilestoneStatus) => Promise<void>>;
   onAddFeature: (opts?: { chain?: boolean }) => void;
   onReorder?: (orderedFeatureIds: string[]) => void;
@@ -348,7 +348,7 @@ export function TimelineGrid({
                     opacity: hideTrack ? 0 : isTeamSearchDimmed ? 0.4 : 1,
                     transition: 'height 200ms ease, opacity 150ms ease',
                   }}
-                  className="flex items-center gap-1.5 min-w-0 pl-7 pr-3 cursor-pointer border-b border-border overflow-hidden"
+                  className="flex items-center gap-1.5 min-w-0 pl-11 pr-3 cursor-pointer border-b border-border overflow-hidden"
                   onClick={() => onRowClick(task)}
                 >
                   <div

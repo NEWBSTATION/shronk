@@ -16,8 +16,9 @@ import {
 import { HeaderUserMenu } from "@/components/header-user-menu";
 import type { SettingsSection } from "@/components/settings/settings-panel";
 import { cn } from "@/lib/utils";
-import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { useThemeStore } from "@/store/theme-store";
+import { useMagnetic } from "@/hooks/use-magnetic";
 
 export type TabId = "dashboard" | "features" | "timeline" | "calendar";
 export type CreateAction = "milestone" | "feature";
@@ -41,51 +42,6 @@ interface AppHeaderProps {
   onOpenSettings?: (section: SettingsSection) => void;
   createOpen?: boolean;
   onCreateOpenChange?: (open: boolean) => void;
-}
-
-function useMagnetic(strength = 0.3, radius = 100) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const rafRef = useRef<number>(0);
-
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!ref.current) return;
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        const rect = ref.current!.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        const dx = e.clientX - cx;
-        const dy = e.clientY - cy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist < radius) {
-          const pull = 1 - dist / radius;
-          setOffset({ x: dx * strength * pull, y: dy * strength * pull });
-        } else {
-          setOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }));
-        }
-      });
-    },
-    [strength, radius]
-  );
-
-  const handleMouseLeave = useCallback(() => {
-    setOffset((prev) => (prev.x === 0 && prev.y === 0 ? prev : { x: 0, y: 0 }));
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseleave", handleMouseLeave);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseleave", handleMouseLeave);
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, [handleMouseMove, handleMouseLeave]);
-
-  return { ref, style: { transform: `translate(${offset.x}px, ${offset.y}px)`, transition: offset.x === 0 && offset.y === 0 ? "transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)" : "transform 0.15s ease-out" } as const };
 }
 
 export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettings, createOpen: createOpenProp, onCreateOpenChange }: AppHeaderProps) {
@@ -186,10 +142,10 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
       <div className="flex justify-center">
         <TooltipProvider delayDuration={300}>
           <div className="flex items-center gap-2">
-            <div ref={containerRef} className="relative inline-flex items-center gap-1 rounded-2xl bg-muted p-1">
+            <div ref={containerRef} className="relative inline-flex items-center gap-1 rounded-2xl bg-card border border-border/50 p-1">
               <div
                 ref={indicatorRef}
-                className="absolute top-1 bottom-1 rounded-xl bg-background shadow-sm pointer-events-none"
+                className="absolute top-1 bottom-1 rounded-xl glass-highlight shadow-[0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)] pointer-events-none"
               />
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -214,13 +170,13 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
             </div>
 
             {/* Detached create button — same glass container as tabs */}
-            <div className="inline-flex items-center rounded-2xl bg-muted p-1">
+            <div className="inline-flex items-center rounded-2xl bg-card border border-border/50 p-1">
               <Popover open={createOpen} onOpenChange={setCreateOpen}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <PopoverTrigger asChild>
                       <button
-                        className="flex items-center justify-center h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-background/50 transition-all"
+                        className="flex items-center justify-center h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:glass-highlight hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.7)] dark:hover:shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)] transition-all"
                         suppressHydrationWarning
                       >
                         <Plus className="h-4 w-4" />

@@ -52,6 +52,8 @@ const colorProps = [
   "sidebar-ring",
 ];
 
+export const THEME_CACHE_KEY = "shronk-theme-cache";
+
 export function applyThemeToDocument(styles: ThemeStyleProps, mode: ThemeMode) {
   const root = document.documentElement;
 
@@ -63,14 +65,17 @@ export function applyThemeToDocument(styles: ThemeStyleProps, mode: ThemeMode) {
   }
 
   // Apply CSS variables
+  const appliedVars: Record<string, string> = {};
   Object.entries(styles).forEach(([key, value]) => {
     if (typeof value === "string") {
       root.style.setProperty(`--${key}`, value);
+      appliedVars[`--${key}`] = value;
 
       // Also set the Tailwind --color-* variables directly for color properties
       // This ensures Tailwind utilities like bg-card work correctly
       if (colorProps.includes(key)) {
         root.style.setProperty(`--color-${key}`, value);
+        appliedVars[`--color-${key}`] = value;
       }
     }
   });
@@ -79,8 +84,14 @@ export function applyThemeToDocument(styles: ThemeStyleProps, mode: ThemeMode) {
   Object.entries(defaultFontValues).forEach(([key, defaultValue]) => {
     if (!styles[key as keyof ThemeStyleProps]) {
       root.style.setProperty(`--${key}`, defaultValue);
+      appliedVars[`--${key}`] = defaultValue;
     }
   });
+
+  // Cache applied vars for the inline script to use on next load
+  try {
+    localStorage.setItem(THEME_CACHE_KEY, JSON.stringify({ mode, vars: appliedVars }));
+  } catch {}
 }
 
 export function generateCSSVariables(styles: ThemeStyleProps): string {

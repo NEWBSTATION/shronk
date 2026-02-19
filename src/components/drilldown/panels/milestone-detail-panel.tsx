@@ -153,9 +153,10 @@ export function MilestoneDetailPanel({
             }
           }}
           onDelete={async (id) => {
+            const f = features.find((feat) => feat.id === id);
             try {
               await deleteMutation.mutateAsync(id);
-              toast.success("Feature deleted");
+              toast.success("Feature deleted", { description: f?.title });
             } catch {
               toast.error("Failed to delete feature");
             }
@@ -176,7 +177,7 @@ export function MilestoneDetailPanel({
           createMutation.mutate(
             { projectId: milestone.id, ...formData },
             {
-              onSuccess: () => toast.success("Feature added"),
+              onSuccess: (data) => toast.success("Feature added", { description: data?.title }),
               onError: () => toast.error("Failed to add feature"),
             }
           );

@@ -90,6 +90,7 @@ interface TimelineChartProps {
   pixelsPerDay: number;
   onScroll?: (scrollLeft: number, scrollTop: number) => void;
   onTaskClick?: (taskId: string) => void;
+  onTaskContextMenu?: (taskId: string, e: MouseEvent) => void;
   addFeatureRowIndex?: number;
   onQuickCreate?: (name: string, startDate: Date, endDate: Date, duration: number, chainToId?: string) => Promise<void>;
   chainInfo?: ChainInfo | null;
@@ -109,6 +110,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
       pixelsPerDay,
       onScroll,
       onTaskClick,
+      onTaskContextMenu,
       addFeatureRowIndex,
       onQuickCreate,
       chainInfo,
@@ -242,6 +244,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
                 pixelsPerDay={pixelsPerDay}
                 timelineStart={windowStart}
                 onTaskClick={onTaskClick}
+                onTaskContextMenu={onTaskContextMenu}
                 hideTeamTracks={hideTeamTracks}
                 searchMatchIds={searchMatchIds}
               />

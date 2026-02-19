@@ -4,6 +4,7 @@ import { useState, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { Plus, X, Loader2, Pencil, Check, ChevronRight, Trash2, Users, Zap, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -238,7 +239,7 @@ export function TeamsTab() {
       { name: newName.trim(), color: newColor },
       {
         onSuccess: () => {
-          toast.success("Team created");
+          toast.success("Team created", { description: newName.trim() });
           setNewName("");
           setShowAddForm(false);
           // Rotate to next color
@@ -275,7 +276,7 @@ export function TeamsTab() {
     if (!deleteTarget) return;
     deleteTeam.mutate(deleteTarget.id, {
       onSuccess: () => {
-        toast.success("Team deleted");
+        toast.success("Team deleted", { description: deleteTarget.name });
         setDeleteTarget(null);
       },
       onError: (err) => {
@@ -288,13 +289,36 @@ export function TeamsTab() {
   if (loadingTeams) {
     return (
       <div className="space-y-4">
-        <div className="rounded-2xl border overflow-hidden">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3.5 border-b last:border-b-0">
-              <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
-              <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+        {/* Search bar */}
+        <Skeleton className="h-9 w-full rounded-md" />
+
+        {/* Teams card */}
+        <div className="rounded-2xl overflow-hidden border">
+          {/* Header */}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-5 w-6 rounded-full" />
+            </div>
+          </div>
+
+          {/* Team rows */}
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center px-4 py-3.5 border-b last:border-b-0 gap-3">
+              <div className="h-8 w-8 shrink-0 rounded-full bg-muted/40 flex items-center justify-center">
+                <Skeleton className="h-3 w-3 rounded-full" />
+              </div>
+              <Skeleton className="h-4 w-28 flex-1" />
+              <Skeleton className="h-5 w-9 rounded-full" />
             </div>
           ))}
+
+          {/* Add team row */}
+          <div className="flex items-center gap-3 px-4 py-3.5 border-t">
+            <Skeleton className="h-4 w-4" />
+            <Skeleton className="h-4 w-20" />
+          </div>
         </div>
       </div>
     );
@@ -336,7 +360,7 @@ export function TeamsTab() {
             placeholder="Search teams..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-9"
+            className="pl-9 pr-9 bg-transparent dark:bg-transparent"
           />
           {searchQuery && (
             <button

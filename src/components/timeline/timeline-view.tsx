@@ -114,6 +114,7 @@ interface TimelineViewProps {
   onReorderFeatures?: (projectId: string, orderedFeatureIds: string[]) => Promise<void>;
   onMilestoneClick?: (project: Project) => void;
   onAddMilestone?: () => void;
+  onFeatureContextMenu?: (featureId: string, status: string, priority: string, e: MouseEvent) => void;
 }
 
 export function TimelineView({
@@ -136,6 +137,7 @@ export function TimelineView({
   onReorderFeatures,
   onMilestoneClick,
   onAddMilestone,
+  onFeatureContextMenu,
 }: TimelineViewProps) {
   const timePeriod = useTimelineStore((s) => s.getMilestoneTimePeriod(project.id)) as TimePeriod;
   const setMilestoneTimePeriod = useTimelineStore((s) => s.setMilestoneTimePeriod);
@@ -570,6 +572,19 @@ export function TimelineView({
     if (feature) onEditRef.current(feature);
   }, []);
 
+  const onFeatureContextMenuRef = useRef(onFeatureContextMenu);
+  onFeatureContextMenuRef.current = onFeatureContextMenu;
+
+  const handleBarTaskContextMenu = useCallback((taskId: string, e: MouseEvent) => {
+    if (taskId === ADD_FEATURE_TASK_ID) return;
+    const teamTrack = parseTeamTrackId(taskId);
+    const milestoneId = teamTrack ? teamTrack.milestoneId : taskId;
+    const feature = featureMapRef.current.get(milestoneId);
+    if (feature) {
+      onFeatureContextMenuRef.current?.(feature.id, feature.status, feature.priority, e);
+    }
+  }, []);
+
   useBarDrag({
     containerRef: ganttContainerRef,
     pixelsPerDayRef,
@@ -829,7 +844,7 @@ export function TimelineView({
   return (
     <div className="flex flex-col flex-1 min-h-0 border border-border rounded-lg overflow-hidden isolate">
       {/* Toolbar */}
-      <div className="flex items-center px-3 py-2 border-b border-border bg-muted/30">
+      <div className="flex items-center px-3 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="text-xs" style={{ height: '28px' }} onClick={scrollToToday}>
             Today
@@ -985,7 +1000,7 @@ export function TimelineView({
 
         <div
           ref={ganttContainerRef}
-          className="flex-1 min-w-0 svar-timeline-container relative overflow-hidden"
+          className="flex-1 min-w-0 timeline-container relative overflow-hidden"
           style={{
             '--timeline-cell-width': `${cellWidth}px`,
             '--timeline-row-height': `${ROW_HEIGHT}px`,
@@ -1002,6 +1017,7 @@ export function TimelineView({
             pixelsPerDay={pixelsPerDay}
             onScroll={handleChartScrollSync}
             onTaskClick={handleBarTaskClick}
+            onTaskContextMenu={handleBarTaskContextMenu}
             addFeatureRowIndex={onQuickCreate ? (isGridDragging ? tasks.filter(t => !t.$custom?.isTeamTrack).length - 1 : tasks.length - 1) : undefined}
             onQuickCreate={onQuickCreate}
             chainInfo={chainInfo}
@@ -1055,5 +1071,3 @@ export function TimelineView({
   );
 }
 
-// Legacy alias
-export { TimelineView as SVARTimelineView };

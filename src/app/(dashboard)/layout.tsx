@@ -35,6 +35,7 @@ export default async function DashboardLayout({
     <WorkspaceProvider
       workspaceId={workspace.id}
       workspaceName={workspace.name}
+      workspaceIcon={workspace.icon}
       isOwner={workspace.ownerId === userId}
     >
       <DashboardContent />

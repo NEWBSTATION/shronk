@@ -1,4 +1,4 @@
-export { TimelineView, SVARTimelineView } from './timeline-view';
+export { TimelineView } from './timeline-view';
 export type {
   TimePeriod,
   TimelineViewProps,

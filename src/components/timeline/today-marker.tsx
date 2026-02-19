@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react';
 import { startOfDay } from 'date-fns';
 import { dateToPixel } from './date-math';
+import { useThemeStore } from '@/store/theme-store';
 
 interface TodayMarkerProps {
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -12,6 +13,7 @@ interface TodayMarkerProps {
 }
 
 export function TodayMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeight }: TodayMarkerProps) {
+  const themeKey = useThemeStore((s) => `${s.currentPresetKey}-${s.mode}`);
   const lineRef = useRef<HTMLDivElement>(null);
   const dotRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,7 +86,7 @@ export function TodayMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeigh
       mounted = false;
       cancelAnimationFrame(rafId);
     };
-  }, [scrollRef, pixelsPerDay, timelineStart, scaleHeight]);
+  }, [scrollRef, pixelsPerDay, timelineStart, scaleHeight, themeKey]);
 
   const DOT_SIZE = 7;
 

@@ -195,15 +195,16 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
 
   const handleDeleteFeature = useCallback(
     async (id: string) => {
+      const feature = data?.features.find((f) => f.id === id);
       try {
         await deleteMutation.mutateAsync(id);
         queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
-        toast.success("Feature deleted");
+        toast.success("Feature deleted", { description: feature?.title });
       } catch {
         toast.error("Failed to delete feature");
       }
     },
-    [deleteMutation, queryClient]
+    [deleteMutation, queryClient, data?.features]
   );
 
   const handleUpdateAppearance = useCallback(
@@ -341,8 +342,10 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
     [push, milestoneOptions]
   );
 
+  const deletingMilestoneNameRef = useRef<string | null>(null);
   const deleteProjectMutation = useMutation({
     mutationFn: async (id: string) => {
+      deletingMilestoneNameRef.current = milestoneOptions.find((m) => m.id === id)?.name ?? null;
       const response = await fetch("/api/projects", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -354,7 +357,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
       queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["milestoneStats"] });
-      toast.success("Milestone deleted");
+      toast.success("Milestone deleted", { description: deletingMilestoneNameRef.current ?? undefined });
     },
     onError: () => toast.error("Failed to delete milestone"),
   });
@@ -390,6 +393,41 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
       });
     },
     [handleUpdateFeature]
+  );
+
+  const handlePriorityChange = useCallback(
+    (featureId: string, newPriority: string) => {
+      handleUpdateFeature({
+        id: featureId,
+        priority: newPriority as Feature["priority"],
+      });
+    },
+    [handleUpdateFeature]
+  );
+
+  const handleRenameFeature = useCallback(
+    (featureId: string, newTitle: string) => {
+      handleUpdateFeature({ id: featureId, title: newTitle });
+    },
+    [handleUpdateFeature]
+  );
+
+  const handleRenameMilestone = useCallback(
+    async (milestoneId: string, newName: string) => {
+      try {
+        const response = await fetch("/api/projects", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: milestoneId, name: newName }),
+        });
+        if (!response.ok) throw new Error("Failed to rename milestone");
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+        queryClient.invalidateQueries({ queryKey: ["projects"] });
+      } catch {
+        toast.error("Failed to rename milestone");
+      }
+    },
+    [queryClient]
   );
 
   const handleFeatureClick = useCallback(
@@ -445,15 +483,37 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
 
   if (isLoading) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 px-6 py-8">
-        <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl space-y-4">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-8 w-32" />
-          </div>
-          <Skeleton className="h-12 w-full rounded-2xl" />
-          <Skeleton className="h-48 w-full rounded-2xl" />
-          <Skeleton className="h-48 w-full rounded-2xl" />
+      <div className="flex flex-col flex-1 min-h-0 px-6">
+        <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl pt-8">
+          {/* Search bar */}
+          <Skeleton className="h-9 w-full rounded-md mb-4" />
+
+          {/* Milestone sections */}
+          {[0, 1].map((s) => (
+            <div key={s} className="mb-1">
+              {/* Section header */}
+              <div className="flex items-center gap-2 pl-3 pr-4 py-2.5">
+                <Skeleton className="h-7 w-7 rounded-md shrink-0" />
+                <Skeleton className="h-4 w-28" />
+                <div className="flex-1" />
+                <Skeleton className="h-5 w-10 rounded-full" />
+                <Skeleton className="h-5 w-28 rounded-full hidden sm:block" />
+                <Skeleton className="h-3.5 w-3.5 rounded" />
+              </div>
+              {/* Feature rows */}
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-center gap-2 px-3 py-3 border-b border-border/40">
+                  <Skeleton className="h-[18px] w-[18px] rounded-full shrink-0" />
+                  <div className="flex-1 ml-2 min-w-0 grid grid-cols-1 md:grid-cols-[1fr_100px_72px_56px] items-center gap-x-3">
+                    <Skeleton className="h-4 w-[60%]" />
+                    <Skeleton className="h-5 w-16 rounded-md hidden md:block" />
+                    <Skeleton className="h-4 w-12 hidden md:block" />
+                    <Skeleton className="h-4 w-8 hidden md:block" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -484,6 +544,10 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
         <MilestoneDialog
           open={milestoneDialogOpen}
           onOpenChange={setMilestoneDialogOpen}
+          onOpenMilestone={(id) => {
+            const m = queryClient.getQueryData<FeaturesResponse>(["allFeatures"])?.milestones.find((m) => m.id === id);
+            if (m) push(`milestone-info-${id}`, <MilestoneInfoPanel milestone={m} />);
+          }}
         />
       </>
     );
@@ -502,9 +566,9 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
               placeholder="Search features..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-9"
+              className="pl-9 pr-9 bg-transparent dark:bg-transparent"
             />
-            {searchQuery && (
+            {searchQuery ? (
               <button
                 onClick={() => {
                   setSearchQuery("");
@@ -514,6 +578,10 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
               >
                 <X className="h-4 w-4" />
               </button>
+            ) : (
+              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-0.5 rounded bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/50 pointer-events-none">
+                ⌘K
+              </kbd>
             )}
           </div>
         )}
@@ -536,6 +604,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
           onFeatureClick={handleFeatureClick}
           onToggleComplete={handleToggleComplete}
           onStatusChange={handleStatusChange}
+          onPriorityChange={handlePriorityChange}
           onAddFeature={handleAddFeatureForMilestone}
           onEditMilestone={handleEditMilestone}
           onDeleteMilestone={handleDeleteMilestone}
@@ -543,6 +612,9 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
           onAddMilestone={() => setMilestoneDialogOpen(true)}
           onMoveFeature={handleMoveFeature}
           onReorderFeatures={handleReorderFeatures}
+          onRenameMilestone={handleRenameMilestone}
+          onRenameFeature={handleRenameFeature}
+          onDeleteFeature={handleDeleteFeature}
         />
         )}
 
@@ -552,6 +624,10 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
       <MilestoneDialog
         open={milestoneDialogOpen}
         onOpenChange={setMilestoneDialogOpen}
+        onOpenMilestone={(id) => {
+          const m = queryClient.getQueryData<FeaturesResponse>(["allFeatures"])?.milestones.find((m) => m.id === id);
+          if (m) push(`milestone-info-${id}`, <MilestoneInfoPanel milestone={m} />);
+        }}
       />
 
       <FeatureDialog
@@ -562,6 +638,11 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
         teams={teams}
         chainTo={chainTo}
         chainEnabled={chainEnabled}
+        onOpenFeature={(id) => {
+          const features = queryClient.getQueryData<FeaturesResponse>(["allFeatures"])?.features;
+          const feature = features?.find((f) => f.id === id);
+          if (feature) handleFeatureClick(feature);
+        }}
       />
 
       <AlertDialog

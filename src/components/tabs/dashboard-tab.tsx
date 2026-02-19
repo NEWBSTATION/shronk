@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useCallback } from "react";
 import {
+  ChevronDown,
   Gem,
   Users,
   TrendingUp,
@@ -13,7 +14,6 @@ import {
   Circle,
   Clock,
   ShieldAlert,
-  Zap,
 } from "lucide-react";
 import {
   format,
@@ -24,37 +24,30 @@ import {
   isAfter,
 } from "date-fns";
 import {
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Label,
 } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/format-duration";
+import { MilestoneIcon } from "@/lib/milestone-icon";
+import { getColorStyles } from "@/lib/milestone-theme";
 import {
   useProjects,
   useMilestones,
@@ -101,7 +94,7 @@ const STATUS_COLORS: Record<string, string> = {
   not_started: "var(--status-not-started)",
   overdue: "var(--status-cancelled)",
   on_hold: "var(--status-on-hold)",
-  cancelled: "#71717a",
+  cancelled: "var(--color-muted-foreground)",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -238,29 +231,47 @@ function useComputedDashboard(
       if (count > bottleneckCount) { bottleneckCount = count; bottleneckTeam = team; }
     }
 
-    // Team workload bars — per-team duration totals broken down by feature status
-    const teamWorkloadMap = new Map<string, {
+    // Team tracks — per-team summary across milestones
+    const teamTrackMap = new Map<string, {
       name: string;
       color: string;
-      completed: number;
-      in_progress: number;
-      not_started: number;
-      overdue: number;
-      total: number;
+      totalDays: number;
+      milestoneCount: number;
+      featuresTotal: number;
+      featuresCompleted: number;
+      featuresInProgress: number;
+      featuresOverdue: number;
     }>();
+
+    const featuresByProject = new Map<string, ComputedFeature[]>();
     for (const f of computed) {
-      for (const td of f.teamDurations) {
-        let entry = teamWorkloadMap.get(td.teamId);
+      const arr = featuresByProject.get(f.projectId) ?? [];
+      arr.push(f);
+      featuresByProject.set(f.projectId, arr);
+    }
+
+    for (const [, projectFeatures] of featuresByProject) {
+      if (projectFeatures.length === 0) continue;
+      const fTotal = projectFeatures.length;
+      const fCompleted = projectFeatures.filter((f) => f.rawStatus === "completed").length;
+      const fInProgress = projectFeatures.filter((f) => f.rawStatus === "in_progress").length;
+      const fOverdue = projectFeatures.filter((f) => f.status === "overdue").length;
+
+      for (const td of projectFeatures[0].teamDurations) {
+        let entry = teamTrackMap.get(td.teamId);
         if (!entry) {
-          entry = { name: td.teamName, color: td.teamColor, completed: 0, in_progress: 0, not_started: 0, overdue: 0, total: 0 };
-          teamWorkloadMap.set(td.teamId, entry);
+          entry = { name: td.teamName, color: td.teamColor, totalDays: 0, milestoneCount: 0, featuresTotal: 0, featuresCompleted: 0, featuresInProgress: 0, featuresOverdue: 0 };
+          teamTrackMap.set(td.teamId, entry);
         }
-        const bucket = f.status === "on_hold" || f.status === "cancelled" ? "not_started" : f.status;
-        entry[bucket] += td.duration;
-        entry.total += td.duration;
+        entry.totalDays += td.duration;
+        entry.milestoneCount++;
+        entry.featuresTotal += fTotal;
+        entry.featuresCompleted += fCompleted;
+        entry.featuresInProgress += fInProgress;
+        entry.featuresOverdue += fOverdue;
       }
     }
-    const teamWorkloadBars = Array.from(teamWorkloadMap.values()).sort((a, b) => b.total - a.total);
+    const teamTracks = Array.from(teamTrackMap.values()).sort((a, b) => b.totalDays - a.totalDays);
 
     // Risk summary
     const today = startOfDay(new Date());
@@ -313,7 +324,7 @@ function useComputedDashboard(
       computed, total, completed, overdue, inProgress, notStarted, completionPct, avgDuration,
       totalEffortDays, statusDistribution, healthStatus,
       bottleneckTeam, bottleneckCount,
-      teamWorkloadBars,
+      teamTracks,
       riskSummary, upcoming,
       hasTeamData, milestoneStart, milestoneEnd, milestoneSpanDays,
     };
@@ -368,11 +379,34 @@ function HealthBanner({
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border/50">
-        {/* Left — Radial progress */}
+        {/* Left — Radial progress with gradients */}
         <div className="flex items-center justify-center p-5">
           <ChartContainer config={donutConfig} className="h-[120px] w-[120px] aspect-square">
             <PieChart>
+              <defs>
+                <linearGradient id="grad-track" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="var(--muted)" stopOpacity={0.6} />
+                  <stop offset="100%" stopColor="var(--muted)" stopOpacity={0.2} />
+                </linearGradient>
+                {pieData.map((d) => (
+                  <linearGradient key={d.status} id={`grad-${d.status}`} x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor={d.color} stopOpacity={1} />
+                    <stop offset="100%" stopColor={d.color} stopOpacity={0.5} />
+                  </linearGradient>
+                ))}
+              </defs>
               <ChartTooltip content={<ChartTooltipContent hideLabel nameKey="status" />} />
+              {/* Background track ring */}
+              <Pie
+                data={[{ count: 1 }]}
+                dataKey="count"
+                innerRadius={38}
+                outerRadius={52}
+                strokeWidth={0}
+                isAnimationActive={false}
+              >
+                <Cell fill="url(#grad-track)" />
+              </Pie>
               <Pie
                 data={pieData}
                 dataKey="count"
@@ -383,7 +417,7 @@ function HealthBanner({
                 stroke="var(--card)"
               >
                 {pieData.map((d) => (
-                  <Cell key={d.status} fill={d.color} />
+                  <Cell key={d.status} fill={`url(#grad-${d.status})`} />
                 ))}
                 <Label
                   content={({ viewBox }) => {
@@ -467,12 +501,6 @@ function MetricCards({
       sub: "per feature",
     },
     {
-      icon: Zap,
-      value: formatDuration(totalEffortDays),
-      label: "Total Scope",
-      sub: "sum of all durations",
-    },
-    {
       icon: Users,
       value: bottleneckTeam || "\u2014",
       label: "Bottleneck",
@@ -481,7 +509,7 @@ function MetricCards({
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
       {cards.map((c) => (
         <div key={c.label} className="rounded-xl border border-border/50 bg-card px-4 py-4">
           <div className="flex items-center gap-2 mb-2">
@@ -496,44 +524,83 @@ function MetricCards({
   );
 }
 
-const teamWorkloadConfig = {
-  completed: { label: "Completed", color: "var(--status-completed)" },
-  in_progress: { label: "In Progress", color: "var(--status-in-progress)" },
-  not_started: { label: "Not Started", color: "var(--status-not-started)" },
-  overdue: { label: "Overdue", color: "var(--status-cancelled)" },
-} satisfies ChartConfig;
-
-function TeamWorkloadChart({
+function TeamTracksCard({
   data,
 }: {
-  data: Array<{ name: string; color: string; completed: number; in_progress: number; not_started: number; overdue: number; total: number }>;
+  data: Array<{
+    name: string;
+    color: string;
+    totalDays: number;
+    milestoneCount: number;
+    featuresTotal: number;
+    featuresCompleted: number;
+    featuresInProgress: number;
+    featuresOverdue: number;
+  }>;
 }) {
   if (data.length === 0) return null;
+
+  const maxDays = Math.max(...data.map((t) => t.totalDays), 1);
 
   return (
     <div className="rounded-xl border border-border/50 bg-card p-5">
       <h3 className="text-sm font-medium text-foreground mb-1">Team Workload</h3>
-      <p className="text-xs text-muted-foreground mb-4">Days by team, colored by feature status</p>
-      <ChartContainer config={teamWorkloadConfig} className="h-[240px] w-full aspect-auto">
-        <BarChart data={data} layout="vertical" margin={{ left: 0, right: 12, top: 4, bottom: 4 }}>
-          <CartesianGrid horizontal={false} strokeDasharray="3 3" className="stroke-border/40" />
-          <XAxis type="number" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
-          <YAxis
-            type="category"
-            dataKey="name"
-            tickLine={false}
-            axisLine={false}
-            width={80}
-            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-          />
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <Bar dataKey="completed" stackId="a" fill="var(--status-completed)" radius={[0, 0, 0, 0]} />
-          <Bar dataKey="in_progress" stackId="a" fill="var(--status-in-progress)" radius={[0, 0, 0, 0]} />
-          <Bar dataKey="not_started" stackId="a" fill="var(--status-not-started)" radius={[0, 0, 0, 0]} />
-          <Bar dataKey="overdue" stackId="a" fill="var(--status-cancelled)" radius={[4, 4, 4, 4]} />
-          <ChartLegend content={<ChartLegendContent />} />
-        </BarChart>
-      </ChartContainer>
+      <p className="text-xs text-muted-foreground mb-5">Allocation and progress per team</p>
+      <div className="space-y-3">
+        {data.map((team) => {
+          const progressPct = team.featuresTotal > 0
+            ? Math.round((team.featuresCompleted / team.featuresTotal) * 100)
+            : 0;
+          const barWidth = Math.max((team.totalDays / maxDays) * 100, 8);
+
+          return (
+            <div key={team.name} className="group/track">
+              {/* Label row */}
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium truncate">{team.name}</span>
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {team.totalDays}d
+                </span>
+              </div>
+
+              {/* Gradient bar with segmented progress */}
+              <div className="relative h-7 rounded-lg overflow-hidden bg-muted/40">
+                {/* Allocated bar — gradient from team color to transparent */}
+                <div
+                  className="absolute inset-y-0 left-0 rounded-lg transition-all duration-500"
+                  style={{
+                    width: `${barWidth}%`,
+                    background: `linear-gradient(90deg, ${team.color}, color-mix(in srgb, ${team.color} 25%, transparent))`,
+                    opacity: 0.15,
+                  }}
+                />
+
+                {/* Completed segment — solid gradient */}
+                <div
+                  className="absolute inset-y-0 left-0 rounded-lg transition-all duration-500"
+                  style={{
+                    width: `${(progressPct / 100) * barWidth}%`,
+                    background: `linear-gradient(90deg, ${team.color}, color-mix(in srgb, ${team.color} 60%, transparent))`,
+                  }}
+                />
+
+                {/* Inner label */}
+                <div className="absolute inset-0 flex items-center px-2.5">
+                  <span className="text-[11px] font-medium tabular-nums" style={{
+                    color: progressPct > 15 ? '#fff' : 'var(--foreground)',
+                    textShadow: progressPct > 15 ? '0 0.5px 2px rgba(0,0,0,0.3)' : 'none',
+                  }}>
+                    {team.featuresCompleted}/{team.featuresTotal}
+                  </span>
+                  <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
+                    {progressPct}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -684,19 +751,72 @@ function UpcomingCard({
 
 function DashboardSkeleton() {
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-6 py-8">
-      <div className="mx-auto w-full max-w-5xl space-y-6">
-        <Skeleton className="h-9 w-48 rounded-md" />
-        <Skeleton className="h-[140px] rounded-xl" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Skeleton className="h-[100px] rounded-xl" />
-          <Skeleton className="h-[100px] rounded-xl" />
-          <Skeleton className="h-[100px] rounded-xl" />
-          <Skeleton className="h-[100px] rounded-xl" />
+    <div className="flex flex-col flex-1 min-h-0 px-6 pt-8">
+      <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl space-y-6">
+        {/* Project switcher */}
+        <div className="rounded-xl border border-border/50 bg-card px-5 py-4 flex items-center gap-2.5">
+          <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+          <Skeleton className="h-5 w-36" />
         </div>
+
+        {/* Health banner */}
+        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border/50">
+            <div className="flex items-center justify-center p-5">
+              <Skeleton className="h-[120px] w-[120px] rounded-full" />
+            </div>
+            <div className="flex flex-col justify-center px-6 py-5 gap-2">
+              <Skeleton className="h-6 w-28" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+            <div className="flex flex-row md:flex-col gap-4 md:gap-3 px-6 py-5 min-w-[160px]">
+              <div className="space-y-1">
+                <Skeleton className="h-6 w-12" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+              <div className="space-y-1">
+                <Skeleton className="h-6 w-8" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+              <div className="space-y-1">
+                <Skeleton className="h-6 w-8" />
+                <Skeleton className="h-3 w-14" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Metric cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="rounded-xl border border-border/50 bg-card px-4 py-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-3.5 w-3.5 rounded" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <Skeleton className="h-6 w-16" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          ))}
+        </div>
+
+        {/* Risk + Upcoming */}
         <div className="grid md:grid-cols-2 gap-4">
-          <Skeleton className="h-[270px] rounded-xl" />
-          <Skeleton className="h-[270px] rounded-xl" />
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-10 w-16" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+            <Skeleton className="h-4 w-20" />
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Skeleton className="h-1.5 w-1.5 rounded-full" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-4 w-12" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -734,7 +854,7 @@ export function DashboardTab() {
     total, completed, overdue, inProgress, completionPct, avgDuration,
     totalEffortDays, statusDistribution, healthStatus,
     bottleneckTeam, bottleneckCount,
-    teamWorkloadBars,
+    teamTracks,
     riskSummary, upcoming,
     hasTeamData, milestoneStart, milestoneEnd, milestoneSpanDays,
   } = useComputedDashboard(milestones, teamDurations, teams);
@@ -763,7 +883,8 @@ export function DashboardTab() {
             catch { toast.error("Failed to update feature"); }
           }}
           onDelete={async (id) => {
-            try { await deleteMutation.mutateAsync(id); toast.success("Feature deleted"); }
+            const f = milestones.find((m) => m.id === id);
+            try { await deleteMutation.mutateAsync(id); toast.success("Feature deleted", { description: f?.title }); }
             catch { toast.error("Failed to delete feature"); }
           }}
         />
@@ -798,27 +919,101 @@ export function DashboardTab() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 px-6 pt-8 overflow-y-auto">
-      <div className="mx-auto w-full max-w-5xl space-y-6">
-        {/* Project Selector */}
-        <Select value={selectedProjectId ?? undefined} onValueChange={setSelectedProjectId}>
-          <SelectTrigger className="w-fit text-sm font-medium">
-            <SelectValue placeholder="Select project" />
-          </SelectTrigger>
-          <SelectContent>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl space-y-6">
+        {/* Milestone Switcher */}
+        {(() => {
+          const activeProject = projects.find((p) => p.id === selectedProjectId);
+          const activeStyles = activeProject ? getColorStyles(activeProject.color) : null;
+          return (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className="group relative w-full text-left rounded-xl border border-border/50 bg-card overflow-hidden cursor-pointer hover:border-border hover:shadow-[0_1px_3px_rgba(0,0,0,0.04)] dark:hover:shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-all"
+                  style={activeStyles ? {
+                    background: `linear-gradient(135deg, color-mix(in srgb, ${activeStyles.hex} 6%, var(--color-card)) 0%, var(--color-card) 60%)`,
+                  } : undefined}
+                >
+                  <div className="flex items-center justify-between px-5 py-4">
+                    <div className="flex items-center gap-2.5">
+                      {activeProject && activeStyles && (
+                        <span
+                          className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
+                          style={{ backgroundColor: activeStyles.iconBg, color: activeStyles.hex }}
+                        >
+                          <MilestoneIcon name={activeProject.icon} className="h-4 w-4" />
+                        </span>
+                      )}
+                      <span className="text-base font-semibold tracking-tight">
+                        {activeProject?.name ?? "Select milestone"}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                  </div>
+
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="p-1 w-[var(--radix-popover-trigger-width)]" align="start" sideOffset={8}>
+                {projects.map((p) => {
+                  const styles = getColorStyles(p.color);
+                  const isActive = selectedProjectId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedProjectId(p.id)}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                        isActive
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-accent/50"
+                      )}
+                    >
+                      <span
+                        className="flex h-5 w-5 items-center justify-center rounded-md shrink-0"
+                        style={{ backgroundColor: styles.iconBg, color: styles.hex }}
+                      >
+                        <MilestoneIcon name={p.icon} className="h-3 w-3" />
+                      </span>
+                      <span className="truncate">{p.name}</span>
+                      {isActive && <Check className="h-3.5 w-3.5 ml-auto shrink-0 text-muted-foreground" />}
+                    </button>
+                  );
+                })}
+              </PopoverContent>
+            </Popover>
+          );
+        })()}
 
         {isLoadingMilestones ? (
           <div className="space-y-6">
-            <Skeleton className="h-[140px] rounded-xl" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Skeleton className="h-[100px] rounded-xl" />
-              <Skeleton className="h-[100px] rounded-xl" />
-              <Skeleton className="h-[100px] rounded-xl" />
-              <Skeleton className="h-[100px] rounded-xl" />
+            {/* Health banner skeleton */}
+            <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+              <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border/50">
+                <div className="flex items-center justify-center p-5">
+                  <Skeleton className="h-[120px] w-[120px] rounded-full" />
+                </div>
+                <div className="flex flex-col justify-center px-6 py-5 gap-2">
+                  <Skeleton className="h-6 w-28" />
+                  <Skeleton className="h-4 w-48" />
+                </div>
+                <div className="flex flex-row md:flex-col gap-4 md:gap-3 px-6 py-5 min-w-[160px]">
+                  <div className="space-y-1"><Skeleton className="h-6 w-12" /><Skeleton className="h-3 w-16" /></div>
+                  <div className="space-y-1"><Skeleton className="h-6 w-8" /><Skeleton className="h-3 w-16" /></div>
+                  <div className="space-y-1"><Skeleton className="h-6 w-8" /><Skeleton className="h-3 w-14" /></div>
+                </div>
+              </div>
+            </div>
+            {/* Metric cards skeleton */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="rounded-xl border border-border/50 bg-card px-4 py-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-3.5 w-3.5 rounded" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <Skeleton className="h-6 w-16" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              ))}
             </div>
           </div>
         ) : total === 0 ? (
@@ -862,7 +1057,7 @@ export function DashboardTab() {
 
             {/* 3. Team Workload */}
             {hasTeamData ? (
-              <TeamWorkloadChart data={teamWorkloadBars} />
+              <TeamTracksCard data={teamTracks} />
             ) : (
               <div className="rounded-xl border border-dashed border-border/50 bg-muted/30 p-6 text-center">
                 <Users className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />

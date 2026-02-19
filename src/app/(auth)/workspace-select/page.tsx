@@ -8,6 +8,7 @@ import {
   useAcceptWorkspaceInvite,
 } from "@/hooks/use-workspaces";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Plus, Loader2, Mail } from "lucide-react";
 import Image from "next/image";
 
@@ -66,9 +67,12 @@ export default function WorkspaceSelectPage() {
                 disabled={switchWorkspace.isPending}
                 className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border hover:bg-accent transition-colors text-left disabled:opacity-50"
               >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary text-lg font-semibold">
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
+                <Avatar className="h-11 w-11 rounded-lg shrink-0">
+                  {ws.icon && <AvatarImage src={ws.icon} alt={displayName} className="rounded-lg" />}
+                  <AvatarFallback className="rounded-lg text-lg bg-muted text-muted-foreground">
+                    {displayName.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{displayName}</p>
                   <p className="text-xs text-muted-foreground capitalize mt-0.5">
@@ -99,9 +103,11 @@ export default function WorkspaceSelectPage() {
                 key={inv.id}
                 className="flex items-center gap-4 px-4 py-3.5 rounded-xl border"
               >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground text-lg font-semibold">
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
+                <Avatar className="h-11 w-11 rounded-lg shrink-0">
+                  <AvatarFallback className="rounded-lg text-lg font-semibold bg-muted text-muted-foreground">
+                    {displayName.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{displayName}</p>
                   <p className="text-xs text-muted-foreground capitalize mt-0.5">

@@ -9,7 +9,7 @@ export type TimePeriod = 'week' | 'month' | 'quarter' | 'year';
 
 /**
  * TimelineTask — our internal task format.
- * Uses inclusive start/end dates (no SVAR exclusive-end conversion).
+ * Uses inclusive start/end dates.
  */
 export interface TimelineTask {
   id: string;
@@ -42,9 +42,6 @@ export interface TimelineLink {
   targetId: string;
 }
 
-// Legacy aliases for backward compat during migration
-export type SVARTask = TimelineTask;
-export type SVARLink = TimelineLink;
 export type ZoomLevel = number; // 1-10
 export type DragType = 'move' | 'resize-start' | 'resize-end' | null;
 

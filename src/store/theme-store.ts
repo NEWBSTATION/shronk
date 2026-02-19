@@ -10,6 +10,7 @@ interface ThemeStore {
   setPreset: (presetKey: string) => void;
   setMode: (mode: ThemeMode) => void;
   toggleMode: () => void;
+  randomPreset: () => void;
   getCurrentStyles: () => ThemeStyleProps;
   getPreset: (key: string) => ThemePreset | undefined;
   getResolvedMode: () => "light" | "dark";
@@ -47,6 +48,14 @@ export const useThemeStore = create<ThemeStore>()(
           if (state.mode === "dark") return { mode: "system" };
           return { mode: "light" };
         });
+      },
+
+      randomPreset: () => {
+        const state = get();
+        const keys = Object.keys(state.presets).filter((k) => k !== state.currentPresetKey);
+        if (keys.length === 0) return;
+        const pick = keys[Math.floor(Math.random() * keys.length)];
+        set({ currentPresetKey: pick });
       },
 
       getResolvedMode: () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Moon, Sun, Monitor, Palette } from "lucide-react";
+import { Check, Dices, Moon, Sun, Monitor, Palette } from "lucide-react";
 import { useThemeStore } from "@/store/theme-store";
 import { themePresets } from "@/config/theme-presets";
 import { cn } from "@/lib/utils";
@@ -50,7 +50,7 @@ const modeOptions: { value: ThemeMode; label: string; icon: React.ComponentType<
 ];
 
 export function ThemeSelector() {
-  const { currentPresetKey, mode, setPreset, setMode, getResolvedMode } = useThemeStore();
+  const { currentPresetKey, mode, setPreset, setMode, getResolvedMode, randomPreset } = useThemeStore();
   const [open, setOpen] = React.useState(false);
   const sortedThemes = getSortedThemeEntries();
   const resolvedMode = getResolvedMode();
@@ -76,7 +76,7 @@ export function ThemeSelector() {
           <Command>
             {/* Sticky Mode Selection Header */}
             <div className="sticky top-0 z-10 bg-popover border-b">
-              <div className="p-2">
+              <div className="p-2 space-y-1.5">
                 <div className="flex gap-1">
                   {modeOptions.map((option) => {
                     const Icon = option.icon;
@@ -88,7 +88,7 @@ export function ThemeSelector() {
                         size="sm"
                         className={cn(
                           "flex-1 gap-1.5",
-                          isActive && "bg-accent"
+                          isActive && "bg-accent text-accent-foreground"
                         )}
                         onClick={() => setMode(option.value)}
                       >
@@ -98,6 +98,20 @@ export function ThemeSelector() {
                     );
                   })}
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-between gap-1.5 text-muted-foreground"
+                  onClick={() => randomPreset()}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Dices className="h-3.5 w-3.5" />
+                    <span className="text-xs">Random theme</span>
+                  </span>
+                  <kbd className="text-[10px] rounded bg-muted px-1.5 py-0.5 font-medium text-muted-foreground/60">
+                    {typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "⌘\\" : "Ctrl+\\"}
+                  </kbd>
+                </Button>
               </div>
               <CommandInput placeholder="Search themes..." />
             </div>
@@ -140,7 +154,7 @@ export function ThemeSelector() {
 }
 
 export function ThemeSelectorCompact() {
-  const { currentPresetKey, mode, setPreset, setMode, getResolvedMode } = useThemeStore();
+  const { currentPresetKey, mode, setPreset, setMode, getResolvedMode, randomPreset } = useThemeStore();
   const [open, setOpen] = React.useState(false);
   const sortedThemes = getSortedThemeEntries();
   const resolvedMode = getResolvedMode();
@@ -166,7 +180,7 @@ export function ThemeSelectorCompact() {
         <Command>
           {/* Sticky Mode Selection Header */}
           <div className="sticky top-0 z-10 bg-popover border-b">
-            <div className="p-2">
+            <div className="p-2 space-y-1.5">
               <div className="flex gap-1">
                 {modeOptions.map((option) => {
                   const Icon = option.icon;
@@ -178,7 +192,7 @@ export function ThemeSelectorCompact() {
                       size="sm"
                       className={cn(
                         "flex-1 gap-1.5",
-                        isActive && "bg-accent"
+                        isActive && "bg-accent text-accent-foreground"
                       )}
                       onClick={() => setMode(option.value)}
                     >
@@ -188,6 +202,20 @@ export function ThemeSelectorCompact() {
                   );
                 })}
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-between gap-1.5 text-muted-foreground"
+                onClick={() => randomPreset()}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Dices className="h-3.5 w-3.5" />
+                  <span className="text-xs">Random theme</span>
+                </span>
+                <kbd className="text-[10px] rounded bg-muted px-1.5 py-0.5 font-medium text-muted-foreground/60">
+                  {typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "⌘⇧R" : "Ctrl+Shift+R"}
+                </kbd>
+              </Button>
             </div>
             <CommandInput placeholder="Search themes..." />
           </div>

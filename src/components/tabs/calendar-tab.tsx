@@ -259,16 +259,17 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
 
   const handleDeleteFeature = useCallback(
     async (id: string) => {
+      const feature = features.find((f) => f.id === id);
       try {
         await deleteMutation.mutateAsync(id);
         queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
         closePanel();
-        toast.success("Feature deleted");
+        toast.success("Feature deleted", { description: feature?.title });
       } catch {
         toast.error("Failed to delete feature");
       }
     },
-    [deleteMutation, queryClient, closePanel]
+    [deleteMutation, queryClient, closePanel, features]
   );
 
   const handleMoveFeature = useCallback(

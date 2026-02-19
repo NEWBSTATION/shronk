@@ -78,7 +78,7 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
       queryClient.invalidateQueries({ queryKey: ["milestoneStats"] });
-      toast.success("Milestone deleted");
+      toast.success("Milestone deleted", { description: milestone.name });
       pop();
     },
     onError: () => toast.error("Failed to delete milestone"),

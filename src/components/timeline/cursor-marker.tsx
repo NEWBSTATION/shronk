@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, type RefObject } from 'react';
 import { format } from 'date-fns';
 import { pixelToDate as pixelToDateFn } from './date-math';
+import { useThemeStore } from '@/store/theme-store';
 
 interface CursorMarkerProps {
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -13,6 +14,7 @@ interface CursorMarkerProps {
 }
 
 export function CursorMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeight, onCursorMove }: CursorMarkerProps) {
+  const themeKey = useThemeStore((s) => `${s.currentPresetKey}-${s.mode}`);
   const containerRef = useRef<HTMLDivElement>(null);
   const lineRef = useRef<HTMLDivElement | null>(null);
   const labelRef = useRef<HTMLDivElement | null>(null);
@@ -32,7 +34,7 @@ export function CursorMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeig
     function trySetup() {
       if (!mounted) return;
 
-      const ganttContainer = containerRef.current?.closest('.svar-timeline-container') as HTMLElement | null;
+      const ganttContainer = containerRef.current?.closest('.timeline-container') as HTMLElement | null;
       const scrollEl = scrollRef.current;
       if (!ganttContainer || !scrollEl) {
         requestAnimationFrame(trySetup);
@@ -65,7 +67,7 @@ export function CursorMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeig
         font-weight: 500;
         font-family: var(--font-sans);
         padding: 2px 6px;
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         white-space: nowrap;
         background: var(--muted);
         color: var(--muted-foreground);
@@ -155,7 +157,7 @@ export function CursorMarker({ scrollRef, pixelsPerDay, timelineStart, scaleHeig
       mounted = false;
       cleanupFn?.();
     };
-  }, [pixelToDate, scaleHeight, onCursorMove, scrollRef]);
+  }, [pixelToDate, scaleHeight, onCursorMove, scrollRef, themeKey]);
 
   return (
     <div

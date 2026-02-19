@@ -151,7 +151,7 @@ export function TimelineToolbar({
   }, [sort, onSortChange]);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted min-w-0 overflow-hidden">
+    <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card min-w-0 overflow-hidden">
       <div className="flex items-center gap-1">
         {/* Sidebar collapse toggle */}
         <Button

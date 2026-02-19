@@ -32,7 +32,7 @@ export function DrilldownStack() {
 
     // Delay listener attachment by a frame to avoid the same click
     // that opened the panel from immediately closing it.
-    // Use capture phase so SVAR (or other libraries) can't swallow the event
+    // Use capture phase so no library can swallow the event
     // with stopPropagation before we see it.
     const raf = requestAnimationFrame(() => {
       document.addEventListener("mousedown", handleMouseDown, true);

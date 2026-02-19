@@ -1,15 +1,17 @@
 "use client";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { CircleUser, SlidersHorizontal, Users, ShieldCheck, X, Cog } from "lucide-react";
+import { CircleUser, SlidersHorizontal, Users, ShieldCheck, Earth, X, Cog } from "lucide-react";
 import { useMembers } from "@/hooks/use-members";
 import { ProfileTab } from "@/components/settings/profile-tab";
 import { PreferencesTab } from "@/components/settings/preferences-tab";
 import { TeamsTab } from "@/components/settings/teams-tab";
 import { MembersTab } from "@/components/settings/members-tab";
+import { WorkspaceTab } from "@/components/settings/workspace-tab";
 import { cn } from "@/lib/utils";
+import { useMagnetic } from "@/hooks/use-magnetic";
 
-export type SettingsSection = "profile" | "preferences" | "teams" | "members";
+export type SettingsSection = "profile" | "preferences" | "workspace" | "teams" | "members";
 
 const sections: {
   id: SettingsSection;
@@ -21,6 +23,7 @@ const sections: {
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
   { id: "teams", label: "Teams", icon: Users },
   { id: "members", label: "Members", icon: ShieldCheck, adminOnly: true },
+  { id: "workspace", label: "Workspace", icon: Earth, adminOnly: true },
 ];
 
 interface SettingsDialogProps {
@@ -39,6 +42,7 @@ export function SettingsDialog({
   const { data: membersData } = useMembers();
   const isAdmin = membersData?.currentUserRole === "admin";
   const visibleSections = sections.filter((s) => !s.adminOnly || isAdmin);
+  const magnetic = useMagnetic(0.3, 100);
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -54,17 +58,21 @@ export function SettingsDialog({
 
           <div className="flex flex-col h-full">
             {/* Header bar — title left, tab pills center, close right */}
-            <div className="flex shrink-0 items-center px-5 py-4 border-b">
+            <div className="flex shrink-0 items-center px-5 py-4">
               {/* Left: title */}
               <div className="flex-1 flex items-center">
-                <h2 className="text-sm font-semibold flex items-center gap-1.5">
-                  <Cog className="h-4 w-4 text-muted-foreground" />
-                  Settings
-                </h2>
+                <div
+                  ref={magnetic.ref}
+                  style={magnetic.style}
+                  className="flex items-center gap-1.5 cursor-default"
+                >
+                  <Cog className="h-4 w-4" />
+                  <span className="text-base" style={{ fontFamily: "Silkscreen, cursive" }}>Settings</span>
+                </div>
               </div>
 
               {/* Center: tab pills — always show icon + label */}
-              <div className="inline-flex items-center gap-1 rounded-2xl bg-muted p-1">
+              <div className="inline-flex items-center gap-1 rounded-2xl bg-card border border-border/50 p-1">
                 {visibleSections.map((section) => {
                   const Icon = section.icon;
                   const isActive = activeSection === section.id;
@@ -73,14 +81,14 @@ export function SettingsDialog({
                       key={section.id}
                       onClick={() => onSectionChange(section.id)}
                       className={cn(
-                        "flex items-center justify-center gap-1.5 h-8 rounded-xl px-3 transition-all",
+                        "flex items-center justify-center gap-1.5 h-8 rounded-xl px-3 text-xs font-medium transition-colors duration-200",
                         isActive
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                          ? "glass-highlight text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.7)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)]"
+                          : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
-                      <span className="text-xs font-medium">{section.label}</span>
+                      <span>{section.label}</span>
                     </button>
                   );
                 })}
@@ -88,10 +96,12 @@ export function SettingsDialog({
 
               {/* Right: close */}
               <div className="flex-1 flex justify-end">
-                <DialogPrimitive.Close className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-muted text-muted-foreground shadow-xs hover:bg-accent hover:text-foreground transition-colors">
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Close</span>
-                </DialogPrimitive.Close>
+                <div className="inline-flex items-center rounded-2xl bg-card border border-border/50 p-1">
+                  <DialogPrimitive.Close className="flex items-center justify-center h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:glass-highlight hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.7)] dark:hover:shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)] transition-all">
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
+                  </DialogPrimitive.Close>
+                </div>
               </div>
             </div>
 
@@ -100,6 +110,7 @@ export function SettingsDialog({
               <div className="mx-auto w-full max-w-xl lg:max-w-2xl px-6 py-8">
                 {activeSection === "profile" && <ProfileTab />}
                 {activeSection === "preferences" && <PreferencesTab />}
+                {activeSection === "workspace" && isAdmin && <WorkspaceTab />}
                 {activeSection === "teams" && <TeamsTab />}
                 {activeSection === "members" && isAdmin && <MembersTab />}
               </div>

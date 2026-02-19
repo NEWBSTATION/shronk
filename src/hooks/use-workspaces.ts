@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 interface WorkspaceInfo {
   id: string;
   name: string;
+  icon: string | null;
   ownerId: string;
   role: "admin" | "member";
   isOwner: boolean;
@@ -74,6 +75,35 @@ export function useSwitchWorkspace() {
     onSuccess: () => {
       // Full page reload to invalidate all cached data
       window.location.href = "/dashboard?tab=features";
+    },
+  });
+}
+
+export function useUpdateWorkspace() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...data
+    }: {
+      id: string;
+      name?: string;
+      icon?: string | null;
+    }) => {
+      const res = await fetch(`/api/workspaces/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to update workspace");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     },
   });
 }

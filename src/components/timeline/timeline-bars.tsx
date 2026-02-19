@@ -11,6 +11,7 @@ interface TimelineBarsProps {
   pixelsPerDay: number;
   timelineStart: Date;
   onTaskClick?: (taskId: string) => void;
+  onTaskContextMenu?: (taskId: string, e: MouseEvent) => void;
   hideTeamTracks?: boolean;
   /** When non-null, search is active: feature IDs that match */
   searchMatchIds?: Set<string> | null;
@@ -57,7 +58,7 @@ function buildTooltipHTML(task: TimelineTask): string {
   return lines.join('');
 }
 
-export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, hideTeamTracks, searchMatchIds }: TimelineBarsProps) {
+export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, onTaskContextMenu, hideTeamTracks, searchMatchIds }: TimelineBarsProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const taskMapRef = useRef<Map<string, TimelineTask>>(new Map());
@@ -97,7 +98,7 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
     const layer = layerRef.current;
     if (!layer) return;
 
-    const ganttContainer = layer.closest('.svar-timeline-container') as HTMLElement | null;
+    const ganttContainer = layer.closest('.timeline-container') as HTMLElement | null;
     if (!ganttContainer) return;
 
     const tooltip = document.createElement('div');
@@ -261,6 +262,13 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
             onClick={(e) => {
               e.stopPropagation();
               onTaskClick?.(task.id);
+            }}
+            onContextMenu={(e) => {
+              if (onTaskContextMenu && !isTeam) {
+                e.preventDefault();
+                e.stopPropagation();
+                onTaskContextMenu(task.id, e.nativeEvent);
+              }
             }}
           >
             {/* Inner fill for chain-end fade mask */}

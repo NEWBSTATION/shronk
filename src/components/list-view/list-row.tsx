@@ -90,8 +90,8 @@ export function ListRow({
         style={style}
         className={cn(
           className,
-          isSelected && "bg-accent",
-          isDragging && "opacity-50 bg-accent"
+          isSelected && "bg-accent text-accent-foreground",
+          isDragging && "opacity-50 bg-accent text-accent-foreground"
         )}
       >
         {/* Checkbox */}

@@ -99,7 +99,7 @@ function PickerGrid({
                   className={cn(
                     "h-8 w-8 rounded-md flex items-center justify-center transition-colors",
                     active
-                      ? "bg-accent text-foreground"
+                      ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                   )}
                 >
