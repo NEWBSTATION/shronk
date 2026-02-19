@@ -185,7 +185,6 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
       try {
         await updateMutation.mutateAsync(data);
         queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
-        toast.success("Feature updated");
       } catch {
         toast.error("Failed to update feature");
       }

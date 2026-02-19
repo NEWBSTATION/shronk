@@ -249,7 +249,6 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
       try {
         await updateMutation.mutateAsync(data);
         queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
-        toast.success("Feature updated");
       } catch {
         toast.error("Failed to update feature");
       }

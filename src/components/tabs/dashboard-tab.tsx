@@ -879,7 +879,7 @@ export function DashboardTab() {
           dependencies={dependencies}
           teamDurations={teamDurations}
           onUpdate={async (data) => {
-            try { await updateMutation.mutateAsync(data); toast.success("Feature updated"); }
+            try { await updateMutation.mutateAsync(data); }
             catch { toast.error("Failed to update feature"); }
           }}
           onDelete={async (id) => {

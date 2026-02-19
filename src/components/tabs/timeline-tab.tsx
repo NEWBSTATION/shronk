@@ -284,7 +284,6 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
     async (data: Partial<Milestone> & { id: string; duration?: number }) => {
       try {
         await updateFeatureMutation.mutateAsync(data);
-        toast.success("Feature updated");
       } catch {
         toast.error("Failed to update feature");
       }
@@ -379,7 +378,6 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
     async (id: string, status: MilestoneStatus) => {
       try {
         await updateFeatureMutation.mutateAsync({ id, status });
-        toast.success("Status updated");
       } catch {
         toast.error("Failed to update status");
       }
@@ -391,7 +389,6 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
     async (id: string, priority: string) => {
       try {
         await updateFeatureMutation.mutateAsync({ id, priority: priority as Milestone["priority"] });
-        toast.success("Priority updated");
       } catch {
         toast.error("Failed to update priority");
       }

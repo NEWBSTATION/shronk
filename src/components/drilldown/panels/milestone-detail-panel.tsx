@@ -147,7 +147,6 @@ export function MilestoneDetailPanel({
           onUpdate={async (data) => {
             try {
               await updateMutation.mutateAsync(data);
-              toast.success("Feature updated");
             } catch {
               toast.error("Failed to update feature");
             }

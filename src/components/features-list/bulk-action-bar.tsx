@@ -51,7 +51,6 @@ export function BulkActionBar() {
       },
       {
         onSuccess: () => {
-          toast.success(`${count} feature(s) updated`);
           queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
           clearSelection();
         },
@@ -70,7 +69,6 @@ export function BulkActionBar() {
       },
       {
         onSuccess: () => {
-          toast.success(`${count} feature(s) updated`);
           queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
           clearSelection();
         },
