@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { priorityConfig } from "@/components/shared/status-badge";
 
 const STATUS_CONFIG: Record<string, { label: string; dotClass: string }> = {
   not_started: { label: "Not Started", dotClass: "bg-zinc-400" },
@@ -30,15 +31,7 @@ const STATUS_CONFIG: Record<string, { label: string; dotClass: string }> = {
 
 const STATUS_OPTIONS = Object.entries(STATUS_CONFIG) as [string, { label: string; dotClass: string }][];
 
-const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
-  none: { label: "None", className: "bg-muted/50 text-muted-foreground/70" },
-  critical: { label: "Critical", className: "bg-red-500/10 text-red-600 dark:text-red-400" },
-  high: { label: "High", className: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
-  medium: { label: "Medium", className: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-  low: { label: "Low", className: "bg-slate-500/10 text-slate-600 dark:text-slate-400" },
-};
-
-const PRIORITY_OPTIONS = Object.entries(PRIORITY_CONFIG) as [string, { label: string; className: string }][];
+const PRIORITY_OPTIONS = Object.entries(priorityConfig) as [string, { label: string; icon: React.ElementType; className: string }][];
 
 /** Grid column template shared between header and rows */
 export const TABLE_GRID_COLS = "1fr 100px 72px 56px";
@@ -105,7 +98,7 @@ export function FeatureRow({
   style,
 }: FeatureRowProps) {
   const completed = status === "completed";
-  const priorityCfg = PRIORITY_CONFIG[priority] ?? PRIORITY_CONFIG.none;
+  const priorityCfg = priorityConfig[priority as keyof typeof priorityConfig] ?? priorityConfig.none;
   const hasTeams = teamDurations && teamDurations.length > 0;
   const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.not_started;
   const [statusOpen, setStatusOpen] = useState(false);
@@ -347,13 +340,13 @@ export function FeatureRow({
                 type="button"
                 onClick={(e) => e.stopPropagation()}
                 className={cn(
-                  "inline-flex items-center justify-center rounded-md min-h-[28px] min-w-[48px] px-2 py-0.5 text-[11px] font-medium leading-none transition-colors -ml-2",
+                  "inline-flex items-center justify-center rounded-md min-h-[28px] min-w-[28px] px-1.5 py-0.5 transition-colors -ml-1",
                   priority !== "none"
                     ? priorityCfg.className
                     : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/60"
                 )}
               >
-                {priority !== "none" ? priorityCfg.label : "\u2014"}
+                {(() => { const Icon = priorityCfg.icon; return <Icon className="h-3.5 w-3.5" />; })()}
               </button>
             </PopoverTrigger>
             <PopoverContent
@@ -362,27 +355,28 @@ export function FeatureRow({
               sideOffset={4}
               onClick={(e) => e.stopPropagation()}
             >
-              {PRIORITY_OPTIONS.map(([key, cfg]) => (
-                <button
-                  key={key}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPriorityOpen(false);
-                    if (key !== priority) onPriorityChange?.(key);
-                  }}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-                    key === priority
-                      ? "bg-accent text-accent-foreground"
-                      : "hover:bg-accent/50"
-                  )}
-                >
-                  {key !== "none" && (
-                    <span className={cn("inline-block h-2 w-2 rounded-full shrink-0", cfg.className.split(" ")[0])} />
-                  )}
-                  {cfg.label}
-                </button>
-              ))}
+              {PRIORITY_OPTIONS.map(([key, cfg]) => {
+                const Icon = cfg.icon;
+                return (
+                  <button
+                    key={key}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPriorityOpen(false);
+                      if (key !== priority) onPriorityChange?.(key);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                      key === priority
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-accent/50"
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    {cfg.label}
+                  </button>
+                );
+              })}
             </PopoverContent>
           </Popover>
         </div>

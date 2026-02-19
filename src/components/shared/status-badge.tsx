@@ -180,6 +180,14 @@ export function PriorityBadge({
   const config = priorityConfig[priority];
   const Icon = config.icon;
 
+  if (!showLabel) {
+    return (
+      <span className={cn("inline-flex items-center", config.className.split(" ").filter(c => c.startsWith("text-")).join(" "), className)}>
+        <Icon className="h-4 w-4" />
+      </span>
+    );
+  }
+
   return (
     <span
       className={cn(
@@ -189,7 +197,7 @@ export function PriorityBadge({
       )}
     >
       <Icon className="h-3 w-3" />
-      {showLabel && config.label}
+      {config.label}
     </span>
   );
 }

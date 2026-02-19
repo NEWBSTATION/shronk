@@ -1,6 +1,7 @@
 "use client";
 
 import { X, Trash2 } from "lucide-react";
+import { priorityConfig } from "@/components/shared/status-badge";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -124,10 +125,17 @@ export function BulkActionBar() {
           <SelectValue placeholder="Priority" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="low">Low</SelectItem>
-          <SelectItem value="medium">Medium</SelectItem>
-          <SelectItem value="high">High</SelectItem>
-          <SelectItem value="critical">Critical</SelectItem>
+          {Object.entries(priorityConfig).filter(([key]) => key !== "none").map(([key, config]) => {
+            const Icon = config.icon;
+            return (
+              <SelectItem key={key} value={key}>
+                <div className="flex items-center gap-2">
+                  <Icon className="h-3.5 w-3.5" />
+                  {config.label}
+                </div>
+              </SelectItem>
+            );
+          })}
         </SelectContent>
       </Select>
 

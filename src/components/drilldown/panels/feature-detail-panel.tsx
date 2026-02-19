@@ -13,7 +13,6 @@ import {
   ArrowLeft,
   Ellipsis,
   CircleDot,
-  Signal,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,6 +50,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { priorityConfig } from "@/components/shared/status-badge";
 import { formatDuration } from "@/lib/format-duration";
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
 import {
@@ -139,20 +139,13 @@ function StatusDisplay({ status }: { status: MilestoneStatus }) {
   );
 }
 
-const PRIORITY_CONFIG: Record<MilestonePriority, { label: string; dotClass: string }> = {
-  none: { label: "None", dotClass: "bg-muted-foreground/40" },
-  critical: { label: "Critical", dotClass: "bg-red-500" },
-  high: { label: "High", dotClass: "bg-orange-500" },
-  medium: { label: "Medium", dotClass: "bg-amber-500" },
-  low: { label: "Low", dotClass: "bg-slate-400" },
-};
-
 function PriorityDisplay({ priority }: { priority: MilestonePriority }) {
-  const { label, dotClass } = PRIORITY_CONFIG[priority];
+  const cfg = priorityConfig[priority];
+  const Icon = cfg.icon;
   return (
     <div className="flex items-center gap-2">
-      <div className={cn("h-2 w-2 rounded-full shrink-0", dotClass)} />
-      <span>{label}</span>
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span>{cfg.label}</span>
     </div>
   );
 }
@@ -526,7 +519,7 @@ export function FeatureDetailPanel({
         )}
 
         {/* Priority */}
-        <PropertyRow icon={Signal} label="Priority" type="custom">
+        <PropertyRow icon={priorityConfig[priority].icon} label="Priority" type="custom">
           <Select
             value={priority}
             onValueChange={(v) => handlePriorityChange(v as MilestonePriority)}
@@ -537,21 +530,11 @@ export function FeatureDetailPanel({
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">
-                <PriorityDisplay priority="none" />
-              </SelectItem>
-              <SelectItem value="critical">
-                <PriorityDisplay priority="critical" />
-              </SelectItem>
-              <SelectItem value="high">
-                <PriorityDisplay priority="high" />
-              </SelectItem>
-              <SelectItem value="medium">
-                <PriorityDisplay priority="medium" />
-              </SelectItem>
-              <SelectItem value="low">
-                <PriorityDisplay priority="low" />
-              </SelectItem>
+              {Object.keys(priorityConfig).map((key) => (
+                <SelectItem key={key} value={key}>
+                  <PriorityDisplay priority={key as MilestonePriority} />
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </PropertyRow>

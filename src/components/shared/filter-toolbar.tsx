@@ -163,23 +163,27 @@ export function FilterToolbar({ teams: _teams = [] }: FilterToolbarProps) {
             <div className="space-y-2">
               <Label className="text-sm font-medium">Priority</Label>
               <div className="grid grid-cols-2 gap-2">
-                {Object.entries(priorityConfig).map(([key, config]) => (
-                  <div key={key} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`priority-${key}`}
-                      checked={filters.priority.includes(key)}
-                      onCheckedChange={(checked) =>
-                        handlePriorityChange(key, checked as boolean)
-                      }
-                    />
-                    <Label
-                      htmlFor={`priority-${key}`}
-                      className="text-sm font-normal cursor-pointer"
-                    >
-                      {config.label}
-                    </Label>
-                  </div>
-                ))}
+                {Object.entries(priorityConfig).map(([key, config]) => {
+                  const Icon = config.icon;
+                  return (
+                    <div key={key} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`priority-${key}`}
+                        checked={filters.priority.includes(key)}
+                        onCheckedChange={(checked) =>
+                          handlePriorityChange(key, checked as boolean)
+                        }
+                      />
+                      <Label
+                        htmlFor={`priority-${key}`}
+                        className="text-sm font-normal cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {config.label}
+                      </Label>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

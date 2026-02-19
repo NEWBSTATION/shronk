@@ -140,7 +140,7 @@ export function ListRow({
 
         {/* Priority */}
         <TableCell>
-          <PriorityBadge priority={milestone.priority} />
+          <PriorityBadge priority={milestone.priority} showLabel={false} />
         </TableCell>
 
         {/* Date Range */}
