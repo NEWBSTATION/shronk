@@ -78,6 +78,13 @@
       "when": 1771471331253,
       "tag": "0010_serious_chimera",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1771475332229,
+      "tag": "0011_perfect_karma",
+      "breakpoints": true
     }
   ]
 }

@@ -13,11 +13,14 @@ import {
   Monitor,
   ShieldCheck,
   Plus,
+  CheckCircle,
+  XCircle,
+  Mail,
 } from "lucide-react";
 import { useThemeStore } from "@/store/theme-store";
 import { useMembers } from "@/hooks/use-members";
 import { useWorkspace } from "@/components/providers/workspace-provider";
-import { useWorkspaces, useSwitchWorkspace } from "@/hooks/use-workspaces";
+import { useWorkspaces, useSwitchWorkspace, useAcceptWorkspaceInvite, useDeclineWorkspaceInvite } from "@/hooks/use-workspaces";
 import { useRouter } from "next/navigation";
 import { themePresets } from "@/config/theme-presets";
 import { cn } from "@/lib/utils";
@@ -68,9 +71,12 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   const { workspaceId, workspaceName } = useWorkspace();
   const { data: workspacesData } = useWorkspaces();
   const switchWorkspace = useSwitchWorkspace();
+  const acceptInvite = useAcceptWorkspaceInvite();
+  const declineInvite = useDeclineWorkspaceInvite();
   const router = useRouter();
   const workspaces = workspacesData?.workspaces ?? [];
-  const pendingCount = workspacesData?.pendingInvites?.length ?? 0;
+  const pendingInvites = workspacesData?.pendingInvites ?? [];
+  const pendingCount = pendingInvites.length;
   const resolvedMode = getResolvedMode();
   const sortedThemes = getSortedThemeEntries();
   const [mounted, setMounted] = React.useState(false);
@@ -99,7 +105,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <div className="inline-flex items-center rounded-2xl bg-card border border-border/50 p-1">
+        <div className="inline-flex items-center rounded-2xl bg-card border border-border/50 p-1 relative">
           <button className="flex items-center justify-center h-8 w-8 rounded-xl hover:glass-highlight hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.7)] dark:hover:shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)] transition-all">
             <Avatar className="h-7 w-7 rounded-lg">
               {user.hasImage && <AvatarImage src={user.imageUrl} alt={displayName} />}
@@ -108,6 +114,9 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
               </AvatarFallback>
             </Avatar>
           </button>
+          {pendingCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary border-2 border-card" />
+          )}
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64 rounded-lg p-0 overflow-hidden" align="end" sideOffset={8}>
@@ -222,18 +231,10 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
 
         {/* Lower section — tinted workspace area */}
         <div className="bg-muted/40 border-t p-1">
-          <div className="px-2 pt-1.5 pb-1 flex items-center justify-between">
+          <div className="px-2 pt-1.5 pb-1">
             <span className="text-xs font-medium text-muted-foreground">
               Switch Workspace
             </span>
-            {pendingCount > 0 && (
-              <span
-                className="text-[10px] bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none cursor-pointer"
-                onClick={() => router.push("/workspace-select")}
-              >
-                {pendingCount} pending
-              </span>
-            )}
           </div>
           <DropdownMenuGroup>
             {workspaces.map((ws) => {
@@ -273,6 +274,71 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
               <span className="text-sm">Create Workspace</span>
             </DropdownMenuItem>
           </DropdownMenuGroup>
+
+          {/* Pending invites */}
+          {pendingCount > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <div className="px-2 pt-1.5 pb-1 flex items-center gap-1.5">
+                <Mail className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">
+                  Pending Invites
+                </span>
+                <span className="text-[10px] bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none ml-auto">
+                  {pendingCount}
+                </span>
+              </div>
+              {pendingInvites.map((invite) => {
+                const name = stripWorkspaceSuffix(invite.workspaceName);
+                return (
+                  <div
+                    key={invite.id}
+                    className="flex items-center gap-3 px-3 py-1.5 rounded-sm"
+                  >
+                    <Avatar className="h-7 w-7 rounded-lg">
+                      <AvatarFallback className="rounded-lg text-xs bg-primary/10 text-primary">
+                        {name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm truncate block">{name}</span>
+                      <span className="text-[10px] text-muted-foreground capitalize">{invite.role}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          acceptInvite.mutate(invite.token, {
+                            onSuccess: (data) => {
+                              if (data.workspaceId) {
+                                switchWorkspace.mutate(data.workspaceId);
+                              }
+                            },
+                          });
+                        }}
+                        disabled={acceptInvite.isPending}
+                        className="h-6 w-6 flex items-center justify-center rounded-md text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+                        title="Accept invite"
+                      >
+                        <CheckCircle className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          declineInvite.mutate(invite.token);
+                        }}
+                        disabled={declineInvite.isPending}
+                        className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Decline invite"
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

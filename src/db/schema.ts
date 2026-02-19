@@ -19,6 +19,7 @@ export const inviteStatusEnum = pgEnum("invite_status", [
   "accepted",
   "expired",
   "revoked",
+  "declined",
 ]);
 
 export const milestoneStatusEnum = pgEnum("milestone_status", [
