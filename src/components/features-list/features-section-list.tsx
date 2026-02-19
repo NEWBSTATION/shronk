@@ -538,7 +538,7 @@ export function FeaturesSectionList({
                               >
                                 <span className="text-xs font-medium text-muted-foreground">Name</span>
                                 <span className="text-xs font-medium text-muted-foreground">Status</span>
-                                <span className="text-xs font-medium text-muted-foreground">Priority</span>
+                                <span className="text-xs font-medium text-muted-foreground text-center">Priority</span>
                                 <div className="flex justify-center">
                                   <DurationUnitPicker value={durationUnit} onChange={setDurationUnit} />
                                 </div>

@@ -333,14 +333,14 @@ export function FeatureRow({
         </div>
 
         {/* Col 3: Priority — desktop only */}
-        <div className="hidden md:flex items-center">
+        <div className="hidden md:flex items-center justify-center">
           <Popover open={priorityOpen} onOpenChange={setPriorityOpen}>
             <PopoverTrigger asChild>
               <button
                 type="button"
                 onClick={(e) => e.stopPropagation()}
                 className={cn(
-                  "inline-flex items-center justify-center rounded-md min-h-[28px] min-w-[28px] px-1.5 py-0.5 transition-colors -ml-1",
+                  "inline-flex items-center justify-center rounded-md min-h-[28px] min-w-[28px] px-1.5 py-0.5 transition-colors",
                   priority !== "none"
                     ? priorityCfg.className
                     : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/60"
