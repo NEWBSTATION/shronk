@@ -242,12 +242,12 @@ export function FeatureRow({
                 if (e.key === "Escape") { setTitleDraft(title); setTitleEditing(false); }
               }}
               onClick={(e) => e.stopPropagation()}
-              className="text-sm font-medium bg-transparent outline-none ring-1 ring-ring rounded px-1 -mx-1 py-1 min-w-0"
+              className="text-sm font-medium bg-transparent outline-none ring-1 ring-ring rounded-md px-2 -mx-2 py-1 min-w-0"
             />
           ) : (
             <span
               className={cn(
-                "text-sm font-medium truncate rounded px-1 -mx-1 hover:bg-foreground/[0.06] cursor-text transition-colors",
+                "text-sm font-medium truncate rounded-md px-2 -mx-2 py-1 hover:bg-foreground/[0.06] cursor-text transition-colors",
                 completed
                   ? "text-muted-foreground/60 line-through"
                   : "text-foreground"

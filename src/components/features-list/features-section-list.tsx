@@ -51,6 +51,7 @@ interface Feature {
   status: string;
   priority: string;
   duration: number;
+  sortOrder: number;
   milestoneName: string;
   milestoneColor: string;
   milestoneIcon: string;
