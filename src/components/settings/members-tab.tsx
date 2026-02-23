@@ -14,6 +14,7 @@ import {
   useInviteLink,
   useCreateInviteLink,
   useUpdateInviteLinkRole,
+  useTransferOwnership,
 } from "@/hooks/use-members";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Plus, X, Mail, Clock, ShieldCheck, Trash2, Check, Search, RotateCw, Link2, Copy, RefreshCw, LogOut, Crown, XCircle } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
+import { useWorkspace } from "@/components/providers/workspace-provider";
 import { formatDistanceToNow } from "date-fns";
 import { getColorStyles } from "@/lib/milestone-theme";
 
@@ -46,14 +48,18 @@ function MemberRow({
   member,
   isCurrentUser,
   isOwner,
+  currentUserIsOwner,
   onRoleChange,
   onRemove,
+  onTransferOwnership,
 }: {
   member: { id: string; userId: string; name: string; email: string; role: string; imageUrl: string | null };
   isCurrentUser: boolean;
   isOwner: boolean;
+  currentUserIsOwner: boolean;
   onRoleChange: (id: string, role: "admin" | "member") => void;
   onRemove: (id: string, name: string) => void;
+  onTransferOwnership: (userId: string, name: string) => void;
 }) {
   const initials = member.name
     .split(" ")
@@ -107,6 +113,15 @@ function MemberRow({
                   <SelectItem value="member">Member</SelectItem>
                 </SelectContent>
               </Select>
+              {currentUserIsOwner && (
+                <button
+                  onClick={() => onTransferOwnership(member.userId, member.name)}
+                  className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-amber-500/10 hover:text-amber-500 transition-all"
+                  title="Transfer ownership"
+                >
+                  <Crown className="h-3.5 w-3.5" />
+                </button>
+              )}
               <button
                 onClick={() => onRemove(member.id, member.name)}
                 className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
@@ -389,12 +404,18 @@ export function MembersTab() {
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
   const resendInvite = useResendInvite();
+  const transferOwnership = useTransferOwnership();
+  const { workspaceId } = useWorkspace();
 
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("admin");
   const [removeTarget, setRemoveTarget] = useState<{
     id: string;
+    name: string;
+  } | null>(null);
+  const [transferTarget, setTransferTarget] = useState<{
+    userId: string;
     name: string;
   } | null>(null);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
@@ -638,8 +659,10 @@ export function MembersTab() {
             member={member}
             isCurrentUser={member.userId === user?.id}
             isOwner={member.userId === ownerId}
+            currentUserIsOwner={isCurrentUserOwner}
             onRoleChange={handleRoleChange}
             onRemove={(id, name) => setRemoveTarget({ id, name })}
+            onTransferOwnership={(userId, name) => setTransferTarget({ userId, name })}
           />
         ))}
 
@@ -736,17 +759,32 @@ export function MembersTab() {
         )}
       </div>
 
-      {/* Leave workspace */}
-      <button
-        onClick={() => {
-          setTransferToUserId("");
-          setShowLeaveDialog(true);
-        }}
-        className="flex items-center gap-2 text-sm text-destructive/80 hover:text-destructive transition-colors px-1 py-1"
-      >
-        <LogOut className="size-3.5" />
-        Leave workspace
-      </button>
+      {/* Danger zone */}
+      <div className="rounded-2xl overflow-hidden border border-destructive/20">
+        <div className="px-4 py-3 border-b border-destructive/20 bg-destructive/5">
+          <p className="text-xs font-medium text-destructive">Danger zone</p>
+        </div>
+        <div className="px-4 py-4 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Leave this workspace</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isCurrentUserOwner
+                ? "You must transfer ownership to another member before leaving."
+                : "You\u2019ll lose access to all projects and data in this workspace immediately."}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setTransferToUserId("");
+              setShowLeaveDialog(true);
+            }}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-sm font-medium border border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
+          >
+            <LogOut className="size-3.5" />
+            Leave
+          </button>
+        </div>
+      </div>
       </>
       )}
 
@@ -844,6 +882,51 @@ export function MembersTab() {
                 <Loader2 className="mr-2 size-4 animate-spin" />
               )}
               Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Transfer ownership confirmation */}
+      <AlertDialog
+        open={!!transferTarget}
+        onOpenChange={(open) => !open && setTransferTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transfer ownership</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to make {transferTarget?.name} the owner of
+              this workspace? You will remain as an admin but will no longer be
+              the owner.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!transferTarget) return;
+                transferOwnership.mutate(
+                  { workspaceId, newOwnerId: transferTarget.userId },
+                  {
+                    onSuccess: () => {
+                      toast.success("Ownership transferred", {
+                        description: `${transferTarget.name} is now the workspace owner`,
+                      });
+                      setTransferTarget(null);
+                    },
+                    onError: (error) => {
+                      toast.error(error.message);
+                      setTransferTarget(null);
+                    },
+                  }
+                );
+              }}
+            >
+              {transferOwnership.isPending && (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              )}
+              Transfer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
