@@ -36,6 +36,14 @@ export async function PATCH(
       );
     }
 
+    // Cannot demote the workspace owner
+    if (target.userId === ctx.workspace.ownerId) {
+      return NextResponse.json(
+        { error: "Cannot demote the workspace owner" },
+        { status: 403 }
+      );
+    }
+
     // If demoting an admin, check they're not the last admin
     if (target.role === "admin" && data.role === "member") {
       const [adminCount] = await db
@@ -101,6 +109,14 @@ export async function DELETE(
       return NextResponse.json(
         { error: "Cannot remove yourself" },
         { status: 400 }
+      );
+    }
+
+    // Cannot remove the workspace owner
+    if (target.userId === ctx.workspace.ownerId) {
+      return NextResponse.json(
+        { error: "Cannot remove the workspace owner" },
+        { status: 403 }
       );
     }
 

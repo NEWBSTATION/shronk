@@ -86,7 +86,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
             </Avatar>
           </button>
           {pendingCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary border-2 border-card" />
+            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary border-2 border-card animate-pulse" />
           )}
         </div>
       </DropdownMenuTrigger>
@@ -209,7 +209,6 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm truncate block">{name}</span>
-                      <span className="text-[10px] text-muted-foreground capitalize">{invite.role}</span>
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0">
                       <button

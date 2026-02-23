@@ -46,6 +46,7 @@ export async function GET() {
     return NextResponse.json({
       members: membersWithInfo,
       currentUserRole,
+      ownerId: ctx.workspace.ownerId,
     });
   } catch (error) {
     if (error instanceof AuthError) {
