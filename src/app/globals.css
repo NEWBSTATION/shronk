@@ -455,7 +455,7 @@ pre {
   content: '';
   position: absolute;
   top: 0;
-  bottom: 0;
+  bottom: var(--scrollbar-height, 0px);
   left: 0;
   width: 32px;
   background: linear-gradient(to right, var(--background), transparent);
@@ -678,6 +678,38 @@ pre {
 }
 
 /* ================================================
+   Nav Indicators - Off-screen bar navigation buttons
+   ================================================ */
+
+.timeline-nav-indicator {
+  background: transparent;
+  border: none;
+  color: color-mix(in srgb, var(--muted-foreground) 65%, transparent);
+}
+
+.timeline-nav-indicator:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.timeline-nav-tooltip {
+  position: absolute;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+/* ================================================
    Cursor Marker - Hover line + date label
    ================================================ */
 
@@ -830,6 +862,28 @@ pre {
    The Placeholder extension adds `data-placeholder` and
    classes `is-empty` / `is-editor-empty` to empty nodes.
    ================================================ */
+
+/* ================================================
+   Deletion Banner - animated diagonal stripes
+   ================================================ */
+
+@keyframes deletion-stripes {
+  from { background-position: 0 0; }
+  to { background-position: 28.28px 0; }
+}
+
+.deletion-banner-stripes {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0px,
+    transparent 10px,
+    color-mix(in srgb, var(--destructive) 6%, transparent) 10px,
+    color-mix(in srgb, var(--destructive) 6%, transparent) 20px
+  );
+  mask-image: linear-gradient(to right, transparent 40%, black);
+  -webkit-mask-image: linear-gradient(to right, transparent 40%, black);
+  animation: deletion-stripes 2s linear infinite;
+}
 
 [data-placeholder].is-empty::before,
 [data-placeholder].is-editor-empty::before {

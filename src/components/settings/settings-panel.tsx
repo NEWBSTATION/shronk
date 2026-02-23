@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useCallback } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { CircleUser, SlidersHorizontal, Users, ShieldCheck, ShieldAlert, Orbit, X, Cog } from "lucide-react";
 import { useMembers } from "@/hooks/use-members";
@@ -41,15 +42,23 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const { data: membersData } = useMembers();
   const isAdmin = membersData?.currentUserRole === "admin";
-  const visibleSections = sections.filter((s) => !s.adminOnly || isAdmin);
   const magnetic = useMagnetic(0.3, 100);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleSectionChange = useCallback(
+    (section: SettingsSection) => {
+      onSectionChange(section);
+      scrollRef.current?.scrollTo({ top: 0 });
+    },
+    [onSectionChange]
+  );
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/20 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
-          className="fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] z-50 sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-[calc(100%-3rem)] sm:max-w-[1700px] h-full sm:h-[calc(100vh-3rem)] rounded-none sm:rounded-xl border bg-background shadow-xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98] duration-200 outline-none"
+          className="fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] z-50 sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-[calc(100%-3rem)] sm:max-w-[1700px] h-full sm:h-[calc(100vh-3rem)] rounded-none sm:rounded-xl border bg-background shadow-xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-2 duration-300 ease-out outline-none"
         >
           <DialogPrimitive.Title className="sr-only">Settings</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
@@ -73,13 +82,13 @@ export function SettingsDialog({
 
               {/* Center: tab pills — always show icon + label */}
               <div className="inline-flex items-center gap-1 rounded-2xl bg-card border border-border/50 p-1">
-                {visibleSections.map((section) => {
+                {sections.map((section) => {
                   const Icon = section.icon;
                   const isActive = activeSection === section.id;
                   return (
                     <button
                       key={section.id}
-                      onClick={() => onSectionChange(section.id)}
+                      onClick={() => handleSectionChange(section.id)}
                       className={cn(
                         "flex items-center justify-center gap-1.5 h-8 rounded-xl px-3 text-xs font-medium transition-colors duration-200",
                         isActive
@@ -106,8 +115,11 @@ export function SettingsDialog({
             </div>
 
             {/* Scrollable content — centered, fade at top edge */}
-            <div className="flex-1 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_16px)]">
-              <div className="mx-auto w-full max-w-xl lg:max-w-2xl px-4 sm:px-6 py-6 sm:py-8">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_16px)]">
+              <div
+                key={activeSection}
+                className="mx-auto w-full max-w-xl lg:max-w-2xl px-4 sm:px-6 py-6 sm:py-8 animate-in fade-in duration-200"
+              >
                 {activeSection === "profile" && <ProfileTab />}
                 {activeSection === "preferences" && <PreferencesTab />}
                 {activeSection === "workspace" && isAdmin && <WorkspaceTab />}

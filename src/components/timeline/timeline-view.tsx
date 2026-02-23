@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { TodayMarker } from './today-marker';
+import { TimelineNavIndicators } from './timeline-nav-indicators';
 import { CursorMarker } from './cursor-marker';
 import { TimelineGrid } from './timeline-grid';
 import { TimelineChart, type TimelineChartHandle } from './timeline-chart';
@@ -696,12 +697,15 @@ export function TimelineView({
         highlight.style.opacity = '0';
         return;
       }
-      const rowIndex = Math.floor((y - headerOffset) / ROW_HEIGHT);
-      if (rowIndex >= taskCountRef.current) {
+      // Account for chart vertical scroll
+      const scrollEl = chartRef.current?.scrollRef;
+      const scrollTop = scrollEl ? scrollEl.scrollTop : 0;
+      const rowIndex = Math.floor((y - headerOffset + scrollTop) / ROW_HEIGHT);
+      if (rowIndex < 0 || rowIndex >= taskCountRef.current) {
         highlight.style.opacity = '0';
         return;
       }
-      const rowTop = headerOffset + rowIndex * ROW_HEIGHT;
+      const rowTop = headerOffset + rowIndex * ROW_HEIGHT - scrollTop;
       highlight.style.top = `${rowTop}px`;
       highlight.style.opacity = '1';
     };
@@ -1076,6 +1080,14 @@ export function TimelineView({
             pixelsPerDay={pixelsPerDay}
             timelineStart={windowStart}
             scaleHeight={SCALE_HEIGHT}
+          />
+
+          <TimelineNavIndicators
+            tasks={tasks}
+            pixelsPerDay={pixelsPerDay}
+            timelineStart={windowStart}
+            scrollRef={chartScrollRef}
+            hideTeamTracks={isGridDragging}
           />
 
           {/* Zoom controls — hidden on touch devices that have pinch-to-zoom */}

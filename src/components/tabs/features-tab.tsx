@@ -482,7 +482,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
 
   if (isLoading) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6">
+      <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6 overflow-y-auto [scrollbar-gutter:stable]">
         <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl pt-6 md:pt-8">
           {/* Search bar */}
           <Skeleton className="h-9 w-full rounded-md mb-4" />

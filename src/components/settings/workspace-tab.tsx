@@ -114,6 +114,7 @@ export function WorkspaceTab() {
   const handleScheduleDeletion = async () => {
     try {
       await scheduleDeletion.mutateAsync(workspaceId);
+      toast.success("Workspace scheduled for deletion");
       setShowDeleteDialog(false);
       setConfirmName("");
       window.location.reload();
@@ -125,6 +126,7 @@ export function WorkspaceTab() {
   const handleCancelDeletion = async () => {
     try {
       await cancelDeletion.mutateAsync(workspaceId);
+      toast.success("Workspace deletion cancelled");
       window.location.reload();
     } catch {
       toast.error("Failed to cancel deletion");
@@ -146,9 +148,9 @@ export function WorkspaceTab() {
               disabled={!isAdmin}
               className="group relative shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed"
             >
-              <Avatar className="h-12 w-12 rounded-lg">
+              <Avatar key={icon ?? "fallback"} className="h-12 w-12 rounded-lg">
                 {icon && <AvatarImage src={icon} alt={name} className="rounded-lg" />}
-                <AvatarFallback className="rounded-lg text-sm bg-muted text-muted-foreground">
+                <AvatarFallback delayMs={0} className="rounded-lg text-sm bg-muted text-muted-foreground">
                   {fallbackChar}
                 </AvatarFallback>
               </Avatar>

@@ -16,7 +16,9 @@ import {
   SettingsDialog,
   type SettingsSection,
 } from "@/components/settings/settings-panel";
+import { useProjects } from "@/hooks/use-milestones";
 import { cn } from "@/lib/utils";
+import { WorkspaceDeletionBanner } from "@/components/workspace-deletion-banner";
 
 const VALID_TABS: TabId[] = ["dashboard", "features", "timeline", "calendar"];
 const VALID_SETTINGS_SECTIONS: SettingsSection[] = [
@@ -30,7 +32,6 @@ const VALID_SETTINGS_SECTIONS: SettingsSection[] = [
 function DashboardMain({
   activeTab,
   mountedTabs,
-  milestoneId,
   createIntent,
   createType,
   selectedMilestoneId,
@@ -38,7 +39,6 @@ function DashboardMain({
 }: {
   activeTab: TabId;
   mountedTabs: Set<TabId>;
-  milestoneId: string | null;
   createIntent: number;
   createType: CreateAction;
   selectedMilestoneId: string | null;
@@ -170,7 +170,37 @@ function DashboardContentInner() {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
 
   // Shared milestone selection — synced between Dashboard and Timeline tabs
-  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(milestoneId);
+  // Persisted via ?milestone= URL param so it survives page refreshes
+  const [selectedMilestoneId, setSelectedMilestoneIdRaw] = useState<string | null>(milestoneId);
+
+  const { data: projectsData } = useProjects();
+  const projects = projectsData?.projects ?? [];
+
+  // Validate selection: if selected milestone no longer exists (deleted), fall back
+  // Also auto-select first milestone when none is selected and projects are loaded
+  useEffect(() => {
+    if (projects.length === 0) return;
+    if (!selectedMilestoneId || !projects.some((p) => p.id === selectedMilestoneId)) {
+      const fallback = projects[0].id;
+      setSelectedMilestoneIdRaw(fallback);
+      // Sync URL so the fallback persists across refreshes
+      const url = new URL(window.location.href);
+      url.searchParams.set("milestone", fallback);
+      window.history.replaceState(null, "", url.toString());
+    }
+  }, [projects, selectedMilestoneId]);
+
+  // Persist milestone selection to URL
+  const handleMilestoneChange = useCallback((id: string | null) => {
+    setSelectedMilestoneIdRaw(id);
+    const url = new URL(window.location.href);
+    if (id) {
+      url.searchParams.set("milestone", id);
+    } else {
+      url.searchParams.delete("milestone");
+    }
+    window.history.replaceState(null, "", url.toString());
+  }, []);
 
   // Mount-once-keep-alive: only mount a tab when first visited, then keep it alive
   const [mountedTabs, setMountedTabs] = useState<Set<TabId>>(
@@ -279,6 +309,12 @@ function DashboardContentInner() {
     [handleTabChange]
   );
 
+  // Skip transition on initial mount so settings doesn't cause a shift on refresh
+  const [transitionReady, setTransitionReady] = useState(false);
+  useEffect(() => {
+    requestAnimationFrame(() => setTransitionReady(true));
+  }, []);
+
   // Global hotkey: C opens create popover (M/F handled inside AppHeader)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -297,7 +333,14 @@ function DashboardContentInner() {
 
   return (
     <DrilldownProvider>
-      <div className="flex flex-col h-svh">
+      <div
+        className={cn(
+          "flex flex-col h-svh origin-top",
+          transitionReady && "transition-[transform,filter] duration-300 ease-out",
+          settingsOpen && "scale-[0.97] blur-[2px]"
+        )}
+      >
+        <WorkspaceDeletionBanner />
         <AppHeader
           activeTab={activeTab}
           onTabChange={handleTabChange}
@@ -309,21 +352,20 @@ function DashboardContentInner() {
         <DashboardMain
           activeTab={activeTab}
           mountedTabs={mountedTabs}
-          milestoneId={milestoneId}
           createIntent={createIntent}
           createType={createType}
           selectedMilestoneId={selectedMilestoneId}
-          onMilestoneChange={setSelectedMilestoneId}
-        />
-
-        {/* Settings dialog */}
-        <SettingsDialog
-          open={settingsOpen}
-          onOpenChange={handleSettingsOpenChange}
-          activeSection={settingsSection}
-          onSectionChange={handleSettingsSectionChange}
+          onMilestoneChange={handleMilestoneChange}
         />
       </div>
+
+      {/* Settings dialog */}
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={handleSettingsOpenChange}
+        activeSection={settingsSection}
+        onSectionChange={handleSettingsSectionChange}
+      />
     </DrilldownProvider>
   );
 }

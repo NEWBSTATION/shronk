@@ -164,6 +164,22 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
       return () => el.removeEventListener('scroll', handleScroll);
     }, [handleScroll]);
 
+    // Measure scrollbar height and expose as CSS variable for the fade overlay
+    useEffect(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const wrapper = el.closest('.timeline-scroll-wrapper') as HTMLElement | null;
+      if (!wrapper) return;
+      const update = () => {
+        const scrollbarH = el.offsetHeight - el.clientHeight;
+        wrapper.style.setProperty('--scrollbar-height', `${scrollbarH}px`);
+      };
+      update();
+      const ro = new ResizeObserver(update);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }, []);
+
     // Lock scroll axis: suppress vertical scroll when gesture is primarily horizontal
     useEffect(() => {
       const el = scrollRef.current;

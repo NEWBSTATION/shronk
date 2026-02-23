@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   ChevronDown,
   Gem,
@@ -751,7 +751,7 @@ function UpcomingCard({
 
 function DashboardSkeleton() {
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6 pt-6 md:pt-8">
+    <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6 pt-6 md:pt-8 overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl space-y-3">
         {/* Project switcher */}
         <div className="rounded-xl border border-border/50 bg-card px-5 py-4 flex items-center gap-2.5">
@@ -837,12 +837,6 @@ export function DashboardTab({
 
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
-
-  useEffect(() => {
-    if (!selectedProjectId && projects.length > 0) {
-      setSelectedProjectId(projects[0].id);
-    }
-  }, [projects, selectedProjectId, setSelectedProjectId]);
 
   const { data: milestonesData, isLoading: isLoadingMilestones } = useMilestones({
     projectId: selectedProjectId || "",

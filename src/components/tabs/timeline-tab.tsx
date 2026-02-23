@@ -199,13 +199,6 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
     return () => document.removeEventListener("mousedown", handler);
   }, [panelVisible, closePanel]);
 
-  // Auto-select first milestone when projects load and nothing is selected
-  useEffect(() => {
-    if (!selectedMilestoneId && projects.length > 0) {
-      setSelectedMilestoneId(projects[0].id);
-    }
-  }, [projects, selectedMilestoneId, setSelectedMilestoneId]);
-
   const selectedMilestone = projects.find((p) => p.id === selectedMilestoneId);
 
   const { data: featuresData } = useMilestones({

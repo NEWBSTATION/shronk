@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import { Sun, Moon, Monitor, Check } from "lucide-react";
-import { usePreferencesStore } from "@/store/preferences-store";
+import { usePreferencesStore, type ToastPosition } from "@/store/preferences-store";
 import { useThemeStore } from "@/store/theme-store";
 import { themePresets } from "@/config/theme-presets";
 import { Label } from "@/components/ui/label";
@@ -91,7 +92,7 @@ function formatTimezone(tz: string) {
 const allListedZones = new Set(Object.values(TIMEZONE_GROUPS).flat());
 
 export function PreferencesTab() {
-  const { timezone, setTimezone } =
+  const { timezone, setTimezone, toastPosition, setToastPosition } =
     usePreferencesStore();
   const { currentPresetKey, mode, setPreset, setMode, getResolvedMode } =
     useThemeStore();
@@ -259,6 +260,40 @@ export function PreferencesTab() {
                     ))}
                   </SelectGroup>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Notifications Section */}
+      <div>
+        <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Notifications
+        </h3>
+        <div className="rounded-lg border">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 px-4 py-3">
+            <div>
+              <Label className="text-sm font-medium">Toast position</Label>
+              <p className="text-xs text-muted-foreground">
+                Where notifications appear on screen
+              </p>
+            </div>
+            <Select value={toastPosition} onValueChange={(v) => {
+              setToastPosition(v as ToastPosition);
+              toast.dismiss();
+              setTimeout(() => toast("Toasts will appear here", { duration: 2000 }), 100);
+            }}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="top-left">Top left</SelectItem>
+                <SelectItem value="top-center">Top center</SelectItem>
+                <SelectItem value="top-right">Top right</SelectItem>
+                <SelectItem value="bottom-left">Bottom left</SelectItem>
+                <SelectItem value="bottom-center">Bottom center</SelectItem>
+                <SelectItem value="bottom-right">Bottom right</SelectItem>
               </SelectContent>
             </Select>
           </div>
