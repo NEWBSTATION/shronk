@@ -81,6 +81,7 @@ export const invites = pgTable("invites", {
   token: varchar("token", { length: 255 }).notNull().unique(),
   status: inviteStatusEnum("status").default("pending").notNull(),
   invitedBy: varchar("invited_by", { length: 255 }).notNull(),
+  declinedAt: timestamp("declined_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at").notNull(),
 });

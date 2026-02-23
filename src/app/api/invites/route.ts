@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { invites, members } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { addDays } from "date-fns";
@@ -24,7 +24,7 @@ export async function GET() {
       .where(
         and(
           eq(invites.workspaceId, ctx.workspaceId),
-          eq(invites.status, "pending")
+          inArray(invites.status, ["pending", "declined"])
         )
       );
 

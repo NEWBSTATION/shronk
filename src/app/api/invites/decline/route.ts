@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     await db
       .update(invites)
-      .set({ status: "declined" })
+      .set({ status: "declined", declinedAt: new Date() })
       .where(eq(invites.id, invite.id));
 
     return NextResponse.json({ success: true });

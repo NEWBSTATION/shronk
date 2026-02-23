@@ -6,6 +6,7 @@ import {
   useMembers,
   useUpdateMemberRole,
   useRemoveMember,
+  useLeaveWorkspace,
   useInvites,
   useCreateInvite,
   useRevokeInvite,
@@ -34,7 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, X, Mail, Clock, ShieldCheck, Trash2, Check, Search, RotateCw, Link2, Copy, RefreshCw } from "lucide-react";
+import { Loader2, Plus, X, Mail, Clock, ShieldCheck, Trash2, Check, Search, RotateCw, Link2, Copy, RefreshCw, LogOut, Crown, XCircle } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { formatDistanceToNow } from "date-fns";
 import { getColorStyles } from "@/lib/milestone-theme";
@@ -44,11 +45,13 @@ const HEADER_STYLES = getColorStyles("slate");
 function MemberRow({
   member,
   isCurrentUser,
+  isOwner,
   onRoleChange,
   onRemove,
 }: {
   member: { id: string; userId: string; name: string; email: string; role: string; imageUrl: string | null };
   isCurrentUser: boolean;
+  isOwner: boolean;
   onRoleChange: (id: string, role: "admin" | "member") => void;
   onRemove: (id: string, name: string) => void;
 }) {
@@ -70,6 +73,12 @@ function MemberRow({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium truncate">
             {member.name}
+            {isOwner && (
+              <span className="ml-1.5 inline-flex items-center gap-0.5 text-[11px] text-amber-500 font-medium">
+                <Crown className="size-3" />
+                Owner
+              </span>
+            )}
             {isCurrentUser && (
               <span className="ml-1.5 text-muted-foreground font-normal">(you)</span>
             )}
@@ -78,7 +87,7 @@ function MemberRow({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {isCurrentUser ? (
+          {isCurrentUser || isOwner ? (
             <span className="text-xs text-muted-foreground capitalize px-1">
               {member.role}
             </span>
@@ -165,6 +174,69 @@ function InviteRow({
             disabled={isRevoking}
             className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
             title="Revoke invite"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeclinedInviteRow({
+  invite,
+  onRevoke,
+  onResend,
+  isRevoking,
+  isResending,
+}: {
+  invite: { id: string; email: string; role: string; declinedAt: Date | string | null };
+  onRevoke: (id: string) => void;
+  onResend: (id: string) => void;
+  isRevoking: boolean;
+  isResending: boolean;
+}) {
+  return (
+    <div className="flex items-center px-4 py-3.5 transition-colors group bg-background hover:bg-accent/50 border-b last:border-b-0">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+        <XCircle className="size-3.5 text-destructive" />
+      </div>
+
+      <div className="flex flex-1 ml-3 min-w-0 items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium truncate">{invite.email}</p>
+          <p className="flex items-center gap-1 text-xs text-destructive/70">
+            <Clock className="size-3" />
+            Declined{" "}
+            {invite.declinedAt
+              ? formatDistanceToNow(new Date(invite.declinedAt), {
+                  addSuffix: true,
+                })
+              : "recently"}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-xs text-muted-foreground capitalize px-1">
+            {invite.role}
+          </span>
+          <button
+            onClick={() => onResend(invite.id)}
+            disabled={isResending}
+            className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all disabled:opacity-50"
+            title="Resend invite"
+          >
+            {isResending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <RotateCw className="size-3.5" />
+            )}
+          </button>
+          <button
+            onClick={() => onRevoke(invite.id)}
+            disabled={isRevoking}
+            className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+            title="Remove invite"
           >
             <X className="size-3.5" />
           </button>
@@ -313,6 +385,7 @@ export function MembersTab() {
   const { data: invitesData } = useInvites();
   const updateRole = useUpdateMemberRole();
   const removeMember = useRemoveMember();
+  const leaveWorkspace = useLeaveWorkspace();
   const createInvite = useCreateInvite();
   const revokeInvite = useRevokeInvite();
   const resendInvite = useResendInvite();
@@ -324,13 +397,19 @@ export function MembersTab() {
     id: string;
     name: string;
   } | null>(null);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [transferToUserId, setTransferToUserId] = useState<string>("");
 
   // Search
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const members = membersData?.members || [];
-  const pendingInvites = invitesData?.invites || [];
+  const ownerId = membersData?.ownerId;
+  const isCurrentUserOwner = ownerId === user?.id;
+  const allInvites = invitesData?.invites || [];
+  const pendingInvites = allInvites.filter((inv) => inv.status === "pending");
+  const declinedInvites = allInvites.filter((inv) => inv.status === "declined");
 
   const filteredMembers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -342,7 +421,7 @@ export function MembersTab() {
     );
   }, [members, searchQuery]);
 
-  const filteredInvites = useMemo(() => {
+  const filteredPendingInvites = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return pendingInvites;
     return pendingInvites.filter((inv) =>
@@ -350,11 +429,32 @@ export function MembersTab() {
     );
   }, [pendingInvites, searchQuery]);
 
+  const filteredDeclinedInvites = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return declinedInvites;
+    return declinedInvites.filter((inv) =>
+      inv.email.toLowerCase().includes(q)
+    );
+  }, [declinedInvites, searchQuery]);
+
   const handleInvite = () => {
-    if (!inviteEmail.trim()) return;
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) return;
+
+    // Check if email is already a member
+    if (members.some((m) => m.email.toLowerCase() === email)) {
+      toast.error("This email is already a member of this workspace");
+      return;
+    }
+
+    // Check if email has a pending invite
+    if (pendingInvites.some((inv) => inv.email.toLowerCase() === email)) {
+      toast.error("A pending invite already exists for this email");
+      return;
+    }
 
     createInvite.mutate(
-      { email: inviteEmail.trim(), role: inviteRole },
+      { email, role: inviteRole },
       {
         onSuccess: () => {
           toast.success(`Invite sent to ${inviteEmail}`);
@@ -394,7 +494,7 @@ export function MembersTab() {
   };
 
   const handleRevoke = (id: string) => {
-    const invite = pendingInvites.find((inv) => inv.id === id);
+    const invite = allInvites.find((inv) => inv.id === id);
     revokeInvite.mutate(id, {
       onSuccess: () => toast.success("Invite revoked", { description: invite?.email }),
       onError: (error) => toast.error(error.message),
@@ -402,7 +502,7 @@ export function MembersTab() {
   };
 
   const handleResend = (id: string) => {
-    const invite = pendingInvites.find((inv) => inv.id === id);
+    const invite = allInvites.find((inv) => inv.id === id);
     resendInvite.mutate(id, {
       onSuccess: () => toast.success("Invite resent", { description: invite?.email }),
       onError: (error) => toast.error(error.message),
@@ -457,7 +557,7 @@ export function MembersTab() {
   return (
     <div className="space-y-4">
       {/* Search input */}
-      {(members.length > 0 || pendingInvites.length > 0) && (
+      {(members.length > 0 || allInvites.length > 0) && (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -482,7 +582,7 @@ export function MembersTab() {
         </div>
       )}
 
-      {searchQuery && filteredMembers.length === 0 && filteredInvites.length === 0 ? (
+      {searchQuery && filteredMembers.length === 0 && filteredPendingInvites.length === 0 && filteredDeclinedInvites.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Search className="h-10 w-10 text-muted-foreground/40" />
           <p className="mt-3 text-sm text-muted-foreground">
@@ -537,14 +637,32 @@ export function MembersTab() {
             key={member.id}
             member={member}
             isCurrentUser={member.userId === user?.id}
+            isOwner={member.userId === ownerId}
             onRoleChange={handleRoleChange}
             onRemove={(id, name) => setRemoveTarget({ id, name })}
           />
         ))}
 
         {/* Pending invites — inline in the same card */}
-        {filteredInvites.map((invite) => (
+        {filteredPendingInvites.map((invite) => (
           <InviteRow
+            key={invite.id}
+            invite={invite}
+            onRevoke={handleRevoke}
+            onResend={handleResend}
+            isRevoking={revokeInvite.isPending}
+            isResending={resendInvite.isPending}
+          />
+        ))}
+
+        {/* Declined invites */}
+        {filteredDeclinedInvites.length > 0 && (
+          <div className="px-4 py-2 border-b">
+            <span className="text-[11px] font-medium text-muted-foreground/60 uppercase tracking-wider">Declined</span>
+          </div>
+        )}
+        {filteredDeclinedInvites.map((invite) => (
+          <DeclinedInviteRow
             key={invite.id}
             invite={invite}
             onRevoke={handleRevoke}
@@ -617,8 +735,91 @@ export function MembersTab() {
           </button>
         )}
       </div>
+
+      {/* Leave workspace */}
+      <button
+        onClick={() => {
+          setTransferToUserId("");
+          setShowLeaveDialog(true);
+        }}
+        className="flex items-center gap-2 text-sm text-destructive/80 hover:text-destructive transition-colors px-1 py-1"
+      >
+        <LogOut className="size-3.5" />
+        Leave workspace
+      </button>
       </>
       )}
+
+      {/* Leave workspace confirmation */}
+      <AlertDialog
+        open={showLeaveDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowLeaveDialog(false);
+            setTransferToUserId("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave workspace</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isCurrentUserOwner
+                ? "You must transfer ownership before leaving. Select a member to become the new owner."
+                : "Are you sure you want to leave this workspace? You\u2019ll lose access immediately."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {isCurrentUserOwner && (
+            <div className="py-1">
+              <Select
+                value={transferToUserId}
+                onValueChange={setTransferToUserId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select new owner..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {members
+                    .filter((m) => m.userId !== user?.id)
+                    .map((m) => (
+                      <SelectItem key={m.userId} value={m.userId}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isCurrentUserOwner && !transferToUserId}
+              onClick={() => {
+                leaveWorkspace.mutate(
+                  isCurrentUserOwner ? transferToUserId : undefined,
+                  {
+                    onSuccess: () => {
+                      window.location.href = "/dashboard";
+                    },
+                    onError: (error) => {
+                      toast.error(error.message);
+                      setShowLeaveDialog(false);
+                    },
+                  }
+                );
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {leaveWorkspace.isPending && (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              )}
+              {isCurrentUserOwner ? "Transfer & leave" : "Leave"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Remove confirmation */}
       <AlertDialog

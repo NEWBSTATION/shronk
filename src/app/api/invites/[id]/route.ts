@@ -27,9 +27,9 @@ export async function POST(
       return NextResponse.json({ error: "Invite not found" }, { status: 404 });
     }
 
-    if (invite.status !== "pending") {
+    if (invite.status !== "pending" && invite.status !== "declined") {
       return NextResponse.json(
-        { error: "Can only resend pending invites" },
+        { error: "Can only resend pending or declined invites" },
         { status: 400 }
       );
     }
@@ -40,7 +40,7 @@ export async function POST(
 
     await db
       .update(invites)
-      .set({ token, expiresAt })
+      .set({ token, expiresAt, status: "pending", declinedAt: null })
       .where(eq(invites.id, id));
 
     // Send email
@@ -82,9 +82,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Invite not found" }, { status: 404 });
     }
 
-    if (invite.status !== "pending") {
+    if (invite.status !== "pending" && invite.status !== "declined") {
       return NextResponse.json(
-        { error: "Can only revoke pending invites" },
+        { error: "Can only revoke pending or declined invites" },
         { status: 400 }
       );
     }

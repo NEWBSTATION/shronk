@@ -11,6 +11,7 @@ interface MemberWithInfo extends Member {
 interface MembersResponse {
   members: MemberWithInfo[];
   currentUserRole: "admin" | "member" | null;
+  ownerId: string;
 }
 
 interface InvitesResponse {
@@ -72,6 +73,29 @@ export function useRemoveMember() {
   });
 }
 
+export function useLeaveWorkspace() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (transferTo?: string) => {
+      const res = await fetch("/api/members/leave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transferTo }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to leave workspace");
+      }
+      return res.json() as Promise<{ success: boolean; redirectTo: string }>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
+}
+
 export function useInvites() {
   return useQuery<InvitesResponse>({
     queryKey: ["invites"],
@@ -106,6 +130,8 @@ export function useCreateInvite() {
 }
 
 export function useResendInvite() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/invites/${id}`, { method: "POST" });
@@ -114,6 +140,9 @@ export function useResendInvite() {
         throw new Error(data.error || "Failed to resend invite");
       }
       return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invites"] });
     },
   });
 }
