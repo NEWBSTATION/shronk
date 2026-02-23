@@ -1,0 +1,1 @@
+ALTER TABLE "workspaces" ADD COLUMN "deletion_scheduled_at" timestamp;
