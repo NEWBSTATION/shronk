@@ -57,18 +57,19 @@ function TimelineSkeleton() {
       {/* Toolbar skeleton */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">
-          <Skeleton className="h-7 w-16 rounded-md" />
-          <Skeleton className="h-7 w-[100px] rounded-md" />
-          <div className="h-4 w-px bg-border" />
-          <Skeleton className="h-7 w-28 rounded-md" />
+          <Skeleton className="h-6 w-6 rounded-md" />
+          <Skeleton className="h-6 w-10 sm:w-16 rounded-md" />
+          <Skeleton className="h-6 w-12 sm:w-[100px] rounded-md" />
+          <div className="h-4 w-px bg-border hidden sm:block" />
+          <Skeleton className="h-6 w-6 rounded-md hidden sm:block" />
         </div>
-        <Skeleton className="h-5 w-20 rounded" />
+        <Skeleton className="h-5 w-16 sm:w-20 rounded" />
       </div>
 
       {/* Chart area */}
       <div className="flex-1 min-h-0 flex">
-        {/* Left column — feature names */}
-        <div className="w-[200px] shrink-0 border-r border-border">
+        {/* Left column — feature names (hidden on mobile, sidebar auto-collapses) */}
+        <div className="w-[200px] shrink-0 border-r border-border hidden md:block">
           {/* Scale header spacer */}
           <div style={{ height: SCALE_HEIGHT * 2 }} className="border-b border-border bg-muted/20" />
           {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
@@ -124,7 +125,8 @@ function TimelineSkeleton() {
 }
 
 interface TimelineTabProps {
-  initialMilestoneId?: string | null;
+  selectedMilestoneId: string | null;
+  onMilestoneChange: (id: string | null) => void;
   isActive?: boolean;
 }
 
@@ -137,13 +139,9 @@ type PanelContent =
   | { mode: "create"; chain?: boolean }
   | { mode: "milestone"; project: Project };
 
-export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTabProps) {
+export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelectedMilestoneId, isActive = true }: TimelineTabProps) {
   const { data: projectsData, isLoading: isLoadingProjects } = useProjects();
   const projects = projectsData?.projects ?? [];
-
-  const [selectedMilestoneId, setSelectedMilestoneId] = useState<
-    string | null
-  >(initialMilestoneId ?? null);
 
   const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
 
@@ -206,7 +204,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
     if (!selectedMilestoneId && projects.length > 0) {
       setSelectedMilestoneId(projects[0].id);
     }
-  }, [projects, selectedMilestoneId]);
+  }, [projects, selectedMilestoneId, setSelectedMilestoneId]);
 
   const selectedMilestone = projects.find((p) => p.id === selectedMilestoneId);
 
@@ -509,7 +507,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
   if (isLoadingProjects) {
     return (
       <div className="flex flex-col flex-1 min-h-0">
-        <div className="min-h-0 flex-1 p-6">
+        <div className="min-h-0 flex-1 p-2 sm:p-4 md:p-6">
           <div className="h-full flex flex-col">
             <TimelineSkeleton />
           </div>
@@ -545,7 +543,7 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
     <div className="flex flex-col flex-1 min-h-0 relative">
       {/* Timeline chart */}
       {selectedMilestone && (
-        <div className="min-h-0 flex-1 p-6">
+        <div className="min-h-0 flex-1 p-2 sm:p-4 md:p-6">
           <div className="h-full flex flex-col">
             <DynamicTimelineView
               key={selectedMilestone.id}
@@ -588,13 +586,17 @@ export function TimelineTab({ initialMilestoneId, isActive = true }: TimelineTab
         <div
           ref={panelRef}
           className={cn(
-            "feature-island-panel absolute top-10 bottom-10 right-10 z-50 w-[calc(100%-2.5rem)] md:w-[480px] min-w-[320px] max-w-[calc(100%-5rem)] overflow-hidden bg-background rounded-2xl border border-border shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15),0_0_0_1px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)] transition-all duration-300 ease-out",
+            "feature-island-panel absolute z-50 overflow-hidden bg-background rounded-2xl border border-border shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15),0_0_0_1px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)] transition-all duration-300 ease-out",
+            // Mobile: bottom-anchored full-width panel
+            "inset-x-2 bottom-2 top-auto max-h-[60vh]",
+            // Desktop: right-side floating island
+            "md:inset-x-auto md:top-10 md:bottom-10 md:right-10 md:w-[480px] md:min-w-[320px] md:max-w-[calc(100%-5rem)] md:max-h-none",
             panelVisible
               ? "translate-x-0 opacity-100"
               : "translate-x-8 opacity-0 pointer-events-none"
           )}
         >
-          <div className="h-full overflow-y-auto overflow-x-hidden">
+          <div className="h-full overflow-y-auto [scrollbar-gutter:stable] overflow-x-hidden">
             {panelContent.mode === "milestone" ? (
               <MilestoneInfoPanel
                 milestone={panelContent.project}

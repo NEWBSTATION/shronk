@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import { startOfDay, addDays, addMonths, subMonths, differenceInDays } from 'date-fns';
-import { Plus, Minus, GitBranch, Users, Search, X } from 'lucide-react';
+import { Plus, Minus, GitBranch, Users, Search, X, Calendar1, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -39,6 +39,7 @@ import { ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { getPixelsPerDay, dateToPixel, getTotalWidth } from './date-math';
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from './constants';
 import { useTimelineStore } from '@/store/timeline-store';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { reflowProject, type ReflowMilestone, type ReflowDependency } from '@/lib/reflow';
 import { topoSortFeatures } from '@/lib/topo-sort';
 import { useBarDrag } from './use-bar-drag';
@@ -206,6 +207,23 @@ export function TimelineView({
 
   const setGridColumnWidth = useTimelineStore((s) => s.setGridColumnWidth);
   const storeGridColumnWidth = useTimelineStore((s) => s.gridColumnWidth);
+  const isMobile = useIsMobile();
+  const sidebarCollapsed = useTimelineStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useTimelineStore((s) => s.toggleSidebar);
+  const sidebarOpen = !sidebarCollapsed;
+  // Auto-collapse when entering mobile, auto-expand when leaving
+  const prevIsMobileRef = useRef(isMobile);
+  useEffect(() => {
+    if (isMobile !== prevIsMobileRef.current) {
+      prevIsMobileRef.current = isMobile;
+      if (isMobile && !sidebarCollapsed) toggleSidebar();
+      if (!isMobile && sidebarCollapsed) toggleSidebar();
+    }
+  }, [isMobile, sidebarCollapsed, toggleSidebar]);
+  const MOBILE_SIDEBAR_WIDTH = 200;
+  const effectiveGridWidth = sidebarOpen
+    ? (isMobile ? MOBILE_SIDEBAR_WIDTH : storeGridColumnWidth)
+    : 0;
   const storeGridColumnWidthRef = useRef(storeGridColumnWidth);
   storeGridColumnWidthRef.current = storeGridColumnWidth;
 
@@ -640,8 +658,9 @@ export function TimelineView({
       document.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerup', onPointerUp);
     };
+  // Re-attach when handle remounts (sidebar toggle / breakpoint change)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setGridColumnWidth]);
+  }, [setGridColumnWidth, sidebarOpen, isMobile]);
 
   // --- Grid row click ---
   const handleGridRowClick = useCallback((task: TimelineTask) => {
@@ -844,15 +863,33 @@ export function TimelineView({
   return (
     <div className="flex flex-col flex-1 min-h-0 border border-border rounded-lg overflow-hidden isolate">
       {/* Toolbar */}
-      <div className="flex items-center px-3 py-2 border-b border-border">
+      <div className="flex flex-wrap items-center gap-y-1 px-3 py-2 border-b border-border">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-xs" style={{ height: '28px' }} onClick={scrollToToday}>
-            Today
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={sidebarOpen ? 'secondary' : 'outline'}
+                size="icon"
+                className="size-6"
+                onClick={toggleSidebar}
+              >
+                {sidebarOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}</TooltipContent>
+          </Tooltip>
+
+          <Button variant="outline" size="icon" className="size-6 sm:w-auto sm:px-2 text-xs" onClick={scrollToToday}>
+            <Calendar1 className="h-3.5 w-3.5 sm:hidden" />
+            <span className="hidden sm:inline">Today</span>
           </Button>
 
           <Select value={timePeriod} onValueChange={(v) => setTimePeriod(v as TimePeriod)}>
-            <SelectTrigger className="w-[100px] text-xs" style={{ height: '28px' }}>
-              <SelectValue />
+            <SelectTrigger size="sm" className="!h-6 w-auto text-xs">
+              <SelectValue>
+                <span className="sm:hidden">{{ week: 'Wk', month: 'Mo', quarter: 'Qr', year: 'Yr' }[timePeriod]}</span>
+                <span className="hidden sm:inline">{{ week: 'Week', month: 'Month', quarter: 'Quarter', year: 'Year' }[timePeriod]}</span>
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="week">Week</SelectItem>
@@ -869,7 +906,7 @@ export function TimelineView({
               <Button
                 variant={showDependencies ? 'secondary' : 'outline'}
                 size="icon"
-                className="h-7 w-7"
+                className="size-6"
                 onClick={() => setShowDependencies(!showDependencies)}
               >
                 <GitBranch className="h-3.5 w-3.5" />
@@ -886,10 +923,10 @@ export function TimelineView({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 px-2.5 text-xs gap-1.5"
+                    className="h-6 px-2.5 text-xs gap-1.5"
                   >
                     <Users className="h-3.5 w-3.5" />
-                    Tracks
+                    <span className="hidden sm:inline">Tracks</span>
                     {(visibleTeamIds ?? []).length > 0 && (
                       <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
                         {(visibleTeamIds ?? []).length}
@@ -954,7 +991,7 @@ export function TimelineView({
             placeholder="Search..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-7 w-40 pl-8 pr-7 text-xs rounded-md"
+            className="h-6 w-28 sm:w-40 pl-8 pr-7 text-xs rounded-md"
           />
           {searchQuery && (
             <button
@@ -975,7 +1012,7 @@ export function TimelineView({
         <TimelineGrid
           tasks={tasks}
           features={sortedFeatures}
-          width={storeGridColumnWidth}
+          width={effectiveGridWidth}
           scrollRef={gridScrollRef}
           onRowClick={handleGridRowClick}
           onStatusChange={onStatusChangeRef}
@@ -990,13 +1027,15 @@ export function TimelineView({
           searchMatchIds={searchMatchIds}
         />
 
-        <div
-          ref={resizeHandleRef}
-          className="shrink-0 cursor-col-resize flex items-stretch justify-center group"
-          style={{ width: '9px', marginLeft: '-4px', marginRight: '-4px' }}
-        >
-          <div className="w-px bg-border group-hover:bg-primary/60 group-active:bg-primary/80 transition-colors" />
-        </div>
+        {sidebarOpen && !isMobile && (
+          <div
+            ref={resizeHandleRef}
+            className="shrink-0 cursor-col-resize flex items-stretch justify-center group"
+            style={{ width: '9px', marginLeft: '-4px', marginRight: '-4px' }}
+          >
+            <div className="w-px bg-border group-hover:bg-primary/60 group-active:bg-primary/80 transition-colors" />
+          </div>
+        )}
 
         <div
           ref={ganttContainerRef}
@@ -1039,12 +1078,12 @@ export function TimelineView({
             scaleHeight={SCALE_HEIGHT}
           />
 
-          {/* Zoom controls */}
+          {/* Zoom controls — hidden on touch devices that have pinch-to-zoom */}
           <div
-            className="absolute flex flex-col rounded-md border border-border bg-background/95 backdrop-blur-sm shadow-sm overflow-hidden z-10"
+            className="absolute hidden sm:flex flex-col rounded-md border border-border bg-background/95 backdrop-blur-sm shadow-sm overflow-hidden z-10"
             style={{
               top: `${SCALE_HEIGHT * 2 + 8}px`,
-              right: '12px',
+              right: '24px',
             }}
           >
             <button

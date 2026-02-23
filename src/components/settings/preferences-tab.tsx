@@ -132,14 +132,14 @@ export function PreferencesTab() {
         </h3>
         <div className="rounded-lg border">
           {/* Mode selector */}
-          <div className="flex items-center justify-between gap-4 px-4 py-3 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 px-4 py-3 border-b">
             <div>
               <Label className="text-sm font-medium">Mode</Label>
               <p className="text-xs text-muted-foreground">
                 Choose light, dark, or match your system
               </p>
             </div>
-            <div className="inline-flex items-center gap-1 rounded-lg bg-muted p-1">
+            <div className="flex sm:inline-flex items-center gap-1 rounded-lg bg-muted p-1">
               {modeOptions.map((option) => {
                 const Icon = option.icon;
                 const isActive = mode === option.value;
@@ -148,7 +148,7 @@ export function PreferencesTab() {
                     key={option.value}
                     onClick={() => setMode(option.value)}
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
+                      "flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
                       isActive
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
@@ -227,7 +227,7 @@ export function PreferencesTab() {
           Regional
         </h3>
         <div className="rounded-lg border">
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 px-4 py-3">
             <div>
               <Label htmlFor="timezone" className="text-sm font-medium">
                 Timezone
@@ -237,7 +237,7 @@ export function PreferencesTab() {
               </p>
             </div>
             <Select value={timezone} onValueChange={setTimezone}>
-              <SelectTrigger id="timezone" className="w-48">
+              <SelectTrigger id="timezone" className="w-full sm:w-48">
                 <SelectValue placeholder="Select timezone" />
               </SelectTrigger>
               <SelectContent>

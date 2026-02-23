@@ -25,14 +25,14 @@ export function SettingsTab({ subTab = "profile" }: { subTab?: string }) {
 
   if (!isLoaded) {
     return (
-      <div className="flex-1 overflow-y-auto px-6 py-8">
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 md:py-8">
         <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl">
           <div className="flex flex-col gap-6">
             {/* Tab pills */}
             <div className="flex items-center gap-1">
-              <Skeleton className="h-8 w-20 rounded-md" />
-              <Skeleton className="h-8 w-24 rounded-md" />
-              <Skeleton className="h-8 w-24 rounded-md" />
+              <Skeleton className="h-8 w-16 sm:w-20 rounded-md" />
+              <Skeleton className="h-8 w-20 sm:w-24 rounded-md" />
+              <Skeleton className="h-8 w-20 sm:w-24 rounded-md" />
             </div>
             {/* Profile section */}
             <div className="flex flex-col gap-4">
@@ -40,8 +40,8 @@ export function SettingsTab({ subTab = "profile" }: { subTab?: string }) {
               <div className="flex items-center gap-4">
                 <Skeleton className="h-16 w-16 rounded-full" />
                 <div className="flex flex-col gap-2">
-                  <Skeleton className="h-4 w-40" />
-                  <Skeleton className="h-3 w-56" />
+                  <Skeleton className="h-4 w-32 sm:w-40" />
+                  <Skeleton className="h-3 w-40 sm:w-56" />
                 </div>
               </div>
               <Skeleton className="h-10 w-full rounded-md" />

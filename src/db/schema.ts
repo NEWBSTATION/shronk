@@ -44,6 +44,7 @@ export const workspaces = pgTable("workspaces", {
   name: varchar("name", { length: 255 }).notNull(),
   icon: text("icon"),
   ownerId: varchar("owner_id", { length: 255 }).notNull(),
+  deletionScheduledAt: timestamp("deletion_scheduled_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

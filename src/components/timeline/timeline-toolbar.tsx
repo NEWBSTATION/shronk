@@ -20,11 +20,11 @@ import { cn } from '@/lib/utils';
 import type { TimelineToolbarProps, TimePeriod, SortByField } from './types';
 import type { MilestoneStatus, MilestonePriority } from '@/db/schema';
 
-const timePeriodOptions: { value: TimePeriod; label: string }[] = [
-  { value: 'week', label: 'Week' },
-  { value: 'month', label: 'Month' },
-  { value: 'quarter', label: 'Quarter' },
-  { value: 'year', label: 'Year' },
+const timePeriodOptions: { value: TimePeriod; label: string; shortLabel: string }[] = [
+  { value: 'week', label: 'Week', shortLabel: 'Wk' },
+  { value: 'month', label: 'Month', shortLabel: 'Mo' },
+  { value: 'quarter', label: 'Quarter', shortLabel: 'Qr' },
+  { value: 'year', label: 'Year', shortLabel: 'Yr' },
 ];
 
 const STATUS_CONFIG: Record<MilestoneStatus, { icon: typeof Circle; label: string; color: string }> = {
@@ -156,8 +156,8 @@ export function TimelineToolbar({
         {/* Sidebar collapse toggle */}
         <Button
           variant="outline"
-          size="icon"
-          className="h-7 w-7"
+          size={null}
+          className="h-7 w-7 inline-flex items-center justify-center rounded-md"
           onClick={onToggleSidebar}
           title={sidebarCollapsed ? 'Show milestones panel' : 'Hide milestones panel'}
         >
@@ -171,18 +171,22 @@ export function TimelineToolbar({
         {/* Today button */}
         <Button
           variant="outline"
-          size="sm"
-          className="h-7 px-2.5 text-xs"
+          size={null}
+          className="h-7 w-7 sm:w-auto sm:px-2.5 inline-flex items-center justify-center rounded-md text-xs"
           onClick={onScrollToToday}
+          title="Scroll to today"
         >
-          Today
+          <Calendar className="h-3.5 w-3.5 sm:hidden shrink-0" />
+          <span className="hidden sm:inline">Today</span>
         </Button>
 
         {/* Time period selector */}
         <Select value={timePeriod} onValueChange={(v) => onTimePeriodChange(v as TimePeriod)}>
           <SelectTrigger className="h-7 w-auto gap-1 text-xs">
             <Calendar className="h-3 w-3" />
-            <SelectValue />
+            <SelectValue>
+              {(() => { const opt = timePeriodOptions.find(o => o.value === timePeriod); return opt ? (<><span className="sm:hidden">{opt.shortLabel}</span><span className="hidden sm:inline">{opt.label}</span></>) : null; })()}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {timePeriodOptions.map((option) => (
@@ -193,15 +197,15 @@ export function TimelineToolbar({
           </SelectContent>
         </Select>
 
-        {/* Separator */}
-        <div className="h-4 w-px bg-border mx-1.5" />
+        {/* Separator — hidden on mobile with zoom controls */}
+        <div className="h-4 w-px bg-border mx-1.5 hidden sm:block" />
 
-        {/* Zoom controls */}
-        <div className="flex items-center gap-0.5">
+        {/* Zoom controls — hidden on touch devices that have pinch-to-zoom */}
+        <div className="hidden sm:flex items-center gap-0.5">
           <Button
             variant="outline"
-            size="icon"
-            className="h-7 w-7"
+            size={null}
+            className="h-7 w-7 inline-flex items-center justify-center rounded-md"
             onClick={onZoomOut}
             disabled={zoomLevel <= 1}
             title="Zoom out (Ctrl + scroll)"
@@ -213,8 +217,8 @@ export function TimelineToolbar({
           </div>
           <Button
             variant="outline"
-            size="icon"
-            className="h-7 w-7"
+            size={null}
+            className="h-7 w-7 inline-flex items-center justify-center rounded-md"
             onClick={onZoomIn}
             disabled={zoomLevel >= 9}
             title="Zoom in (Ctrl + scroll)"
@@ -229,15 +233,15 @@ export function TimelineToolbar({
         {/* Dependencies toggle */}
         <Button
           variant={showDependencies ? 'secondary' : 'ghost'}
-          size="sm"
+          size={null}
           className={cn(
-            'h-7 px-2.5 text-xs gap-1',
+            'h-7 w-7 sm:w-auto sm:px-2.5 inline-flex items-center justify-center rounded-md text-xs gap-1',
             showDependencies && 'bg-primary/10 text-primary hover:bg-primary/20'
           )}
           onClick={onToggleDependencies}
         >
-          <GitBranch className="h-3 w-3" />
-          Dependencies
+          <GitBranch className="h-3 w-3 shrink-0" />
+          <span className="hidden sm:inline">Dependencies</span>
         </Button>
       </div>
 

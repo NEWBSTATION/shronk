@@ -5,9 +5,8 @@ import { useCreateWorkspace } from "@/hooks/use-workspaces";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 
 export default function WorkspaceCreatePage() {
   const [name, setName] = useState("");
@@ -78,15 +77,6 @@ export default function WorkspaceCreatePage() {
         )}
       </form>
 
-      {/* Back link */}
-      <div className="text-center">
-        <Link
-          href="/workspace-select"
-          className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors"
-        >
-          <ArrowLeft className="h-3 w-3" /> Back to workspaces
-        </Link>
-      </div>
     </div>
   );
 }

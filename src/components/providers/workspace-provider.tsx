@@ -7,6 +7,7 @@ interface WorkspaceContextValue {
   workspaceName: string;
   workspaceIcon: string | null;
   isOwner: boolean;
+  deletionScheduledAt: string | null;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -17,9 +18,10 @@ export function WorkspaceProvider({
   workspaceName,
   workspaceIcon,
   isOwner,
+  deletionScheduledAt,
 }: WorkspaceContextValue & { children: ReactNode }) {
   return (
-    <WorkspaceContext.Provider value={{ workspaceId, workspaceName, workspaceIcon, isOwner }}>
+    <WorkspaceContext.Provider value={{ workspaceId, workspaceName, workspaceIcon, isOwner, deletionScheduledAt }}>
       {children}
     </WorkspaceContext.Provider>
   );

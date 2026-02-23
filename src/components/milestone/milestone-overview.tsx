@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Project } from "@/db/schema";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                      */
@@ -201,7 +202,16 @@ export function MilestoneOverview({
   onCreateMilestone,
 }: MilestoneOverviewProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const isMobile = useIsMobile();
   const columns = useMemo(() => buildColumns(onSelectMilestone), [onSelectMilestone]);
+
+  const columnVisibility = useMemo(
+    () => ({
+      startDate: !isMobile,
+      isCompleted: !isMobile,
+    }),
+    [isMobile]
+  );
 
   // Flatten milestones + stats into table row data — must be memoized so
   // useReactTable doesn't see a new reference on every render (which triggers
@@ -246,7 +256,7 @@ export function MilestoneOverview({
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
-    state: { sorting },
+    state: { sorting, columnVisibility },
   });
 
   if (milestones.length === 0) {

@@ -3,7 +3,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
 import { db } from "@/db";
 import { workspaces, members, invites } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
 import { WORKSPACE_COOKIE } from "@/lib/workspace";
 
@@ -32,6 +32,26 @@ export async function GET() {
       with: { workspace: true },
     });
 
+    // Get member counts for all user's workspaces in one query
+    const workspaceIds = userMembers.map((m) => m.workspace.id);
+    const memberCounts =
+      workspaceIds.length > 0
+        ? await db
+            .select({
+              workspaceId: members.workspaceId,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(members)
+            .where(
+              sql`${members.workspaceId} in ${workspaceIds}`
+            )
+            .groupBy(members.workspaceId)
+        : [];
+
+    const countMap = new Map(
+      memberCounts.map((r) => [r.workspaceId, r.count])
+    );
+
     const userWorkspaces = userMembers.map((m) => ({
       id: m.workspace.id,
       name: m.workspace.name,
@@ -39,6 +59,8 @@ export async function GET() {
       ownerId: m.workspace.ownerId,
       role: m.role,
       isOwner: m.workspace.ownerId === userId,
+      memberCount: countMap.get(m.workspace.id) ?? 1,
+      deletionScheduledAt: m.workspace.deletionScheduledAt?.toISOString() ?? null,
     }));
 
     // Get pending invites for the user's email

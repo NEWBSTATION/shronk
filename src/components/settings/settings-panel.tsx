@@ -1,7 +1,7 @@
 "use client";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { CircleUser, SlidersHorizontal, Users, ShieldCheck, Earth, X, Cog } from "lucide-react";
+import { CircleUser, SlidersHorizontal, Users, ShieldCheck, ShieldAlert, Orbit, X, Cog } from "lucide-react";
 import { useMembers } from "@/hooks/use-members";
 import { ProfileTab } from "@/components/settings/profile-tab";
 import { PreferencesTab } from "@/components/settings/preferences-tab";
@@ -21,9 +21,9 @@ const sections: {
 }[] = [
   { id: "profile", label: "Profile", icon: CircleUser },
   { id: "preferences", label: "Preferences", icon: SlidersHorizontal },
-  { id: "teams", label: "Teams", icon: Users },
+  { id: "teams", label: "Teams", icon: Users, adminOnly: true },
   { id: "members", label: "Members", icon: ShieldCheck, adminOnly: true },
-  { id: "workspace", label: "Workspace", icon: Earth, adminOnly: true },
+  { id: "workspace", label: "Workspace", icon: Orbit, adminOnly: true },
 ];
 
 interface SettingsDialogProps {
@@ -49,7 +49,7 @@ export function SettingsDialog({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
-          className="fixed top-[50%] left-[50%] z-50 translate-x-[-50%] translate-y-[-50%] w-[calc(100%-3rem)] max-w-[1700px] h-[calc(100vh-3rem)] rounded-xl border bg-background shadow-xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98] duration-200 outline-none"
+          className="fixed inset-0 sm:inset-auto sm:top-[50%] sm:left-[50%] z-50 sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-[calc(100%-3rem)] sm:max-w-[1700px] h-full sm:h-[calc(100vh-3rem)] rounded-none sm:rounded-xl border bg-background shadow-xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98] duration-200 outline-none"
         >
           <DialogPrimitive.Title className="sr-only">Settings</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
@@ -58,7 +58,7 @@ export function SettingsDialog({
 
           <div className="flex flex-col h-full">
             {/* Header bar — title left, tab pills center, close right */}
-            <div className="flex shrink-0 items-center px-5 py-4">
+            <div className="flex shrink-0 items-center px-3 sm:px-5 py-3 sm:py-4">
               {/* Left: title */}
               <div className="flex-1 flex items-center">
                 <div
@@ -67,7 +67,7 @@ export function SettingsDialog({
                   className="flex items-center gap-1.5 cursor-default"
                 >
                   <Cog className="h-4 w-4" />
-                  <span className="text-base" style={{ fontFamily: "Silkscreen, cursive" }}>Settings</span>
+                  <span className="hidden sm:inline text-base" style={{ fontFamily: "Silkscreen, cursive" }}>Settings</span>
                 </div>
               </div>
 
@@ -88,7 +88,7 @@ export function SettingsDialog({
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
-                      <span>{section.label}</span>
+                      <span className="hidden sm:inline">{section.label}</span>
                     </button>
                   );
                 })}
@@ -107,12 +107,21 @@ export function SettingsDialog({
 
             {/* Scrollable content — centered, fade at top edge */}
             <div className="flex-1 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_16px)]">
-              <div className="mx-auto w-full max-w-xl lg:max-w-2xl px-6 py-8">
+              <div className="mx-auto w-full max-w-xl lg:max-w-2xl px-4 sm:px-6 py-6 sm:py-8">
                 {activeSection === "profile" && <ProfileTab />}
                 {activeSection === "preferences" && <PreferencesTab />}
                 {activeSection === "workspace" && isAdmin && <WorkspaceTab />}
-                {activeSection === "teams" && <TeamsTab />}
+                {activeSection === "teams" && isAdmin && <TeamsTab />}
                 {activeSection === "members" && isAdmin && <MembersTab />}
+                {!isAdmin && sections.find((s) => s.id === activeSection)?.adminOnly && (
+                  <div className="flex flex-col items-center justify-center py-24 text-center">
+                    <ShieldAlert className="h-10 w-10 text-muted-foreground/50 mb-4" />
+                    <h3 className="text-base font-medium">Access restricted</h3>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                      You need admin permissions to view this section. Contact a workspace admin for access.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

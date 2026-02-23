@@ -509,9 +509,9 @@ function MetricCards({
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       {cards.map((c) => (
-        <div key={c.label} className="rounded-xl border border-border/50 bg-card px-4 py-4">
+        <div key={c.label} className="rounded-xl border border-border/50 bg-card px-4 py-3 sm:py-4">
           <div className="flex items-center gap-2 mb-2">
             <c.icon className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{c.label}</span>
@@ -751,8 +751,8 @@ function UpcomingCard({
 
 function DashboardSkeleton() {
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-6 pt-8">
-      <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl space-y-6">
+    <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6 pt-6 md:pt-8">
+      <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl space-y-3">
         {/* Project switcher */}
         <div className="rounded-xl border border-border/50 bg-card px-5 py-4 flex items-center gap-2.5">
           <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
@@ -763,13 +763,13 @@ function DashboardSkeleton() {
         <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
           <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border/50">
             <div className="flex items-center justify-center p-5">
-              <Skeleton className="h-[120px] w-[120px] rounded-full" />
+              <Skeleton className="h-[100px] w-[100px] sm:h-[120px] sm:w-[120px] rounded-full" />
             </div>
-            <div className="flex flex-col justify-center px-6 py-5 gap-2">
+            <div className="flex flex-col justify-center px-4 sm:px-6 py-5 gap-2">
               <Skeleton className="h-6 w-28" />
-              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-40 sm:w-48" />
             </div>
-            <div className="flex flex-row md:flex-col gap-4 md:gap-3 px-6 py-5 min-w-[160px]">
+            <div className="flex flex-row md:flex-col gap-4 md:gap-3 px-4 sm:px-6 py-5 md:min-w-[160px]">
               <div className="space-y-1">
                 <Skeleton className="h-6 w-12" />
                 <Skeleton className="h-3 w-16" />
@@ -787,9 +787,9 @@ function DashboardSkeleton() {
         </div>
 
         {/* Metric cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="rounded-xl border border-border/50 bg-card px-4 py-4 space-y-2">
+            <div key={i} className="rounded-xl border border-border/50 bg-card px-4 py-3 sm:py-4 space-y-2">
               <div className="flex items-center gap-2">
                 <Skeleton className="h-3.5 w-3.5 rounded" />
                 <Skeleton className="h-3 w-20" />
@@ -801,13 +801,13 @@ function DashboardSkeleton() {
         </div>
 
         {/* Risk + Upcoming */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+        <div className="grid md:grid-cols-2 gap-3">
+          <div className="rounded-xl border border-border/50 bg-card p-4 sm:p-5 space-y-4">
             <Skeleton className="h-4 w-24" />
             <Skeleton className="h-10 w-16" />
             <Skeleton className="h-4 w-32" />
           </div>
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div className="rounded-xl border border-border/50 bg-card p-4 sm:p-5 space-y-3">
             <Skeleton className="h-4 w-20" />
             {[0, 1, 2].map((i) => (
               <div key={i} className="flex items-center gap-2">
@@ -825,11 +825,16 @@ function DashboardSkeleton() {
 
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
 
-export function DashboardTab() {
+export function DashboardTab({
+  selectedMilestoneId: selectedProjectId,
+  onMilestoneChange: setSelectedProjectId,
+}: {
+  selectedMilestoneId: string | null;
+  onMilestoneChange: (id: string | null) => void;
+}) {
   const { data: projectsData, isLoading: isLoadingProjects } = useProjects();
   const projects = projectsData?.projects ?? [];
 
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
 
@@ -837,7 +842,7 @@ export function DashboardTab() {
     if (!selectedProjectId && projects.length > 0) {
       setSelectedProjectId(projects[0].id);
     }
-  }, [projects, selectedProjectId]);
+  }, [projects, selectedProjectId, setSelectedProjectId]);
 
   const { data: milestonesData, isLoading: isLoadingMilestones } = useMilestones({
     projectId: selectedProjectId || "",
@@ -918,8 +923,8 @@ export function DashboardTab() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-6 pt-8 overflow-y-auto">
-      <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl space-y-6">
+    <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6 pt-6 md:pt-8 overflow-y-auto [scrollbar-gutter:stable]">
+      <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl space-y-3">
         {/* Milestone Switcher */}
         {(() => {
           const activeProject = projects.find((p) => p.id === selectedProjectId);
@@ -984,18 +989,18 @@ export function DashboardTab() {
         })()}
 
         {isLoadingMilestones ? (
-          <div className="space-y-6">
+          <div className="space-y-3">
             {/* Health banner skeleton */}
             <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border/50">
                 <div className="flex items-center justify-center p-5">
-                  <Skeleton className="h-[120px] w-[120px] rounded-full" />
+                  <Skeleton className="h-[100px] w-[100px] sm:h-[120px] sm:w-[120px] rounded-full" />
                 </div>
-                <div className="flex flex-col justify-center px-6 py-5 gap-2">
+                <div className="flex flex-col justify-center px-4 sm:px-6 py-5 gap-2">
                   <Skeleton className="h-6 w-28" />
-                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-4 w-40 sm:w-48" />
                 </div>
-                <div className="flex flex-row md:flex-col gap-4 md:gap-3 px-6 py-5 min-w-[160px]">
+                <div className="flex flex-row md:flex-col gap-4 md:gap-3 px-4 sm:px-6 py-5 md:min-w-[160px]">
                   <div className="space-y-1"><Skeleton className="h-6 w-12" /><Skeleton className="h-3 w-16" /></div>
                   <div className="space-y-1"><Skeleton className="h-6 w-8" /><Skeleton className="h-3 w-16" /></div>
                   <div className="space-y-1"><Skeleton className="h-6 w-8" /><Skeleton className="h-3 w-14" /></div>
@@ -1003,9 +1008,9 @@ export function DashboardTab() {
               </div>
             </div>
             {/* Metric cards skeleton */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[0, 1, 2].map((i) => (
-                <div key={i} className="rounded-xl border border-border/50 bg-card px-4 py-4 space-y-2">
+                <div key={i} className="rounded-xl border border-border/50 bg-card px-4 py-3 sm:py-4 space-y-2">
                   <div className="flex items-center gap-2">
                     <Skeleton className="h-3.5 w-3.5 rounded" />
                     <Skeleton className="h-3 w-20" />
@@ -1068,7 +1073,7 @@ export function DashboardTab() {
             )}
 
             {/* 5. Risk & Upcoming */}
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-2 gap-3">
               <RiskSummaryCard riskSummary={riskSummary} />
               <UpcomingCard upcoming={upcoming} onFeatureClick={handleFeatureClick} />
             </div>

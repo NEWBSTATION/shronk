@@ -24,6 +24,7 @@ const VALID_SETTINGS_SECTIONS: SettingsSection[] = [
   "preferences",
   "teams",
   "members",
+  "workspace",
 ];
 
 function DashboardMain({
@@ -32,12 +33,16 @@ function DashboardMain({
   milestoneId,
   createIntent,
   createType,
+  selectedMilestoneId,
+  onMilestoneChange,
 }: {
   activeTab: TabId;
   mountedTabs: Set<TabId>;
   milestoneId: string | null;
   createIntent: number;
   createType: CreateAction;
+  selectedMilestoneId: string | null;
+  onMilestoneChange: (id: string | null) => void;
 }) {
   const { panels, popAll } = useDrilldown();
   const depth = panels.length;
@@ -76,15 +81,15 @@ function DashboardMain({
           "absolute inset-0 transition-all duration-300 ease-out",
           // No panels open — normal position
           depth === 0 && "translate-x-0 opacity-100",
-          // 1 panel open — slide left, blur, dim
+          // 1 panel open — hide on mobile, slide left on desktop
           depth === 1 &&
-            "-translate-x-full md:-translate-x-[900px] blur-[2px] opacity-50",
-          // 2 panels open — further left, more dim
+            "max-md:opacity-0 max-md:pointer-events-none -translate-x-full md:-translate-x-[900px] blur-[2px] md:opacity-50",
+          // 2 panels open — hide on mobile, further left on desktop
           depth === 2 &&
-            "-translate-x-[200%] md:-translate-x-[1800px] blur-[2px] opacity-30",
-          // 3+ panels — furthest back
+            "max-md:opacity-0 max-md:pointer-events-none -translate-x-[200%] md:-translate-x-[1800px] blur-[2px] md:opacity-30",
+          // 3+ panels — hide on mobile, furthest back on desktop
           depth >= 3 &&
-            "-translate-x-[300%] md:-translate-x-[2700px] blur-[2px] opacity-20"
+            "max-md:opacity-0 max-md:pointer-events-none -translate-x-[300%] md:-translate-x-[2700px] blur-[2px] md:opacity-20"
         )}
       >
         {/* Keep-alive tab panels — uses visibility:hidden to preserve DOM + scroll state */}
@@ -94,7 +99,12 @@ function DashboardMain({
             activeTab !== "dashboard" && "invisible opacity-0 pointer-events-none"
           )}
         >
-          {mountedTabs.has("dashboard") && <DashboardTab />}
+          {mountedTabs.has("dashboard") && (
+            <DashboardTab
+              selectedMilestoneId={selectedMilestoneId}
+              onMilestoneChange={onMilestoneChange}
+            />
+          )}
         </div>
         <div
           className={cn(
@@ -116,7 +126,11 @@ function DashboardMain({
           )}
         >
           {mountedTabs.has("timeline") && (
-            <TimelineTab initialMilestoneId={milestoneId} isActive={activeTab === "timeline"} />
+            <TimelineTab
+              selectedMilestoneId={selectedMilestoneId}
+              onMilestoneChange={onMilestoneChange}
+              isActive={activeTab === "timeline"}
+            />
           )}
         </div>
         <div
@@ -154,6 +168,9 @@ function DashboardContentInner() {
 
   // Local state for instant tab switching (bypasses Next.js router overhead)
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+
+  // Shared milestone selection — synced between Dashboard and Timeline tabs
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(milestoneId);
 
   // Mount-once-keep-alive: only mount a tab when first visited, then keep it alive
   const [mountedTabs, setMountedTabs] = useState<Set<TabId>>(
@@ -295,6 +312,8 @@ function DashboardContentInner() {
           milestoneId={milestoneId}
           createIntent={createIntent}
           createType={createType}
+          selectedMilestoneId={selectedMilestoneId}
+          onMilestoneChange={setSelectedMilestoneId}
         />
 
         {/* Settings dialog */}

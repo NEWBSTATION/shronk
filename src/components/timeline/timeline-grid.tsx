@@ -224,7 +224,7 @@ export function TimelineGrid({
   return (
     <div
       style={{ width, minWidth: width, maxWidth: width }}
-      className="flex flex-col border-r border-border bg-background select-none"
+      className="flex flex-col border-r border-border bg-background select-none overflow-hidden transition-[width,min-width,max-width] duration-300 ease-out"
     >
       {/* Header — milestone selector */}
       <div

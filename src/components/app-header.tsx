@@ -123,8 +123,24 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
     indicator.style.width = width;
   }, [activeTab, currentPresetKey, themeMode]);
 
+  // Re-measure pill on resize (e.g. labels appearing/hiding at sm breakpoint)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver(() => {
+      const indicator = indicatorRef.current;
+      const btn = buttonRefs.current[activeTab];
+      if (!indicator || !btn) return;
+      indicator.style.transition = "none";
+      indicator.style.left = `${btn.offsetLeft}px`;
+      indicator.style.width = `${btn.offsetWidth}px`;
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [activeTab]);
+
   return (
-    <header className="flex shrink-0 items-center bg-background px-6 py-6 relative z-10 after:pointer-events-none after:absolute after:left-0 after:right-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-background after:to-transparent">
+    <header className="flex shrink-0 items-center gap-2 bg-background px-3 md:px-6 py-3 md:py-5 relative z-10 after:pointer-events-none after:absolute after:left-0 after:right-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-background after:to-transparent">
       {/* Left: Logo */}
       <div className="flex-1 flex items-center">
         <div
@@ -134,7 +150,7 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
           onClick={() => onTabChange("dashboard")}
         >
           <Image src="/orc-head.svg" alt="Shronk" width={20} height={20} className="dark:invert-0 invert" />
-          <span className="text-base" style={{ fontFamily: "Silkscreen, cursive" }}>Shronk</span>
+          <span className="hidden sm:inline text-base" style={{ fontFamily: "Silkscreen, cursive" }}>Shronk</span>
         </div>
       </div>
 
@@ -163,7 +179,7 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
-                    {tab.label}
+                    <span className="hidden sm:inline">{tab.label}</span>
                   </button>
                 );
               })}

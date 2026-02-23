@@ -69,7 +69,7 @@ export function DrilldownStack() {
           <div
             key={panel.id + "-" + index}
             className={cn(
-              "absolute inset-0 flex justify-center transition-all duration-300 ease-out overflow-y-auto",
+              "absolute inset-0 flex justify-center transition-all duration-300 ease-out overflow-y-auto [scrollbar-gutter:stable]",
               // Active (top of stack) — fully visible
               isActive && "translate-x-0 opacity-100",
               // Behind (1 level back) — slid left, blurred, dimmed
@@ -87,7 +87,7 @@ export function DrilldownStack() {
           >
             <div
               ref={(el) => setCardRef(index, el)}
-              className="w-[600px] pb-8"
+              className="w-full md:w-[600px] px-4 md:px-0 pb-8"
             >
               {panel.content}
             </div>

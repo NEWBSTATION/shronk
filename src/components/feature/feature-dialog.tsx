@@ -377,9 +377,9 @@ export function FeatureDialog({
           />
         )}
 
-        <DialogFooter className="mt-4">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           {chainTo && (
-            <label className="flex items-center gap-2 cursor-pointer select-none mr-auto">
+            <label className="flex items-center gap-2 cursor-pointer select-none sm:mr-auto">
               <Switch
                 size="sm"
                 checked={chainActive}
@@ -388,22 +388,24 @@ export function FeatureDialog({
               <span className="text-xs text-muted-foreground">Auto-Chain</span>
             </label>
           )}
-          <Button
-            variant="outline"
-            onClick={() => {
-              onOpenChange(false);
-              resetForm();
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!title.trim() || !milestoneId || isLoading}
-          >
-            {isLoading ? "Creating..." : "Create Feature"}
-          </Button>
-        </DialogFooter>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:ml-auto">
+            <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                resetForm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!title.trim() || !milestoneId || isLoading}
+            >
+              {isLoading ? "Creating..." : "Create Feature"}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

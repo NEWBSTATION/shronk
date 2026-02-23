@@ -28,7 +28,6 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(git remote set-url:*)",
-      "WebFetch(domain:docs.svar.dev)",
       "Bash(grep:*)",
       "Bash(tr:*)",
       "Bash(ssh-keygen:*)",
@@ -41,7 +40,6 @@
       "Bash(git -C /Users/newbstation/Documents/Dev/Shronk diff -- src/components/app-sidebar.tsx src/components/nav-main.tsx)",
       "Bash(git -C /Users/newbstation/Documents/Dev/Shronk add:*)",
       "Bash(git -C /Users/newbstation/Documents/Dev/Shronk commit -m \"$\\(cat <<''EOF''\nRemove Help and Settings from sidebar, hide Navigation group header\n\nSettings is accessible from the user avatar menu, so these sidebar\nentries are redundant. The Navigation label is visually hidden with\nsr-only for accessibility.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git -C /Users/newbstation/Documents/Dev/Shronk push origin SVAR-1.0)",
       "Bash(osascript:*)",
       "Bash(open:*)",
       "Bash(source:*)",
@@ -89,7 +87,15 @@
       "Bash(pg_dump:*)",
       "Bash(Milestone\" when none exist, \"Create Feature\" when milestones exist but\nhave no features.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(railway logs:*)",
-      "Bash(node_modules/.bin/tailwindcss:*)"
+      "Bash(node_modules/.bin/tailwindcss:*)",
+      "WebFetch(domain:dribbble.com)",
+      "WebFetch(domain:linear.app)",
+      "WebFetch(domain:lucide.dev)",
+      "WebFetch(domain:next.jqueryscript.net)",
+      "WebFetch(domain:www.shadcn.io)",
+      "WebFetch(domain:everhour.com)",
+      "WebFetch(domain:www.storylane.io)",
+      "Bash(gh api:*)"
     ]
   }
 }

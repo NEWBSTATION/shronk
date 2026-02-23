@@ -5,27 +5,21 @@ import { useUser, useClerk } from "@clerk/nextjs";
 import type { SettingsSection } from "@/components/settings/settings-panel";
 import {
   LogOut,
-  Settings,
+  Cog,
   Check,
-  Dices,
-  Moon,
-  Sun,
-  Monitor,
   ShieldCheck,
+  SlidersHorizontal,
   Plus,
   CheckCircle,
   XCircle,
   Mail,
 } from "lucide-react";
-import { useThemeStore } from "@/store/theme-store";
 import { useMembers } from "@/hooks/use-members";
 import { useWorkspace } from "@/components/providers/workspace-provider";
 import { useWorkspaces, useSwitchWorkspace, useAcceptWorkspaceInvite, useDeclineWorkspaceInvite } from "@/hooks/use-workspaces";
 import { useRouter } from "next/navigation";
-import { themePresets } from "@/config/theme-presets";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,26 +27,8 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { ThemeMode } from "@/types/theme";
-
-const modeOptions: { value: ThemeMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
-];
-
-function getSortedThemeEntries() {
-  const entries = Object.entries(themePresets);
-  const defaultEntry = entries.find(([key]) => key === "default");
-  const otherEntries = entries.filter(([key]) => key !== "default");
-  otherEntries.sort((a, b) => a[1].label.localeCompare(b[1].label));
-  return defaultEntry ? [defaultEntry, ...otherEntries] : otherEntries;
-}
 
 function stripWorkspaceSuffix(name: string) {
   return name.replace(/\s+workspace$/i, "").trim();
@@ -65,10 +41,9 @@ interface HeaderUserMenuProps {
 export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
-  const { currentPresetKey, mode, setPreset, setMode, getResolvedMode, randomPreset } = useThemeStore();
   const { data: membersData } = useMembers();
   const isAdmin = membersData?.currentUserRole === "admin";
-  const { workspaceId, workspaceName } = useWorkspace();
+  const { workspaceId } = useWorkspace();
   const { data: workspacesData } = useWorkspaces();
   const switchWorkspace = useSwitchWorkspace();
   const acceptInvite = useAcceptWorkspaceInvite();
@@ -77,8 +52,6 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   const workspaces = workspacesData?.workspaces ?? [];
   const pendingInvites = workspacesData?.pendingInvites ?? [];
   const pendingCount = pendingInvites.length;
-  const resolvedMode = getResolvedMode();
-  const sortedThemes = getSortedThemeEntries();
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
@@ -100,8 +73,6 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
     customDisplayName || user.fullName || user.firstName || "User";
   const email = user.primaryEmailAddress?.emailAddress || "";
 
-  const ModeIcon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -120,9 +91,8 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64 rounded-lg p-0 overflow-hidden" align="end" sideOffset={8}>
-        {/* Upper section — popover bg */}
+        {/* Upper section */}
         <div className="p-1">
-          {/* User profile header */}
           <DropdownMenuLabel className="p-0 font-normal">
             <div className="flex items-center gap-3 px-2 py-2 text-left text-sm">
               <Avatar className="h-9 w-9 rounded-full">
@@ -142,11 +112,14 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
 
           <DropdownMenuSeparator />
 
-          {/* Settings + Members */}
           <DropdownMenuGroup>
             <DropdownMenuItem onClick={() => onOpenSettings?.("profile")}>
-              <Settings />
+              <Cog />
               Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onOpenSettings?.("preferences")}>
+              <SlidersHorizontal />
+              Preferences
             </DropdownMenuItem>
             {isAdmin && (
               <DropdownMenuItem onClick={() => onOpenSettings?.("members")}>
@@ -154,72 +127,6 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
                 Manage members
               </DropdownMenuItem>
             )}
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <ModeIcon />
-                Theme
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-64 max-h-80 overflow-y-auto">
-                {/* Mode toggle */}
-                <div className="p-1.5 border-b">
-                  <div className="flex gap-1">
-                    {modeOptions.map((option) => {
-                      const Icon = option.icon;
-                      const isActive = mode === option.value;
-                      return (
-                        <Button
-                          key={option.value}
-                          variant={isActive ? "secondary" : "ghost"}
-                          size="sm"
-                          className={cn(
-                            "flex-1 gap-1.5 h-7",
-                            isActive && "bg-accent text-accent-foreground"
-                          )}
-                          onClick={() => setMode(option.value)}
-                        >
-                          <Icon className="h-3.5 w-3.5" />
-                          <span className="text-xs">{option.label}</span>
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Randomize + Theme presets */}
-                <DropdownMenuItem
-                  onClick={() => randomPreset()}
-                  className="flex items-center justify-between cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <Dices className="h-3.5 w-3.5 shrink-0" />
-                    <span className="text-sm">Randomize</span>
-                  </div>
-                  <kbd className="text-[10px] rounded bg-muted px-1.5 py-0.5 font-medium text-muted-foreground/60">
-                    ⌘\
-                  </kbd>
-                </DropdownMenuItem>
-                {sortedThemes.map(([key, preset]) => (
-                  <DropdownMenuItem
-                    key={key}
-                    onClick={() => setPreset(key)}
-                    className="flex items-center justify-between cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="h-3.5 w-3.5 rounded-full border shrink-0"
-                        style={{
-                          backgroundColor: preset.styles[resolvedMode].primary,
-                        }}
-                      />
-                      <span className="text-sm">{preset.label}</span>
-                    </div>
-                    {currentPresetKey === key && (
-                      <Check className="h-3.5 w-3.5 shrink-0" />
-                    )}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
             <DropdownMenuItem
               onClick={() => signOut({ redirectUrl: "/" })}
             >
@@ -229,7 +136,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
           </DropdownMenuGroup>
         </div>
 
-        {/* Lower section — tinted workspace area */}
+        {/* Lower section — workspace area */}
         <div className="bg-muted/40 border-t p-1">
           <div className="px-2 pt-1.5 pb-1">
             <span className="text-xs font-medium text-muted-foreground">

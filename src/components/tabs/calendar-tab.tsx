@@ -76,11 +76,11 @@ function CalendarSkeleton() {
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-2">
-          <Skeleton className="h-7 w-16 rounded-md" />
-          <Skeleton className="h-7 w-[100px] rounded-md" />
-          <div className="h-4 w-px bg-border" />
-          <Skeleton className="h-7 w-16 rounded-md" />
-          <Skeleton className="h-5 w-32 rounded" />
+          <Skeleton className="h-7 w-7 rounded-md" />
+          <Skeleton className="h-7 w-7 rounded-md" />
+          <Skeleton className="h-5 w-24 sm:w-32 rounded" />
+          <div className="h-4 w-px bg-border hidden sm:block" />
+          <Skeleton className="h-7 w-16 rounded-md hidden sm:block" />
         </div>
       </div>
       <div className="flex-1 min-h-0">
@@ -439,7 +439,7 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
               : "translate-x-8 opacity-0 pointer-events-none"
           )}
         >
-          <div className="h-full overflow-y-auto overflow-x-hidden">
+          <div className="h-full overflow-y-auto [scrollbar-gutter:stable] overflow-x-hidden">
             {panelContent}
           </div>
         </div>

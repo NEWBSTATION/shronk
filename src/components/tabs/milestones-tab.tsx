@@ -43,7 +43,7 @@ export function MilestonesTab({ createIntent = 0 }: { createIntent?: number }) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 px-6 py-8 overflow-y-auto">
+      <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6 py-6 md:py-8 overflow-y-auto [scrollbar-gutter:stable]">
         <div className="mx-auto w-full max-w-5xl">
           <div className="flex items-center justify-between mb-4">
             <Skeleton className="h-5 w-24" />
@@ -52,23 +52,23 @@ export function MilestonesTab({ createIntent = 0 }: { createIntent?: number }) {
           {/* Table header */}
           <div className="flex items-center gap-4 py-3 border-b">
             <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-4 w-20 ml-auto" />
+            <Skeleton className="h-4 w-20 ml-auto hidden md:block" />
             <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-4 w-14" />
+            <Skeleton className="h-4 w-14 hidden md:block" />
           </div>
           {/* Table rows */}
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex items-center gap-4 py-3.5 border-b border-border/50">
-              <div className="flex items-center gap-2 flex-1">
-                <Skeleton className="h-2 w-2 rounded-full" />
-                <Skeleton className="h-4 w-40" />
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Skeleton className="h-2 w-2 rounded-full shrink-0" />
+                <Skeleton className="h-4 w-32 sm:w-40" />
               </div>
-              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-4 w-28 hidden md:block" />
               <div className="flex items-center gap-2">
                 <Skeleton className="h-1.5 w-16 rounded-full" />
                 <Skeleton className="h-3 w-8" />
               </div>
-              <Skeleton className="h-4 w-14" />
+              <Skeleton className="h-4 w-14 hidden md:block" />
             </div>
           ))}
         </div>
@@ -77,7 +77,7 @@ export function MilestonesTab({ createIntent = 0 }: { createIntent?: number }) {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-6 pt-8 pb-32 overflow-y-auto">
+    <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6 pt-6 md:pt-8 pb-32 overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto w-full max-w-5xl">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-base font-medium">Milestones</h1>

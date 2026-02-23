@@ -9,6 +9,8 @@ interface WorkspaceInfo {
   ownerId: string;
   role: "admin" | "member";
   isOwner: boolean;
+  memberCount: number;
+  deletionScheduledAt: string | null;
 }
 
 interface PendingInvite {
@@ -143,6 +145,46 @@ export function useDeclineWorkspaceInvite() {
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || "Failed to decline invite");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    },
+  });
+}
+
+export function useScheduleWorkspaceDeletion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (workspaceId: string) => {
+      const res = await fetch(`/api/workspaces/${workspaceId}/deletion`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to schedule deletion");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    },
+  });
+}
+
+export function useCancelWorkspaceDeletion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (workspaceId: string) => {
+      const res = await fetch(`/api/workspaces/${workspaceId}/deletion`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to cancel deletion");
       }
       return res.json();
     },

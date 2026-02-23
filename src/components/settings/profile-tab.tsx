@@ -120,7 +120,7 @@ export function ProfileTab() {
           </div>
 
           {/* First Name */}
-          <div className="flex items-center justify-between gap-4 px-4 py-3 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 px-4 py-3 border-b">
             <label htmlFor="firstName" className="text-sm font-medium flex items-center gap-2 shrink-0">
               First Name
               {hasExternalAccount && (
@@ -132,12 +132,12 @@ export function ProfileTab() {
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               disabled={hasExternalAccount}
-              className={`max-w-60 ${hasExternalAccount ? "bg-muted cursor-not-allowed" : ""}`}
+              className={`w-full sm:max-w-60 ${hasExternalAccount ? "bg-muted cursor-not-allowed" : ""}`}
             />
           </div>
 
           {/* Last Name */}
-          <div className="flex items-center justify-between gap-4 px-4 py-3 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 px-4 py-3 border-b">
             <label htmlFor="lastName" className="text-sm font-medium flex items-center gap-2 shrink-0">
               Last Name
               {hasExternalAccount && (
@@ -149,12 +149,12 @@ export function ProfileTab() {
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               disabled={hasExternalAccount}
-              className={`max-w-60 ${hasExternalAccount ? "bg-muted cursor-not-allowed" : ""}`}
+              className={`w-full sm:max-w-60 ${hasExternalAccount ? "bg-muted cursor-not-allowed" : ""}`}
             />
           </div>
 
           {/* Display Name */}
-          <div className="flex items-center justify-between gap-4 px-4 py-3 border-b">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 px-4 py-3 border-b">
             <div className="shrink-0">
               <label htmlFor="displayName" className="text-sm font-medium">
                 Display Name
@@ -168,12 +168,12 @@ export function ProfileTab() {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Optional"
-              className="max-w-60"
+              className="w-full sm:max-w-60"
             />
           </div>
 
           {/* Email */}
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 px-4 py-3">
             <div className="shrink-0">
               <label htmlFor="email" className="text-sm font-medium flex items-center gap-2">
                 Email
@@ -188,7 +188,7 @@ export function ProfileTab() {
               type="email"
               value={user.primaryEmailAddress?.emailAddress || ""}
               disabled
-              className="max-w-60 bg-muted cursor-not-allowed"
+              className="w-full sm:max-w-60 bg-muted cursor-not-allowed"
             />
           </div>
         </div>
