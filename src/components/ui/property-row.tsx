@@ -68,7 +68,7 @@ export function PropertyRow(props: PropertyRowProps) {
       </div>
 
       {/* Label */}
-      <span className="w-32 shrink-0 text-muted-foreground text-sm">
+      <span className="w-24 sm:w-32 shrink-0 text-muted-foreground text-sm">
         {label}
       </span>
 

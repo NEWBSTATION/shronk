@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Ellipsis,
   CircleDot,
+  Signal,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -519,7 +520,7 @@ export function FeatureDetailPanel({
         )}
 
         {/* Priority */}
-        <PropertyRow icon={priorityConfig[priority].icon} label="Priority" type="custom">
+        <PropertyRow icon={Signal} label="Priority" type="custom">
           <Select
             value={priority}
             onValueChange={(v) => handlePriorityChange(v as MilestonePriority)}

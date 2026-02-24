@@ -248,7 +248,7 @@ export function FeatureDialog({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Feature name..."
-            className="w-full text-3xl font-bold leading-normal bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
+            className="w-full text-2xl sm:text-3xl font-bold leading-normal bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
             autoFocus
             autoComplete="off"
             onKeyDown={(e) => {

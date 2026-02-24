@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { format, getYear } from "date-fns";
 import { formatDuration } from "@/lib/format-duration";
 import { Check, CheckSquare, ChevronDown, MoreHorizontal, Pencil, Plus, Square, Trash2 } from "lucide-react";
@@ -69,9 +69,6 @@ export function SectionHeader({
   const [localColor, setLocalColor] = useState(color);
   const [localIcon, setLocalIcon] = useState(icon);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(name);
-  const nameInputRef = useRef<HTMLInputElement>(null);
   const initialRef = useRef({ color, icon });
 
   useEffect(() => {
@@ -79,27 +76,6 @@ export function SectionHeader({
     setLocalIcon(icon);
     initialRef.current = { color, icon };
   }, [color, icon]);
-
-  useEffect(() => {
-    setDraft(name);
-  }, [name]);
-
-  useEffect(() => {
-    if (editing) {
-      nameInputRef.current?.focus();
-      nameInputRef.current?.select();
-    }
-  }, [editing]);
-
-  const commitRename = useCallback(() => {
-    setEditing(false);
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== name) {
-      onRename?.(trimmed);
-    } else {
-      setDraft(name);
-    }
-  }, [draft, name, onRename]);
 
   const handlePickerOpenChange = (open: boolean) => {
     setPickerOpen(open);
@@ -173,32 +149,10 @@ export function SectionHeader({
               </button>
             </ColorIconPicker>
 
-            {/* Name — inline editable */}
-            {editing ? (
-              <input
-                ref={nameInputRef}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={commitRename}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitRename();
-                  if (e.key === "Escape") { setDraft(name); setEditing(false); }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="text-[13px] font-semibold tracking-tight bg-transparent outline-none ring-1 ring-ring rounded px-1 -mx-1 py-1 min-w-0"
-              />
-            ) : (
-              <span
-                className="text-[13px] font-semibold tracking-tight truncate rounded px-1 -mx-1 hover:bg-foreground/[0.06] cursor-text transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDraft(name);
-                  setEditing(true);
-                }}
-              >
-                {name}
-              </span>
-            )}
+            {/* Name */}
+            <span className="text-[13px] font-semibold tracking-tight truncate">
+              {name}
+            </span>
 
             {/* Actions — left side, after name */}
             <div className="flex items-center gap-1">

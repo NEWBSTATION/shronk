@@ -126,7 +126,7 @@ export function MilestoneDialog({ open, onOpenChange, onCreated, onOpenMilestone
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Milestone name..."
-            className="w-full text-3xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
+            className="w-full text-2xl sm:text-3xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
             autoFocus
             autoComplete="off"
             onKeyDown={(e) => {

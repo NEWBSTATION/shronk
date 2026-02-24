@@ -29,7 +29,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Signal } from "lucide-react";
 import { statusConfig, priorityConfig } from "./status-badge";
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
 import type { Milestone, MilestoneStatus, MilestonePriority } from "@/db/schema";
@@ -137,7 +137,7 @@ export function ItemDialog({
             </div>
 
             {/* Date Range */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Start Date</Label>
                 <Popover>
@@ -150,7 +150,7 @@ export function ItemDialog({
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {startDate ? format(startDate, "PPP") : "Pick a date"}
+                      {startDate ? format(startDate, "MMM d, yyyy") : "Pick a date"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -185,7 +185,7 @@ export function ItemDialog({
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {endDate ? format(endDate, "PPP") : "Pick a date"}
+                      {endDate ? format(endDate, "MMM d, yyyy") : "Pick a date"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -204,7 +204,7 @@ export function ItemDialog({
             </div>
 
             {/* Status & Priority */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Status</Label>
                 <Select value={status} onValueChange={(v) => setStatus(v as MilestoneStatus)}>
@@ -228,7 +228,7 @@ export function ItemDialog({
               </div>
 
               <div className="grid gap-2">
-                <Label>Priority</Label>
+                <Label className="flex items-center gap-1.5"><Signal className="h-3.5 w-3.5 text-muted-foreground" />Priority</Label>
                 <Select
                   value={priority}
                   onValueChange={(v) => setPriority(v as MilestonePriority)}

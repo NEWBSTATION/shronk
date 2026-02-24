@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { format, getYear } from "date-fns";
 import { ChevronRight } from "lucide-react";
 import { formatDuration, formatDurationIn } from "@/lib/format-duration";
@@ -115,15 +115,10 @@ export function FeatureRow({
   const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.not_started;
   const [statusOpen, setStatusOpen] = useState(false);
   const [priorityOpen, setPriorityOpen] = useState(false);
-  const [titleEditing, setTitleEditing] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(title);
-  const titleInputRef = useRef<HTMLInputElement>(null);
   const [durationOpen, setDurationOpen] = useState(false);
   const bestFit = useMemo(() => bestFitDurationUnit(duration), [duration]);
   const [localDurValue, setLocalDurValue] = useState(bestFit.value);
   const [localDurUnit, setLocalDurUnit] = useState<DurationUnit>(bestFit.unit);
-
-  useEffect(() => { setTitleDraft(title); }, [title]);
 
   useEffect(() => {
     if (durationOpen) {
@@ -142,22 +137,6 @@ export function FeatureRow({
     }
     setDurationOpen(open);
   }, [localDurValue, localDurUnit, duration, onDurationChange]);
-  useEffect(() => {
-    if (titleEditing) {
-      titleInputRef.current?.focus();
-      titleInputRef.current?.select();
-    }
-  }, [titleEditing]);
-
-  const commitTitle = useCallback(() => {
-    setTitleEditing(false);
-    const trimmed = titleDraft.trim();
-    if (trimmed && trimmed !== title) {
-      onRename?.(trimmed);
-    } else {
-      setTitleDraft(title);
-    }
-  }, [titleDraft, title, onRename]);
 
   const dateRangeLabel = useMemo(() => {
     if (!startDateProp || !endDateProp) return null;
@@ -255,38 +234,16 @@ export function FeatureRow({
       >
         {/* Col 1: Title + inline team dots */}
         <div className="min-w-0 flex items-center gap-2">
-          {titleEditing ? (
-            <input
-              ref={titleInputRef}
-              value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              onBlur={commitTitle}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitTitle();
-                if (e.key === "Escape") { setTitleDraft(title); setTitleEditing(false); }
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              className="text-sm font-medium bg-transparent outline-none ring-1 ring-ring rounded-md px-2 -mx-2 py-1 min-w-0"
-            />
-          ) : (
-            <span
-              className={cn(
-                "text-sm font-medium truncate rounded-md px-2 -mx-2 py-1 hover:bg-foreground/[0.06] cursor-text transition-colors",
-                completed
-                  ? "text-muted-foreground/60 line-through"
-                  : "text-foreground"
-              )}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                setTitleDraft(title);
-                setTitleEditing(true);
-              }}
-            >
-              {title}
-            </span>
-          )}
+          <span
+            className={cn(
+              "text-sm font-medium truncate",
+              completed
+                ? "text-muted-foreground/60 line-through"
+                : "text-foreground"
+            )}
+          >
+            {title}
+          </span>
 
           {/* Team dots — inline, condensed */}
           {hasTeams && (
@@ -494,7 +451,7 @@ export function SortableFeatureRow(
     <FeatureRow
       {...props}
       nodeRef={setNodeRef}
-      style={{ ...style, touchAction: props.selectMode ? undefined : "none" }}
+      style={style}
       isDragging={isDragging}
       dragHandleProps={
         props.selectMode ? undefined : { ...attributes, ...listeners }

@@ -261,12 +261,12 @@ export function TimelineNavIndicators({
             ? chartLeft + EDGE_INSET
             : chartLeft + chartWidth - BUTTON_SIZE - EDGE_INSET;
 
-        // Hide if row is outside the visible chart area, or still within reveal delay
+        // Hide if row is outside the visible chart area, overlaps the header, or still within reveal delay
         const rowVisibleTop = ind.rowTop;
         const rowVisibleBottom = ind.rowTop + ROW_HEIGHT;
         const revealAt = Number(el.dataset.revealAt || 0);
         const ready = Date.now() >= revealAt;
-        if (rowVisibleBottom < 0 || rowVisibleTop > chartHeight || !ready) {
+        if (rowVisibleBottom < 0 || rowVisibleTop > chartHeight || buttonTop < chartTop || !ready) {
           el.style.opacity = '0';
           el.style.pointerEvents = 'none';
         } else {
