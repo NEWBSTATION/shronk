@@ -6,6 +6,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   type ReactNode,
 } from "react";
@@ -89,8 +90,8 @@ export function DrilldownProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("keydown", handler);
   }, [pop]);
 
-  // Derived: active panels (non-exiting) for logic
-  const activePanels = panels.filter((p) => !p.exiting);
+  // Derived: active panels (non-exiting) for logic — memoized for referential stability
+  const activePanels = useMemo(() => panels.filter((p) => !p.exiting), [panels]);
   const isOpen = activePanels.length > 0;
 
   return (

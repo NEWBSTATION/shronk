@@ -69,21 +69,23 @@ export function DrilldownRestorer() {
 
   // Sync active panel to URL.
   // Gated by syncReady so we don't clear ?detail= before push lands.
+  const topPanelId = panels[panels.length - 1]?.id ?? null;
   useEffect(() => {
     if (!syncReady.current) return;
 
     const id = requestAnimationFrame(() => {
       const url = new URL(window.location.href);
-      const topPanel = panels[panels.length - 1];
-      if (topPanel) {
-        url.searchParams.set("detail", topPanel.id);
+      const current = url.searchParams.get("detail") ?? null;
+      if (current === topPanelId) return; // already in sync
+      if (topPanelId) {
+        url.searchParams.set("detail", topPanelId);
       } else {
         url.searchParams.delete("detail");
       }
       window.history.replaceState(null, "", url.toString());
     });
     return () => cancelAnimationFrame(id);
-  }, [panels]);
+  }, [topPanelId]);
 
   return null;
 }
