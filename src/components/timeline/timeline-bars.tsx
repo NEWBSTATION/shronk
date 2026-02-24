@@ -165,7 +165,8 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
     function highlightLinks(taskId: string | null) {
       const svg = layer?.parentElement?.querySelector('.timeline-links-overlay');
       if (!svg) return;
-      svg.querySelectorAll('[data-link-id].link-highlight').forEach((g) => g.classList.remove('link-highlight'));
+      // Don't touch drag-managed highlights
+      svg.querySelectorAll('[data-link-id].link-highlight:not(.link-highlight-drag)').forEach((g) => g.classList.remove('link-highlight'));
       if (!taskId) return;
       svg.querySelectorAll(`[data-link-source="${taskId}"], [data-link-target="${taskId}"]`).forEach((g) => g.classList.add('link-highlight'));
     }

@@ -608,6 +608,7 @@ export function TimelineView({
     containerRef: ganttContainerRef,
     pixelsPerDayRef,
     timelineStartRef,
+    timePeriodRef,
     featureMapRef,
     predecessorMapRef,
     reflowMilestonesRef,

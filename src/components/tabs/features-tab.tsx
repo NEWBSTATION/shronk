@@ -320,13 +320,32 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
       if (createType === "milestone") {
         setMilestoneDialogOpen(true);
       } else {
-        setFeatureDialogMilestoneId(null);
-        setChainTo(null);
+        // Use the first milestone as default and compute chain info like section add does
+        const defaultId = milestoneOptions[0]?.id || null;
+        setFeatureDialogMilestoneId(defaultId);
+
+        if (defaultId) {
+          const milestoneFeatures = features.filter((f) => f.projectId === defaultId);
+          const lastFeature = milestoneFeatures.length > 0
+            ? milestoneFeatures[milestoneFeatures.length - 1]
+            : null;
+          if (lastFeature) {
+            setChainTo({
+              featureId: lastFeature.id,
+              featureTitle: lastFeature.title,
+              endDate: lastFeature.endDate,
+            });
+          } else {
+            setChainTo(null);
+          }
+        } else {
+          setChainTo(null);
+        }
         setChainEnabled(false);
         setFeatureDialogOpen(true);
       }
     }
-  }, [createIntent, createType, milestoneOptions, handleAddFeatureForMilestone]);
+  }, [createIntent, createType, milestoneOptions, features]);
 
   const handleEditMilestone = useCallback(
     (milestoneId: string) => {

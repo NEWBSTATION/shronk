@@ -1,7 +1,9 @@
 import { useEffect, useRef, type RefObject, type MutableRefObject } from 'react';
-import { addDays } from 'date-fns';
+import { addDays, startOfWeek } from 'date-fns';
 import { dateToPixel, pixelToDate, durationToPixels } from './date-math';
+import type { TimePeriod } from './types';
 import { parseTeamTrackId } from './transformers';
+import { roundedPath } from './timeline-links';
 import { ROW_HEIGHT } from './scales-config';
 import { reflowProject, type ReflowMilestone, type ReflowDependency } from '@/lib/reflow';
 import type { Milestone } from '@/db/schema';
@@ -13,6 +15,7 @@ interface UseBarDragOptions {
   containerRef: RefObject<HTMLDivElement | null>;
   pixelsPerDayRef: MutableRefObject<number>;
   timelineStartRef: MutableRefObject<Date>;
+  timePeriodRef: MutableRefObject<TimePeriod>;
   featureMapRef: MutableRefObject<Map<string, Milestone>>;
   predecessorMapRef: MutableRefObject<Map<string, string[]>>;
   reflowMilestonesRef: MutableRefObject<ReflowMilestone[]>;
@@ -34,6 +37,7 @@ export function useBarDrag({
   containerRef,
   pixelsPerDayRef,
   timelineStartRef,
+  timePeriodRef,
   featureMapRef,
   predecessorMapRef,
   reflowMilestonesRef,
@@ -61,6 +65,7 @@ export function useBarDrag({
     if (!container) return;
 
     const DRAG_THRESHOLD = 3;
+    let highlightEl: HTMLElement | null = null;
 
     function getBarElement(el: HTMLElement): HTMLElement | null {
       let cur: HTMLElement | null = el;
@@ -132,10 +137,39 @@ export function useBarDrag({
         hasMovedRef.current = true;
         isDraggingRef.current = true;
         barEl.classList.add('timeline-bar-dragging');
+
+        // Highlight connected dependency links for the duration of the drag
+        const svg = container!.querySelector('.timeline-links-overlay');
+        if (svg) {
+          const taskId = dragTaskIdRef.current!;
+          svg.querySelectorAll(`[data-link-source="${taskId}"], [data-link-target="${taskId}"]`)
+            .forEach((g) => g.classList.add('link-highlight', 'link-highlight-drag'));
+        }
+
+        // Create full-height highlight column behind the bar
+        const contentEl = container!.querySelector('.timeline-scroll-area > div') as HTMLElement | null;
+        if (contentEl) {
+          highlightEl = document.createElement('div');
+          highlightEl.style.cssText =
+            'position:absolute;top:0;bottom:0;pointer-events:none;background:color-mix(in srgb, var(--primary) 6%, transparent);transition:left 50ms ease-out, width 50ms ease-out;';
+          highlightEl.style.left = `${origLeftRef.current}px`;
+          highlightEl.style.width = `${origWidthRef.current}px`;
+          contentEl.insertBefore(highlightEl, contentEl.firstChild);
+        }
       }
 
       const ppd = pixelsPerDayRef.current;
-      const snapPx = (px: number) => Math.round(px / ppd) * ppd;
+      const period = timePeriodRef.current;
+      const snapPx = (px: number) => {
+        if (period === 'quarter' || period === 'year') {
+          // Snap to nearest week-start (Sunday)
+          const timelineStart = timelineStartRef.current;
+          const date = pixelToDate(px, timelineStart, ppd);
+          const weekStart = startOfWeek(date, { weekStartsOn: 0 });
+          return dateToPixel(weekStart, timelineStart, ppd);
+        }
+        return Math.round(px / ppd) * ppd;
+      };
 
       let newLeft = origLeftRef.current;
       let newWidth = origWidthRef.current;
@@ -164,12 +198,21 @@ export function useBarDrag({
       barEl.style.left = `${newLeft}px`;
       barEl.style.width = `${newWidth}px`;
 
+      // Update highlight column
+      if (highlightEl) {
+        highlightEl.style.left = `${newLeft}px`;
+        highlightEl.style.width = `${newWidth}px`;
+      }
+
       // Live cascade preview for non-team-track tasks
       const taskId = dragTaskIdRef.current;
       const teamTrack = parseTeamTrackId(taskId);
       if (!teamTrack) {
         runCascadePreview(taskId, newLeft, newWidth);
       }
+
+      // Update dependency lines to follow bar positions
+      updateLinksPreview();
     }
 
     function runCascadePreview(taskId: string, newLeft: number, newWidth: number) {
@@ -239,6 +282,80 @@ export function useBarDrag({
       }
     }
 
+    const LINK_DELTA = 20;
+    const LINK_R = 6;
+
+    function updateLinksPreview() {
+      const svg = container!.querySelector('.timeline-links-overlay') as SVGElement | null;
+      if (!svg) return;
+      const linkGroups = svg.querySelectorAll('g[data-link-id]');
+      if (linkGroups.length === 0) return;
+
+      // Build row index map from current tasks
+      const tasks = tasksRef.current;
+      const rowMap = new Map<string, number>();
+      for (let i = 0; i < tasks.length; i++) {
+        rowMap.set(tasks[i].id, i);
+      }
+
+      // Build position map from DOM
+      const posMap = new Map<string, { left: number; right: number; centerY: number; row: number }>();
+      for (const [taskId, row] of rowMap) {
+        const el = container!.querySelector(`[data-task-id="${taskId}"]`) as HTMLElement | null;
+        if (!el) continue;
+        const left = parseFloat(el.style.left) || 0;
+        const width = parseFloat(el.style.width) || 0;
+        posMap.set(taskId, {
+          left,
+          right: left + width,
+          centerY: row * ROW_HEIGHT + ROW_HEIGHT / 2,
+          row,
+        });
+      }
+
+      for (const g of linkGroups) {
+        const sourceId = g.getAttribute('data-link-source');
+        const targetId = g.getAttribute('data-link-target');
+        if (!sourceId || !targetId) continue;
+
+        const source = posMap.get(sourceId);
+        const target = posMap.get(targetId);
+        if (!source || !target) continue;
+
+        const sx = source.right;
+        const sy = source.centerY;
+        const tx = target.left;
+        const ty = target.centerY;
+
+        const minRow = Math.min(source.row, target.row);
+        const maxRow = Math.max(source.row, target.row);
+
+        let intermediateRight = sx;
+        for (const [, info] of posMap) {
+          if (info.row > minRow && info.row < maxRow) {
+            intermediateRight = Math.max(intermediateRight, info.right);
+          }
+        }
+
+        const clearX = Math.max(sx + LINK_DELTA, intermediateRight + LINK_DELTA);
+        const tx1 = tx - LINK_DELTA;
+
+        let pts: [number, number][];
+        if (tx1 > clearX) {
+          pts = [[sx, sy], [clearX, sy], [clearX, ty], [tx, ty]];
+        } else {
+          const midY = maxRow * ROW_HEIGHT;
+          pts = [[sx, sy], [clearX, sy], [clearX, midY], [tx1, midY], [tx1, ty], [tx, ty]];
+        }
+
+        const d = roundedPath(pts, LINK_R);
+        const paths = g.querySelectorAll('path');
+        for (const p of paths) {
+          p.setAttribute('d', d);
+        }
+      }
+    }
+
     function onPointerUp(e: PointerEvent) {
       document.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerup', onPointerUp);
@@ -247,6 +364,19 @@ export function useBarDrag({
       const taskId = dragTaskIdRef.current;
 
       if (barEl) barEl.classList.remove('timeline-bar-dragging');
+
+      // Remove drag link highlights
+      const svg = container!.querySelector('.timeline-links-overlay');
+      if (svg) {
+        svg.querySelectorAll('.link-highlight-drag')
+          .forEach((g) => g.classList.remove('link-highlight', 'link-highlight-drag'));
+      }
+
+      // Remove highlight column
+      if (highlightEl) {
+        highlightEl.remove();
+        highlightEl = null;
+      }
 
       // Revert cascaded bars
       for (const [id, orig] of cascadeOriginalsRef.current) {
@@ -305,5 +435,5 @@ export function useBarDrag({
       document.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerup', onPointerUp);
     };
-  }, [containerRef, pixelsPerDayRef, timelineStartRef, featureMapRef, predecessorMapRef, reflowMilestonesRef, reflowDepsRef, tasksRef, onDragEnd, onTaskClick, sentinelId]);
+  }, [containerRef, pixelsPerDayRef, timelineStartRef, timePeriodRef, featureMapRef, predecessorMapRef, reflowMilestonesRef, reflowDepsRef, tasksRef, onDragEnd, onTaskClick, sentinelId]);
 }

@@ -21,7 +21,7 @@ const ARROW_SIZE = 6;
  * Convert an orthogonal polyline to an SVG path with rounded corners.
  * Uses quadratic bezier curves at each bend.
  */
-function roundedPath(pts: [number, number][], r: number): string {
+export function roundedPath(pts: [number, number][], r: number): string {
   if (pts.length < 2) return '';
   const parts: string[] = [`M ${pts[0][0]} ${pts[0][1]}`];
 

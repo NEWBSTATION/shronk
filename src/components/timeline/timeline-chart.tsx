@@ -1,6 +1,15 @@
 'use client';
 
-import { useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useMemo, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
+import {
+  addDays,
+  addWeeks,
+  addMonths,
+  addQuarters,
+  startOfWeek,
+  startOfMonth,
+  startOfQuarter,
+} from 'date-fns';
 import { TimelineScales } from './timeline-scales';
 import { TimelineBars } from './timeline-bars';
 import { TimelineLinks } from './timeline-links';
@@ -75,6 +84,76 @@ function WeekendColumns({ windowStart, windowEnd, pixelsPerDay, timePeriod }: We
   );
 }
 
+interface GridColumnsProps {
+  windowStart: Date;
+  windowEnd: Date;
+  pixelsPerDay: number;
+  timePeriod: TimePeriod;
+}
+
+function GridColumns({ windowStart, windowEnd, pixelsPerDay, timePeriod }: GridColumnsProps) {
+  const lines = useMemo(() => {
+    const result: Array<{ left: number; key: string }> = [];
+
+    let cursor: Date;
+    let advance: (d: Date) => Date;
+
+    switch (timePeriod) {
+      case 'week':
+        // Every day boundary
+        cursor = new Date(windowStart);
+        advance = (d) => addDays(d, 1);
+        break;
+      case 'month':
+        // Every week-start boundary
+        cursor = startOfWeek(windowStart, { weekStartsOn: 0 });
+        advance = (d) => addWeeks(d, 1);
+        break;
+      case 'quarter':
+        // Every month-start boundary
+        cursor = startOfMonth(windowStart);
+        advance = (d) => addMonths(d, 1);
+        break;
+      case 'year':
+        // Every quarter-start boundary
+        cursor = startOfQuarter(windowStart);
+        advance = (d) => addQuarters(d, 1);
+        break;
+    }
+
+    while (cursor < windowEnd) {
+      const left = dateToPixel(cursor, windowStart, pixelsPerDay);
+      if (left > 0) {
+        result.push({ left, key: cursor.toISOString() });
+      }
+      cursor = advance(cursor);
+    }
+
+    return result;
+  }, [windowStart, windowEnd, pixelsPerDay, timePeriod]);
+
+  return (
+    <>
+      {lines.map((line) => (
+        <div
+          key={line.key}
+          style={{
+            position: 'absolute',
+            left: line.left - 1,
+            top: 0,
+            bottom: 0,
+            width: 1,
+            background: 'var(--border)',
+            maskImage: 'repeating-linear-gradient(to bottom, black 0px 3px, transparent 3px 6px)',
+            WebkitMaskImage: 'repeating-linear-gradient(to bottom, black 0px 3px, transparent 3px 6px)',
+            pointerEvents: 'none',
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
 export interface TimelineChartHandle {
   scrollRef: HTMLDivElement | null;
   scrollTo: (left: number) => void;
@@ -121,7 +200,6 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
   ) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const scrollLeftRef = useRef(0);
-    const columnsRef = useRef<HTMLDivElement>(null);
 
     useImperativeHandle(ref, () => ({
       get scrollRef() {
@@ -149,10 +227,6 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
       if (scalesEl) {
         const inner = scalesEl.firstChild as HTMLElement;
         if (inner) inner.style.transform = `translateX(-${el.scrollLeft}px)`;
-      }
-      // Sync dashed column lines (horizontal only)
-      if (columnsRef.current) {
-        columnsRef.current.style.backgroundPositionX = `-${el.scrollLeft}px`;
       }
       onScroll?.(el.scrollLeft, el.scrollTop);
     }, [onScroll]);
@@ -206,30 +280,8 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
           pixelsPerDay={pixelsPerDay}
           totalWidth={totalWidth}
         />
-        {/* Scroll area wrapper — contains fixed column overlay + scrollable content */}
+        {/* Scroll area wrapper */}
         <div className="timeline-scroll-wrapper" style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-          {/* Dashed column lines — stays fixed vertically, syncs horizontally via scroll handler */}
-          <div
-            ref={columnsRef}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              backgroundImage: `
-                repeating-linear-gradient(
-                  to right,
-                  transparent 0px,
-                  transparent ${cellWidth - 1}px,
-                  var(--border) ${cellWidth - 1}px,
-                  var(--border) ${cellWidth}px
-                )
-              `,
-              backgroundSize: `${cellWidth}px 100%`,
-              maskImage: 'repeating-linear-gradient(to bottom, black 0px 3px, transparent 3px 6px)',
-              WebkitMaskImage: 'repeating-linear-gradient(to bottom, black 0px 3px, transparent 3px 6px)',
-              pointerEvents: 'none',
-              zIndex: 0,
-            }}
-          />
           {/* Scrollable content */}
           <div
             ref={scrollRef}
@@ -237,6 +289,14 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
             style={{ overflow: 'auto', position: 'absolute', inset: 0, zIndex: 1 }}
           >
             <div style={{ width: totalWidth, height: visibleRowCount * ROW_HEIGHT, minHeight: '100%', position: 'relative', overflow: 'hidden', transition: 'height 200ms ease' }}>
+              {/* Calendar-aligned grid lines */}
+              <GridColumns
+                windowStart={windowStart}
+                windowEnd={windowEnd}
+                pixelsPerDay={pixelsPerDay}
+                timePeriod={timePeriod}
+              />
+
               {/* Weekend columns */}
               <WeekendColumns
                 windowStart={windowStart}

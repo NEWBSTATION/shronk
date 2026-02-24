@@ -4,7 +4,8 @@ import { useMemo, useRef, useCallback, useState } from "react";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   closestCenter,
   useSensor,
@@ -19,7 +20,7 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
-import { Plus, GripVertical } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -251,8 +252,11 @@ export function FeaturesSectionList({
   });
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: { distance: 8 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
     })
   );
 
@@ -620,7 +624,6 @@ export function FeaturesSectionList({
         <DragOverlay dropAnimation={null}>
           {activeFeature ? (
             <div className="flex items-center gap-2 px-4 py-3.5 max-w-xs bg-background border rounded-lg shadow-lg cursor-grabbing">
-              <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
               <span className="truncate text-sm">{activeFeature.title}</span>
               <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground tabular-nums">
                 {formatDuration(activeFeature.duration)}

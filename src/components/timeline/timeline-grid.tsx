@@ -1,7 +1,7 @@
 'use client';
 
 import { type RefObject, useMemo, useCallback, useState, useRef, useEffect } from 'react';
-import { Link2, Plus, GripVertical, ChevronDown, Pencil } from 'lucide-react';
+import { Link2, Plus, ChevronDown, Pencil } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -126,7 +126,8 @@ export function TimelineGrid({
   const dragJustEndedRef = useRef(false);
 
   // Pointer-based drag initiation — works from anywhere on the row
-  const handleGripPointerDown = useCallback(
+  // Desktop: 5px distance threshold. Touch: 250ms long-press then move.
+  const handleRowPointerDown = useCallback(
     (featureId: string, e: React.PointerEvent) => {
       // Don't hijack clicks on the status toggle
       if ((e.target as HTMLElement).closest('button')) return;
@@ -134,9 +135,12 @@ export function TimelineGrid({
       const idx = featureIdsRef.current.indexOf(featureId);
       if (idx === -1) return;
 
+      const isTouch = e.pointerType === 'touch';
       const startX = e.clientX;
       const startY = e.clientY;
       let activated = false;
+      let longPressReady = !isTouch; // mouse is immediately ready
+      let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
       const activate = () => {
         activated = true;
@@ -145,9 +149,46 @@ export function TimelineGrid({
         onDragActiveChange?.(true);
       };
 
+      if (isTouch) {
+        longPressTimer = setTimeout(() => {
+          longPressReady = true;
+          longPressTimer = null;
+        }, 250);
+      }
+
+      const cleanup = () => {
+        document.removeEventListener('pointermove', handleMove);
+        document.removeEventListener('pointerup', handleUp);
+        document.removeEventListener('contextmenu', handleContextMenu);
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      };
+
+      const handleContextMenu = (ev: Event) => {
+        if (activated) {
+          ev.preventDefault();
+          // Cancel drag on right-click
+          cleanup();
+          setDragState(null);
+          targetIndexRef.current = -1;
+          onDragActiveChange?.(false);
+        }
+      };
+
       const handleMove = (ev: PointerEvent) => {
+        const dist = Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY);
+
+        if (isTouch && !longPressReady) {
+          // Finger moved too far before long-press fired — cancel
+          if (dist > 5) {
+            cleanup();
+          }
+          return;
+        }
+
         if (!activated) {
-          const dist = Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY);
           if (dist < DRAG_ACTIVATION_DISTANCE) return;
           activate();
         }
@@ -166,8 +207,7 @@ export function TimelineGrid({
       };
 
       const handleUp = () => {
-        document.removeEventListener('pointermove', handleMove);
-        document.removeEventListener('pointerup', handleUp);
+        cleanup();
 
         if (!activated) return;
 
@@ -192,6 +232,7 @@ export function TimelineGrid({
 
       document.addEventListener('pointermove', handleMove);
       document.addEventListener('pointerup', handleUp);
+      document.addEventListener('contextmenu', handleContextMenu);
     },
     [onDragActiveChange, onReorder]
   );
@@ -381,20 +422,18 @@ export function TimelineGrid({
                     height: ROW_HEIGHT,
                     opacity: isDragSource ? 0.3 : isSearchDimmed ? 0.4 : 1,
                     transition: 'opacity 150ms ease',
+                    ...(onReorder ? { touchAction: 'none' } : {}),
                   }}
-                  className={`flex items-center gap-1.5 min-w-0 px-3 cursor-pointer border-b border-border ${
+                  className={`flex items-center gap-1.5 min-w-0 px-3 border-b border-border ${
+                    onReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                  } ${
                     isSearchMatch ? 'bg-primary/[0.06]' : 'bg-background'
                   } ${
                     isDragging ? '' : 'group/gridrow'
                   }`}
                   onClick={() => { if (!dragJustEndedRef.current) onRowClick(task); }}
-                  onPointerDown={onReorder ? (e) => handleGripPointerDown(task.id, e) : undefined}
+                  onPointerDown={onReorder ? (e) => handleRowPointerDown(task.id, e) : undefined}
                 >
-                  <div
-                    className="flex items-center justify-center shrink-0 w-0 opacity-0 group-hover/gridrow:w-5 group-hover/gridrow:opacity-100 transition-all duration-150 overflow-hidden"
-                  >
-                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-                  </div>
                   <StatusToggle
                     id={task.id}
                     status={custom?.status ?? 'not_started'}

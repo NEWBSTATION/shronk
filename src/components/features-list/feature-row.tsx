@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { format, getYear } from "date-fns";
-import { ChevronRight, GripVertical } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { formatDuration, formatDurationIn } from "@/lib/format-duration";
 import type { DurationUnit } from "@/store/features-list-store";
 import { DURATION_UNIT_MULTIPLIERS, bestFitDurationUnit } from "@/components/timeline/transformers";
@@ -181,6 +181,7 @@ export function FeatureRow({
     <div
       ref={nodeRef}
       style={style}
+      {...(!selectMode ? dragHandleProps : {})}
       onContextMenu={(e) => {
         if (onContextMenu) {
           e.preventDefault();
@@ -196,7 +197,8 @@ export function FeatureRow({
         onClick();
       }}
       className={cn(
-        "relative flex items-center px-3 py-3 border-b border-border/40 last:border-b-0 transition-colors duration-100 cursor-pointer",
+        "relative flex items-center px-3 py-3 border-b border-border/40 last:border-b-0 transition-colors duration-100",
+        !selectMode ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         !isAnyDragging && "group hover:bg-muted/40",
         selected && "bg-muted/40",
         isDragging && "opacity-30",
@@ -204,20 +206,6 @@ export function FeatureRow({
         isOverlay && "bg-background border rounded-lg shadow-lg"
       )}
     >
-      {/* Drag handle — absolute overlay on left edge, hover only */}
-      {!selectMode && (
-        <div
-          className={cn(
-            "absolute left-0.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity",
-            !isAnyDragging && "group-hover:opacity-100",
-            isOverlay && "opacity-100"
-          )}
-          onClick={(e) => e.stopPropagation()}
-          {...dragHandleProps}
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground/50 cursor-grab active:cursor-grabbing" />
-        </div>
-      )}
 
       {/* Checkbox — select mode only */}
       {selectMode && (
@@ -234,6 +222,7 @@ export function FeatureRow({
 
       {/* Completion toggle */}
       <button
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
           onToggleComplete?.();
@@ -274,6 +263,7 @@ export function FeatureRow({
                 if (e.key === "Enter") commitTitle();
                 if (e.key === "Escape") { setTitleDraft(title); setTitleEditing(false); }
               }}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
               className="text-sm font-medium bg-transparent outline-none ring-1 ring-ring rounded-md px-2 -mx-2 py-1 min-w-0"
             />
@@ -285,6 +275,7 @@ export function FeatureRow({
                   ? "text-muted-foreground/60 line-through"
                   : "text-foreground"
               )}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 setTitleDraft(title);
@@ -329,6 +320,7 @@ export function FeatureRow({
             <PopoverTrigger asChild>
               <button
                 type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1.5 rounded-md min-h-[28px] px-2 py-0.5 text-xs text-foreground/70 hover:text-foreground hover:bg-muted/60 transition-colors -ml-2"
               >
@@ -371,6 +363,7 @@ export function FeatureRow({
             <PopoverTrigger asChild>
               <button
                 type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
                 className={cn(
                   "inline-flex items-center justify-center rounded-md min-h-[28px] min-w-[28px] px-1.5 py-0.5 transition-colors",
@@ -422,6 +415,7 @@ export function FeatureRow({
                 <PopoverTrigger asChild>
                   <button
                     type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                     className="inline-flex items-center rounded-md min-h-[28px] px-2 py-0.5 text-xs tabular-nums text-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors"
                   >
@@ -498,7 +492,7 @@ export function SortableFeatureRow(
     <FeatureRow
       {...props}
       nodeRef={setNodeRef}
-      style={style}
+      style={{ ...style, touchAction: props.selectMode ? undefined : "none" }}
       isDragging={isDragging}
       dragHandleProps={
         props.selectMode ? undefined : { ...attributes, ...listeners }
