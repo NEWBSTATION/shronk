@@ -291,6 +291,9 @@ function useComputedDashboard(
       dueSoonCount: dueSoonFeatures.length,
       overdueByPriority: Array.from(overdueByPriority.entries()).map(([p, c]) => ({ priority: p, count: c })),
       worstOverdueDays,
+      overdueFeatures: overdueFeatures
+        .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
+        .map((f) => ({ id: f.id, title: f.title, priority: f.priority, daysOverdue: Math.abs(f.daysUntilDue) })),
     };
 
     // Upcoming features — active features due from today onward, sorted nearest first
@@ -607,70 +610,117 @@ function TeamTracksCard({
 
 function RiskSummaryCard({
   riskSummary,
+  onFeatureClick,
 }: {
   riskSummary: {
     overdueCount: number;
     dueSoonCount: number;
     overdueByPriority: Array<{ priority: string; count: number }>;
     worstOverdueDays: number;
+    overdueFeatures: Array<{ id: string; title: string; priority: string; daysOverdue: number }>;
   };
+  onFeatureClick?: (featureId: string) => void;
 }) {
-  const priorityColors: Record<string, string> = {
-    critical: "bg-red-500/15 text-red-600 dark:text-red-400",
-    high: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-    medium: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-    low: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
-    none: "bg-zinc-500/10 text-zinc-500",
+  const priorityColors: Record<string, { dot: string; text: string }> = {
+    critical: { dot: "bg-red-500", text: "text-red-600 dark:text-red-400" },
+    high: { dot: "bg-amber-500", text: "text-amber-600 dark:text-amber-400" },
+    medium: { dot: "bg-blue-500", text: "text-blue-600 dark:text-blue-400" },
+    low: { dot: "bg-zinc-400", text: "text-zinc-600 dark:text-zinc-400" },
+    none: { dot: "bg-zinc-400", text: "text-zinc-500" },
   };
 
   const hasRisk = riskSummary.overdueCount > 0 || riskSummary.dueSoonCount > 0;
+  const totalIssues = riskSummary.overdueCount + riskSummary.dueSoonCount;
 
   return (
     <div className="rounded-xl border border-border/50 bg-card p-5 flex flex-col">
-      <h3 className="text-sm font-medium text-foreground mb-4">Risk Summary</h3>
+      <div className="flex items-center gap-2 mb-1">
+        <h3 className="text-sm font-medium text-foreground">Risk Summary</h3>
+        {hasRisk && (
+          <span className={cn(
+            "ml-auto text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded-md",
+            riskSummary.overdueCount > 0
+              ? "bg-red-500/10 text-red-600 dark:text-red-400"
+              : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          )}>
+            {totalIssues} issue{totalIssues !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+
       {hasRisk ? (
-        <div className="space-y-4">
-          {/* Overdue count */}
-          <div className="flex items-baseline gap-3">
-            <span className="text-3xl font-bold tabular-nums text-red-500">
-              {riskSummary.overdueCount}
-            </span>
-            <span className="text-sm text-muted-foreground">overdue</span>
+        <div className="mt-3 space-y-3">
+          {/* Stat row — overdue and due soon side by side */}
+          <div className="grid grid-cols-2 gap-2">
+            {riskSummary.overdueCount > 0 && (
+              <div className="rounded-lg bg-red-500/[0.06] dark:bg-red-500/[0.08] px-3 py-2.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <AlertTriangle className="h-3 w-3 text-red-500/70" />
+                  <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Overdue</span>
+                </div>
+                <span className="text-lg font-semibold tabular-nums text-red-600 dark:text-red-400">
+                  {riskSummary.overdueCount}
+                </span>
+                {riskSummary.worstOverdueDays > 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    worst {riskSummary.worstOverdueDays}d late
+                  </p>
+                )}
+              </div>
+            )}
+            {riskSummary.dueSoonCount > 0 && (
+              <div className="rounded-lg bg-amber-500/[0.06] dark:bg-amber-500/[0.08] px-3 py-2.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock className="h-3 w-3 text-amber-500/70" />
+                  <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Due soon</span>
+                </div>
+                <span className="text-lg font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+                  {riskSummary.dueSoonCount}
+                </span>
+                <p className="text-[11px] text-muted-foreground mt-0.5">within 7 days</p>
+              </div>
+            )}
           </div>
 
-          {/* Due within 7 days */}
-          {riskSummary.dueSoonCount > 0 && (
-            <div className="flex items-baseline gap-3">
-              <span className="text-xl font-semibold tabular-nums text-amber-500">
-                {riskSummary.dueSoonCount}
-              </span>
-              <span className="text-sm text-muted-foreground">due within 7 days</span>
+          {/* Overdue features list */}
+          {riskSummary.overdueFeatures.length > 0 && (
+            <div className="pt-1 border-t border-border/40">
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider mb-1.5">
+                Overdue features
+              </p>
+              <div className="space-y-0.5">
+                {riskSummary.overdueFeatures.map((f) => {
+                  const colors = priorityColors[f.priority] ?? priorityColors.none;
+                  return (
+                    <div
+                      key={f.id}
+                      className={cn(
+                        "flex items-center gap-2 text-sm rounded-md px-2 py-1.5 -mx-2",
+                        onFeatureClick && "cursor-pointer hover:bg-accent/40 transition-colors"
+                      )}
+                      onClick={() => onFeatureClick?.(f.id)}
+                    >
+                      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", colors.dot)} />
+                      <span className="flex-1 truncate text-xs">{f.title}</span>
+                      <span className="text-[11px] text-red-500/80 tabular-nums font-medium shrink-0">
+                        {f.daysOverdue}d
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          )}
-
-          {/* Priority breakdown */}
-          {riskSummary.overdueByPriority.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {riskSummary.overdueByPriority.map((p) => (
-                <Badge key={p.priority} className={cn(priorityColors[p.priority] ?? priorityColors.none, "border-0 text-[11px]")}>
-                  {p.count} {p.priority}
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          {/* Worst overdue */}
-          {riskSummary.worstOverdueDays > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Worst: <span className="text-red-500 font-medium">{riskSummary.worstOverdueDays}d</span> overdue
-            </p>
           )}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center flex-1 h-full min-h-[120px] text-center">
-          <CheckCircle2 className="h-8 w-8 text-emerald-500/60 mb-2" />
-          <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">All clear</p>
-          <p className="text-xs text-muted-foreground mt-0.5">No overdue or at-risk features</p>
+        <div className="flex items-center gap-3 mt-3 flex-1">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/[0.08] shrink-0">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">All clear</p>
+            <p className="text-[11px] text-muted-foreground">No overdue or at-risk features</p>
+          </div>
         </div>
       )}
     </div>
@@ -1068,7 +1118,7 @@ export function DashboardTab({
 
             {/* 5. Risk & Upcoming */}
             <div className="grid md:grid-cols-2 gap-3">
-              <RiskSummaryCard riskSummary={riskSummary} />
+              <RiskSummaryCard riskSummary={riskSummary} onFeatureClick={handleFeatureClick} />
               <UpcomingCard upcoming={upcoming} onFeatureClick={handleFeatureClick} />
             </div>
           </>

@@ -298,7 +298,7 @@ export function MilestoneDetailPanel({
               feature.status === "completed" ? "bg-emerald-500" :
               feature.status === "in_progress" ? "bg-blue-500" :
               feature.status === "on_hold" ? "bg-amber-500" :
-              feature.status === "cancelled" ? "bg-zinc-400" :
+              feature.status === "cancelled" ? "bg-red-500" :
               "bg-zinc-300";
             return (
               <button

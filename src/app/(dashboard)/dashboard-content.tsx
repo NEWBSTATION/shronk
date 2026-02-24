@@ -16,6 +16,7 @@ import {
   SettingsDialog,
   type SettingsSection,
 } from "@/components/settings/settings-panel";
+import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
 import { useProjects } from "@/hooks/use-milestones";
 import { cn } from "@/lib/utils";
 import { WorkspaceDeletionBanner } from "@/components/workspace-deletion-banner";
@@ -207,9 +208,12 @@ function DashboardContentInner() {
     () => new Set([initialTab])
   );
 
-  // Trigger for "create" action from header — incremented to signal tabs
+  // Trigger for "create feature" action from header — incremented to signal features tab
   const [createIntent, setCreateIntent] = useState(0);
   const [createType, setCreateType] = useState<CreateAction>("feature");
+
+  // Milestone dialog — lives at layout level so it opens from any tab
+  const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
 
   // Controlled create-popover state (shared with AppHeader for global hotkey)
   const [createOpen, setCreateOpen] = useState(false);
@@ -301,19 +305,17 @@ function DashboardContentInner() {
 
   const handleCreateAction = useCallback(
     (type: CreateAction) => {
-      handleTabChange("features");
-      setCreateType(type);
-      // Use setTimeout so the tab switch mounts/activates before the intent fires
-      setTimeout(() => setCreateIntent((n) => n + 1), 0);
+      if (type === "milestone") {
+        setMilestoneDialogOpen(true);
+      } else {
+        handleTabChange("features");
+        setCreateType(type);
+        // Use setTimeout so the tab switch mounts/activates before the intent fires
+        setTimeout(() => setCreateIntent((n) => n + 1), 0);
+      }
     },
     [handleTabChange]
   );
-
-  // Skip transition on initial mount so settings doesn't cause a shift on refresh
-  const [transitionReady, setTransitionReady] = useState(false);
-  useEffect(() => {
-    requestAnimationFrame(() => setTransitionReady(true));
-  }, []);
 
   // Global hotkey: C opens create popover (M/F handled inside AppHeader)
   useEffect(() => {
@@ -335,9 +337,8 @@ function DashboardContentInner() {
     <DrilldownProvider>
       <div
         className={cn(
-          "flex flex-col h-svh origin-top",
-          transitionReady && "transition-[transform,filter] duration-300 ease-out",
-          settingsOpen && "scale-[0.97] blur-[2px]"
+          "flex flex-col h-svh transition-[filter] duration-300 ease-out",
+          settingsOpen && "blur-[2px]"
         )}
       >
         <WorkspaceDeletionBanner />
@@ -358,6 +359,12 @@ function DashboardContentInner() {
           onMilestoneChange={handleMilestoneChange}
         />
       </div>
+
+      {/* Milestone creation dialog — layout-level so it works from any tab */}
+      <MilestoneDialog
+        open={milestoneDialogOpen}
+        onOpenChange={setMilestoneDialogOpen}
+      />
 
       {/* Settings dialog */}
       <SettingsDialog

@@ -15,7 +15,6 @@ interface TimelineLinksProps {
 
 const DELTA = 20;    // stub length from bar edge
 const R = 6;         // corner rounding radius
-const ARROW_SIZE = 6;
 
 /**
  * Convert an orthogonal polyline to an SVG path with rounded corners.
@@ -161,34 +160,6 @@ export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart, hideT
         transition: 'opacity 200ms ease',
       }}
     >
-      <defs>
-        <marker
-          id="timeline-arrow"
-          markerWidth={ARROW_SIZE}
-          markerHeight={ARROW_SIZE}
-          refX={ARROW_SIZE}
-          refY={ARROW_SIZE / 2}
-          orient="auto"
-        >
-          <path
-            d={`M 0 0 L ${ARROW_SIZE} ${ARROW_SIZE / 2} L 0 ${ARROW_SIZE} Z`}
-            fill="var(--muted-foreground)"
-          />
-        </marker>
-        <marker
-          id="timeline-arrow-hover"
-          markerWidth={ARROW_SIZE}
-          markerHeight={ARROW_SIZE}
-          refX={ARROW_SIZE}
-          refY={ARROW_SIZE / 2}
-          orient="auto"
-        >
-          <path
-            d={`M 0 0 L ${ARROW_SIZE} ${ARROW_SIZE / 2} L 0 ${ARROW_SIZE} Z`}
-            fill="var(--chart-2)"
-          />
-        </marker>
-      </defs>
       {paths.map((p) => (
         <g key={p.id} data-link-id={p.id} data-link-source={p.sourceId} data-link-target={p.targetId} style={{ pointerEvents: 'auto' }}>
           {/* Invisible wide hit area for clicking */}

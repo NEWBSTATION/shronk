@@ -218,29 +218,66 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
     }
   }, [isActive, panelContent]);
 
-  // Close panel on Escape
+  // Close panel on Escape (let Radix handle its own overlays first)
   useEffect(() => {
     if (!panelContent) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closePanel();
+      if (e.key === "Escape") {
+        if (document.querySelector("[data-radix-popper-content-wrapper], [role='dialog'], [role='listbox'], [data-radix-menu-content]")) return;
+        closePanel();
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [panelContent, closePanel]);
 
   // Close panel on click outside
+  const overlayOpenRef = useRef(false);
+  const overlayCooldownRef = useRef(false);
+
   useEffect(() => {
-    if (!panelVisible) return;
-    const handler = (e: MouseEvent) => {
+    if (!panelVisible) {
+      overlayOpenRef.current = false;
+      overlayCooldownRef.current = false;
+      return;
+    }
+
+    const OVERLAY_SELECTOR = "[data-radix-popper-content-wrapper], [role='dialog'], [role='listbox'], [data-radix-menu-content]";
+    let cooldownTimer: ReturnType<typeof setTimeout>;
+
+    // Track Radix overlay open/close via MutationObserver so we never
+    // race against Radix tearing down its portals before our handler runs.
+    const observer = new MutationObserver(() => {
+      const hasOverlay = !!document.querySelector(OVERLAY_SELECTOR);
+      if (overlayOpenRef.current && !hasOverlay) {
+        overlayCooldownRef.current = true;
+        clearTimeout(cooldownTimer);
+        cooldownTimer = setTimeout(() => {
+          overlayCooldownRef.current = false;
+        }, 100);
+      }
+      overlayOpenRef.current = hasOverlay;
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-state"],
+    });
+
+    const handler = (e: PointerEvent) => {
       const target = e.target as HTMLElement;
-      // Don't close if clicking inside the panel itself
       if (panelRef.current && panelRef.current.contains(target)) return;
-      // Don't close if clicking inside Radix portals (Select, Popover, DropdownMenu, Dialog, etc.)
-      if (target.closest("[data-radix-popper-content-wrapper], [role='dialog'], [data-radix-select-viewport], [data-radix-menu-content]")) return;
+      if (target.closest(OVERLAY_SELECTOR)) return;
+      if (overlayOpenRef.current || overlayCooldownRef.current) return;
       closePanel();
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("pointerdown", handler, true);
+    return () => {
+      document.removeEventListener("pointerdown", handler, true);
+      observer.disconnect();
+      clearTimeout(cooldownTimer);
+    };
   }, [panelVisible, closePanel]);
 
   const selectedMilestone = projects.find((p) => p.id === selectedMilestoneId);

@@ -35,7 +35,7 @@ const STATUS_DOTS: Record<string, string> = {
   in_progress: '#3b82f6',
   on_hold: '#f59e0b',
   completed: '#10b981',
-  cancelled: '#a1a1aa',
+  cancelled: '#ef4444',
 };
 
 function buildTooltipHTML(task: TimelineTask): string {
@@ -271,7 +271,7 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
         return (
           <div
             key={task.id}
-            className={`timeline-bar${isTeam ? ' timeline-bar-team-track' : ''}${isSummary ? ' timeline-bar-summary' : ''}${isChainEnd ? ' timeline-bar-chain-end' : ''}${custom?.status === 'completed' ? ' timeline-bar-completed' : ''}`}
+            className={`timeline-bar${isTeam ? ' timeline-bar-team-track' : ''}${isSummary ? ' timeline-bar-summary' : ''}${isChainEnd ? ' timeline-bar-chain-end' : ''}${custom?.status === 'completed' ? ' timeline-bar-completed' : ''}${custom?.status === 'cancelled' ? ' timeline-bar-cancelled' : ''}${custom?.status === 'on_hold' ? ' timeline-bar-on-hold' : ''}`}
             data-task-id={task.id}
             style={{
               position: 'absolute',
@@ -306,6 +306,14 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
           >
             {/* Inner fill for chain-end fade mask */}
             {isChainEnd && !isTeam && <div className="timeline-bar-fill" />}
+
+            {/* Status wash — gradient + stripes fading from left edge */}
+            {!isTeam && custom?.status && custom.status !== 'not_started' && (
+              <div
+                className={`timeline-bar-status-pip${custom.status === 'cancelled' ? ' timeline-bar-status-pip-flat' : ''}`}
+                style={{ '--status-color': STATUS_DOTS[custom.status] } as React.CSSProperties}
+              />
+            )}
 
             {/* Left resize handle */}
             <div className="timeline-bar-handle timeline-bar-handle-left" />

@@ -35,7 +35,7 @@ const STATUS_CONFIG: Record<string, { label: string; dotClass: string }> = {
   in_progress: { label: "In Progress", dotClass: "bg-blue-500" },
   on_hold: { label: "On Hold", dotClass: "bg-amber-500" },
   completed: { label: "Completed", dotClass: "bg-emerald-500" },
-  cancelled: { label: "Cancelled", dotClass: "bg-zinc-400" },
+  cancelled: { label: "Cancelled", dotClass: "bg-red-500" },
 };
 
 const STATUS_OPTIONS = Object.entries(STATUS_CONFIG) as [string, { label: string; dotClass: string }][];
@@ -43,7 +43,7 @@ const STATUS_OPTIONS = Object.entries(STATUS_CONFIG) as [string, { label: string
 const PRIORITY_OPTIONS = Object.entries(priorityConfig) as [string, { label: string; icon: React.ElementType; className: string }][];
 
 /** Grid column template shared between header and rows */
-export const TABLE_GRID_COLS = "1fr 100px 72px 56px";
+export const TABLE_GRID_COLS = "1fr 120px 88px 56px";
 
 export interface TeamDurationInfo {
   teamId: string;
@@ -322,7 +322,7 @@ export function FeatureRow({
                 type="button"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1.5 rounded-md min-h-[28px] px-2 py-0.5 text-xs text-foreground/70 hover:text-foreground hover:bg-muted/60 transition-colors -ml-2"
+                className="inline-flex items-center gap-1.5 rounded-md min-h-[28px] px-2 py-0.5 text-xs whitespace-nowrap text-foreground/70 hover:text-foreground hover:bg-muted/60 transition-colors -ml-2"
               >
                 <span className={cn("h-2 w-2 rounded-full shrink-0", statusCfg.dotClass)} />
                 <span>{statusCfg.label}</span>

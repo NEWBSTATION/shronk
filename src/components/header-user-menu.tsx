@@ -13,6 +13,11 @@ import {
   CheckCircle,
   XCircle,
   Mail,
+  Palette,
+  Sun,
+  Moon,
+  Monitor,
+  Dices,
 } from "lucide-react";
 import { useMembers } from "@/hooks/use-members";
 import { useWorkspace } from "@/components/providers/workspace-provider";
@@ -27,8 +32,14 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useThemeStore } from "@/store/theme-store";
+import { themePresets } from "@/config/theme-presets";
+import type { ThemeMode } from "@/types/theme";
 
 function stripWorkspaceSuffix(name: string) {
   return name.replace(/\s+workspace$/i, "").trim();
@@ -37,6 +48,12 @@ function stripWorkspaceSuffix(name: string) {
 interface HeaderUserMenuProps {
   onOpenSettings?: (section: SettingsSection) => void;
 }
+
+const modeOptions: { value: ThemeMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
+];
 
 export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   const { user, isLoaded } = useUser();
@@ -51,6 +68,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   const router = useRouter();
   const workspaces = workspacesData?.workspaces ?? [];
   const pendingInvites = workspacesData?.pendingInvites ?? [];
+  const { currentPresetKey, mode, setPreset, setMode, getResolvedMode, randomPreset } = useThemeStore();
   const pendingCount = pendingInvites.length;
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
@@ -121,6 +139,73 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
               <SlidersHorizontal />
               Preferences
             </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="hidden md:flex">
+                <Palette />
+                Theme
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-64 p-0" sideOffset={8}>
+                {/* Mode row */}
+                <div className="p-2 border-b border-foreground/10">
+                  <div className="flex gap-1 rounded-lg bg-muted p-1">
+                    {modeOptions.map((option) => {
+                      const Icon = option.icon;
+                      const isActive = mode === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => setMode(option.value)}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-1.5 h-7 rounded-md text-xs font-medium transition-colors",
+                            isActive
+                              ? "bg-background text-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* Theme list */}
+                <div className="max-h-[280px] overflow-y-auto p-1">
+                  <button
+                    onClick={() => randomPreset()}
+                    className="flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    <Dices className="h-3.5 w-3.5" />
+                    <span className="flex-1 text-left">Random theme</span>
+                    <kbd className="text-[10px] rounded bg-muted px-1.5 py-0.5 font-medium text-muted-foreground/60">
+                      {typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "⌘\\" : "Ctrl+\\"}
+                    </kbd>
+                  </button>
+                  {Object.entries(themePresets).map(([key, preset]) => {
+                    const isActive = currentPresetKey === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setPreset(key)}
+                        className={cn(
+                          "flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm transition-colors",
+                          isActive
+                            ? "bg-accent text-accent-foreground"
+                            : "hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
+                        <div
+                          className="h-3.5 w-3.5 rounded-full border shrink-0"
+                          style={{ backgroundColor: preset.styles[getResolvedMode()].primary }}
+                        />
+                        <span className="flex-1 text-left truncate">{preset.label}</span>
+                        {isActive && <Check className="h-3.5 w-3.5 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             {isAdmin && (
               <DropdownMenuItem onClick={() => onOpenSettings?.("members")}>
                 <ShieldCheck />

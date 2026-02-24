@@ -126,7 +126,7 @@ const STATUS_CONFIG: Record<MilestoneStatus, { label: string; dotClass: string }
   in_progress: { label: "In Progress", dotClass: "bg-blue-500" },
   on_hold: { label: "On Hold", dotClass: "bg-amber-500" },
   completed: { label: "Completed", dotClass: "bg-emerald-500" },
-  cancelled: { label: "Cancelled", dotClass: "bg-zinc-400" },
+  cancelled: { label: "Cancelled", dotClass: "bg-red-500" },
 };
 
 function StatusDisplay({ status }: { status: MilestoneStatus }) {

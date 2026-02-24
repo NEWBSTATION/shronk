@@ -4,19 +4,80 @@ import { useEffect, useRef, useCallback } from "react";
 import { useDrilldown } from "./drilldown-context";
 import { cn } from "@/lib/utils";
 
+/**
+ * Selectors that identify floating Radix UI overlay elements
+ * (Select content, Popover, DropdownMenu, ContextMenu, Dialog, etc.)
+ */
+const RADIX_OVERLAY_SELECTOR = [
+  "[data-radix-popper-content-wrapper]",
+  "[data-radix-menu-content]",
+  "[role='dialog']",
+  "[role='listbox']",
+].join(", ");
+
 export function DrilldownStack() {
   const { panels, allPanels, pop } = useDrilldown();
   const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const activeCount = panels.length;
 
-  // Click-outside-to-close: mousedown anywhere outside the active card pops
+  // Track whether a Radix floating overlay was recently open.
+  // DOM-based checks at the moment of pointerdown are unreliable because Radix
+  // may tear down its content (pointerdown → state update → React re-render)
+  // before our handler inspects the DOM. Instead, a MutationObserver watches
+  // for overlay nodes being removed and sets a brief cooldown.
+  const overlayOpenRef = useRef(false);
+  const overlayCooldownRef = useRef(false);
+
+  useEffect(() => {
+    if (activeCount === 0) {
+      overlayOpenRef.current = false;
+      overlayCooldownRef.current = false;
+      return;
+    }
+
+    let cooldownTimer: ReturnType<typeof setTimeout>;
+
+    const checkForOverlays = () => {
+      return !!document.querySelector(RADIX_OVERLAY_SELECTOR);
+    };
+
+    const observer = new MutationObserver(() => {
+      const hasOverlay = checkForOverlays();
+
+      if (overlayOpenRef.current && !hasOverlay) {
+        // Overlay just closed — set a cooldown so the triggering pointerdown
+        // (which caused the close) doesn't also pop the drilldown.
+        overlayCooldownRef.current = true;
+        clearTimeout(cooldownTimer);
+        cooldownTimer = setTimeout(() => {
+          overlayCooldownRef.current = false;
+        }, 100);
+      }
+
+      overlayOpenRef.current = hasOverlay;
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-state"],
+    });
+
+    return () => {
+      observer.disconnect();
+      clearTimeout(cooldownTimer);
+    };
+  }, [activeCount]);
+
+  // Click-outside-to-close
   const popRef = useRef(pop);
   popRef.current = pop;
   useEffect(() => {
     if (activeCount === 0) return;
 
-    const handleMouseDown = (e: MouseEvent) => {
+    const handlePointerDown = (e: PointerEvent) => {
       const target = e.target as HTMLElement;
 
       // Check if click is inside any active panel card
@@ -24,12 +85,12 @@ export function DrilldownStack() {
         if (el.contains(target)) return;
       }
 
-      // Ignore clicks inside Radix portals (Select, Popover, DropdownMenu, Dialog, etc.)
-      if (target.closest("[data-radix-popper-content-wrapper], [role=\"dialog\"], [data-radix-select-viewport], [data-radix-menu-content]")) return;
+      // Ignore clicks inside Radix portals
+      if (target.closest(RADIX_OVERLAY_SELECTOR)) return;
 
-      // If any Radix popover/select/dropdown/dialog is currently open in the DOM,
-      // this click is dismissing that overlay — don't also pop the drilldown.
-      if (document.querySelector("[data-radix-popper-content-wrapper], [data-radix-select-viewport], [data-radix-menu-content], [role=\"dialog\"][data-state=\"open\"]")) return;
+      // If a Radix overlay is currently open or was very recently closed,
+      // this click is dismissing that overlay — not the drilldown.
+      if (overlayOpenRef.current || overlayCooldownRef.current) return;
 
       popRef.current();
     };
@@ -39,11 +100,11 @@ export function DrilldownStack() {
     // Use capture phase so no library can swallow the event
     // with stopPropagation before we see it.
     const raf = requestAnimationFrame(() => {
-      document.addEventListener("mousedown", handleMouseDown, true);
+      document.addEventListener("pointerdown", handlePointerDown, true);
     });
     return () => {
       cancelAnimationFrame(raf);
-      document.removeEventListener("mousedown", handleMouseDown, true);
+      document.removeEventListener("pointerdown", handlePointerDown, true);
     };
   }, [activeCount]);
 

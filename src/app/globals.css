@@ -415,7 +415,7 @@ pre {
   user-select: none;
   overflow: visible;
   z-index: 10;
-  transition: box-shadow 0.15s ease, background-color 0.2s ease, border-color 0.2s ease;
+  transition: box-shadow 0.15s ease, border-color 0.2s ease;
 }
 
 .timeline-bar:not(.timeline-bar-team-track) {
@@ -424,10 +424,6 @@ pre {
 
 .timeline-bar:not(.timeline-bar-team-track):hover {
   border-color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
-}
-
-.timeline-bar:hover {
-  background-color: color-mix(in srgb, var(--muted-foreground) 38%, var(--background));
 }
 
 .timeline-bar:active {
@@ -481,8 +477,53 @@ pre {
 }
 
 .timeline-bar-chain-end:not(.timeline-bar-team-track):hover > .timeline-bar-fill {
-  background-color: color-mix(in srgb, var(--muted-foreground) 38%, var(--background));
   border-color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+}
+
+/* Status wash — gradient tint + diagonal stripes fading from left edge */
+.timeline-bar-status-pip {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 3px,
+      color-mix(in srgb, var(--status-color) 18%, transparent) 3px,
+      color-mix(in srgb, var(--status-color) 18%, transparent) 6px
+    ),
+    color-mix(in srgb, var(--status-color) 30%, transparent);
+  background-size: 8.49px 8.49px, auto;
+  -webkit-mask-image: linear-gradient(to right, black 10px, transparent 80px);
+  mask-image: linear-gradient(to right, black 10px, transparent 80px);
+  -webkit-mask-size: clamp(60px, 40%, 120px) 100%;
+  mask-size: clamp(60px, 40%, 120px) 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  background-position: 0 0;
+}
+
+/* Cancelled — solid gradient only, no stripes */
+.timeline-bar-status-pip-flat {
+  background: color-mix(in srgb, var(--status-color) 30%, transparent);
+  background-size: auto;
+}
+
+.timeline-bar:hover > .timeline-bar-status-pip {
+  animation: stripe-scroll 1s linear infinite;
+}
+
+.timeline-bar-on-hold:hover > .timeline-bar-status-pip,
+.timeline-bar-cancelled:hover > .timeline-bar-status-pip {
+  animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 /* Completed bar — dimmed with subtle strikethrough */
@@ -491,6 +532,15 @@ pre {
 }
 
 .timeline-bar-completed:not(.timeline-bar-team-track):hover {
+  opacity: 0.65;
+}
+
+/* Cancelled bar — dimmed */
+.timeline-bar-cancelled:not(.timeline-bar-team-track) {
+  opacity: 0.45;
+}
+
+.timeline-bar-cancelled:not(.timeline-bar-team-track):hover {
   opacity: 0.65;
 }
 
@@ -764,26 +814,24 @@ pre {
    ================================================ */
 
 .timeline-link-line {
-  marker-end: url(#timeline-arrow);
   transition: stroke 0.3s ease, stroke-width 0.3s ease;
 }
 
 [data-link-id]:hover .timeline-link-line {
   stroke: var(--chart-2);
   stroke-width: 2;
-  marker-end: url(#timeline-arrow-hover);
 }
 
 [data-link-id].link-highlight .timeline-link-line {
   stroke: var(--chart-2);
   stroke-width: 2;
-  stroke-dasharray: 6 4;
-  animation: link-flow 0.6s linear infinite;
-  marker-end: url(#timeline-arrow-hover);
+  stroke-dasharray: 4 3;
+  animation: link-flow 0.5s linear infinite;
+  transition: none;
 }
 
 @keyframes link-flow {
-  to { stroke-dashoffset: -10; }
+  to { stroke-dashoffset: -7; }
 }
 
 /* ================================================
@@ -837,7 +885,7 @@ pre {
 .drag-link-overlay path {
   stroke: var(--chart-2);
   stroke-width: 2;
-  stroke-dasharray: 6 4;
+  stroke-dasharray: 4 3;
   fill: none;
 }
 

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
-import { Sun, Moon, Monitor, Check } from "lucide-react";
+import { Sun, Moon, Monitor, Check, Dices } from "lucide-react";
 import { usePreferencesStore, type ToastPosition } from "@/store/preferences-store";
 import { useThemeStore } from "@/store/theme-store";
 import { themePresets } from "@/config/theme-presets";
@@ -94,7 +94,7 @@ const allListedZones = new Set(Object.values(TIMEZONE_GROUPS).flat());
 export function PreferencesTab() {
   const { timezone, setTimezone, toastPosition, setToastPosition } =
     usePreferencesStore();
-  const { currentPresetKey, mode, setPreset, setMode, getResolvedMode } =
+  const { currentPresetKey, mode, setPreset, setMode, getResolvedMode, randomPreset } =
     useThemeStore();
   const resolvedMode = getResolvedMode();
   const sortedThemes = getSortedThemeEntries();
@@ -167,13 +167,25 @@ export function PreferencesTab() {
           <div className="px-4 py-3">
             <div className="flex items-center justify-between mb-3">
               <Label className="text-sm font-medium">Theme</Label>
-              <Input
-                type="text"
-                placeholder="Search themes..."
-                value={themeSearch}
-                onChange={(e) => setThemeSearch(e.target.value)}
-                className="h-7 w-40 text-xs"
-              />
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => randomPreset()}
+                  className="inline-flex items-center gap-1.5 h-7 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                  <Dices className="h-3.5 w-3.5" />
+                  <span>Random</span>
+                  <kbd className="text-[10px] rounded bg-muted px-1 py-0.5 font-medium text-muted-foreground/60">
+                    {typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "⌘\\" : "Ctrl+\\"}
+                  </kbd>
+                </button>
+                <Input
+                  type="text"
+                  placeholder="Search themes..."
+                  value={themeSearch}
+                  onChange={(e) => setThemeSearch(e.target.value)}
+                  className="h-7 w-40 text-xs"
+                />
+              </div>
             </div>
             <div
               ref={themeListRef}
