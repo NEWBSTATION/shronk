@@ -288,7 +288,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
             className="timeline-scroll-area"
             style={{ overflow: 'auto', position: 'absolute', inset: 0, zIndex: 1 }}
           >
-            <div style={{ width: totalWidth, height: visibleRowCount * ROW_HEIGHT, minHeight: '100%', position: 'relative', overflow: 'hidden', transition: 'height 200ms ease' }}>
+            <div style={{ width: totalWidth, height: (visibleRowCount + 4) * ROW_HEIGHT, minHeight: '100%', position: 'relative', overflow: 'hidden', transition: 'height 200ms ease' }}>
               {/* Calendar-aligned grid lines */}
               <GridColumns
                 windowStart={windowStart}

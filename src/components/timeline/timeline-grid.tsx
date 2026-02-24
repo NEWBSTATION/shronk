@@ -629,6 +629,9 @@ export function TimelineGrid({
             );
           })}
 
+          {/* Bottom spacer for extra scroll room */}
+          <div style={{ height: ROW_HEIGHT * 4 }} />
+
           {/* Insertion line indicator */}
           {insertLineY !== null && (
             <div
