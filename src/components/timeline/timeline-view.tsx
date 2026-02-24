@@ -35,6 +35,7 @@ import {
   toLocalMidnight,
   isTeamTrackId,
   parseTeamTrackId,
+  computeEndDateFromDuration,
 } from './transformers';
 import { ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { getPixelsPerDay, dateToPixel, getTotalWidth } from './date-math';
@@ -630,6 +631,22 @@ export function TimelineView({
     handleChartScroll(scrollLeft, scrollTop);
   }, [handleChartScroll]);
 
+  // --- Forward wheel events from grid to chart scroll ---
+  useEffect(() => {
+    const gridEl = gridScrollRef.current;
+    if (!gridEl) return;
+    const handleWheel = (e: WheelEvent) => {
+      const scrollEl = chartRef.current?.scrollRef;
+      if (!scrollEl) return;
+      // Only forward vertical scroll (non-zoom)
+      if (e.ctrlKey || e.metaKey) return;
+      e.preventDefault();
+      scrollEl.scrollTop += e.deltaY;
+    };
+    gridEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => gridEl.removeEventListener('wheel', handleWheel);
+  }, []);
+
   // --- Resize handle ---
   const resizeHandleRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -668,6 +685,21 @@ export function TimelineView({
   const handleGridRowClick = useCallback((task: TimelineTask) => {
     handleBarTaskClick(task.id);
   }, [handleBarTaskClick]);
+
+  // --- Grid duration change ---
+  const handleGridDurationChange = useCallback((taskId: string, durationDays: number) => {
+    const teamTrack = parseTeamTrackId(taskId);
+    if (teamTrack && onUpdateTeamDurationRef.current) {
+      onUpdateTeamDurationRef.current(teamTrack.milestoneId, teamTrack.teamId, durationDays);
+    } else {
+      const feature = featureMapRef.current.get(taskId);
+      if (feature) {
+        const start = toLocalMidnight(feature.startDate);
+        const end = computeEndDateFromDuration(start, durationDays);
+        onUpdateDatesRef.current(taskId, start, end, durationDays);
+      }
+    }
+  }, []);
 
   // --- Grid row reorder ---
   const handleGridReorder = useCallback((orderedFeatureIds: string[]) => {
@@ -1022,6 +1054,7 @@ export function TimelineView({
           onRowClick={handleGridRowClick}
           onStatusChange={onStatusChangeRef}
           onAddFeature={onAddFeature}
+          onDurationChange={handleGridDurationChange}
           onReorder={handleGridReorder}
           onDragActiveChange={setIsGridDragging}
           project={project}

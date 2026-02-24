@@ -73,7 +73,7 @@ export function ThemeSelector() {
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 p-0" align="start">
-          <Command>
+          <Command filter={(value, search) => value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0}>
             {/* Sticky Mode Selection Header */}
             <div className="sticky top-0 z-10 bg-popover border-b">
               <div className="p-2 space-y-1.5">
@@ -177,7 +177,7 @@ export function ThemeSelectorCompact() {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="end">
-        <Command>
+        <Command filter={(value, search) => value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0}>
           {/* Sticky Mode Selection Header */}
           <div className="sticky top-0 z-10 bg-popover border-b">
             <div className="p-2 space-y-1.5">

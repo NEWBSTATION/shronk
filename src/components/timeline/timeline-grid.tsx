@@ -7,9 +7,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { MilestoneIcon } from '@/lib/milestone-icon';
 import { getColorStyles } from '@/lib/milestone-theme';
+import { bestFitDurationUnit, DURATION_UNIT_MULTIPLIERS, type DurationUnit } from './transformers';
 import type { TimelineTask } from './types';
 import type { Milestone, MilestoneStatus, Project } from '@/db/schema';
 
@@ -53,6 +62,113 @@ function StatusToggle({
   );
 }
 
+/** Inline duration editor popover */
+function DurationPopover({
+  taskId,
+  durationDays,
+  durationText,
+  onDurationChange,
+  variant = 'feature',
+}: {
+  taskId: string;
+  durationDays: number;
+  durationText: string;
+  onDurationChange: (id: string, durationDays: number) => void;
+  variant?: 'feature' | 'team';
+}) {
+  const [open, setOpen] = useState(false);
+  const { value: initValue, unit: initUnit } = bestFitDurationUnit(durationDays);
+  const [value, setValue] = useState(initValue);
+  const [unit, setUnit] = useState<DurationUnit>(initUnit);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync when external duration changes
+  useEffect(() => {
+    if (!open) {
+      const fit = bestFitDurationUnit(durationDays);
+      setValue(fit.value);
+      setUnit(fit.unit);
+    }
+  }, [durationDays, open]);
+
+  const computedDays = value * DURATION_UNIT_MULTIPLIERS[unit];
+
+  const handleSubmit = () => {
+    if (computedDays >= 1) {
+      onDurationChange(taskId, computedDays);
+    }
+    setOpen(false);
+  };
+
+  const badgeClass = variant === 'team'
+    ? 'shrink-0 ml-auto rounded border border-border/60 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground/50 tabular-nums hover:bg-accent hover:text-accent-foreground hover:border-border transition-colors cursor-pointer'
+    : 'shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer';
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <span
+          className={badgeClass}
+          role="button"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {durationText}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-48 p-2"
+        align="end"
+        side="bottom"
+        sideOffset={4}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          setTimeout(() => inputRef.current?.select(), 0);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-1.5">
+          <Input
+            ref={inputRef}
+            type="number"
+            min={1}
+            value={value}
+            onChange={(e) => setValue(Math.max(1, parseInt(e.target.value) || 1))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSubmit();
+              if (e.key === 'Escape') setOpen(false);
+            }}
+            className="h-7 w-16 text-xs tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <Select value={unit} onValueChange={(v) => setUnit(v as DurationUnit)}>
+            <SelectTrigger className="h-7 flex-1 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="days">days</SelectItem>
+              <SelectItem value="weeks">weeks</SelectItem>
+              <SelectItem value="months">months</SelectItem>
+              <SelectItem value="years">years</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {computedDays !== durationDays && (
+          <div className="mt-1.5 flex items-center justify-between">
+            <span className="text-[10px] text-muted-foreground">{computedDays}d total</span>
+            <button
+              className="text-[10px] font-medium text-primary hover:underline"
+              onClick={handleSubmit}
+            >
+              Apply
+            </button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 interface TimelineGridProps {
   tasks: TimelineTask[];
   features: Milestone[];
@@ -61,6 +177,7 @@ interface TimelineGridProps {
   onRowClick: (task: TimelineTask) => void;
   onStatusChange: RefObject<(id: string, status: MilestoneStatus) => Promise<void>>;
   onAddFeature: (opts?: { chain?: boolean }) => void;
+  onDurationChange?: (id: string, durationDays: number) => void;
   onReorder?: (orderedFeatureIds: string[]) => void;
   onDragActiveChange?: (isDragging: boolean) => void;
   project: Project;
@@ -80,6 +197,7 @@ export function TimelineGrid({
   onRowClick,
   onStatusChange,
   onAddFeature,
+  onDurationChange,
   onReorder,
   onDragActiveChange,
   project,
@@ -401,9 +519,19 @@ export function TimelineGrid({
                   <span className="truncate min-w-0 flex-1 text-xs text-muted-foreground">
                     {task.text}
                   </span>
-                  <span className="shrink-0 ml-auto rounded border border-border/60 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground/50 tabular-nums">
-                    {task.durationText}
-                  </span>
+                  {onDurationChange ? (
+                    <DurationPopover
+                      taskId={task.id}
+                      durationDays={task.duration}
+                      durationText={task.durationText}
+                      onDurationChange={onDurationChange}
+                      variant="team"
+                    />
+                  ) : (
+                    <span className="shrink-0 ml-auto rounded border border-border/60 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground/50 tabular-nums">
+                      {task.durationText}
+                    </span>
+                  )}
                 </div>
               );
             }
@@ -447,9 +575,18 @@ export function TimelineGrid({
                   >
                     {task.text}
                   </span>
-                  <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                    {task.durationText}
-                  </span>
+                  {onDurationChange ? (
+                    <DurationPopover
+                      taskId={task.id}
+                      durationDays={task.duration}
+                      durationText={task.durationText}
+                      onDurationChange={onDurationChange}
+                    />
+                  ) : (
+                    <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                      {task.durationText}
+                    </span>
+                  )}
                 </div>
               );
             }
@@ -476,9 +613,18 @@ export function TimelineGrid({
                 >
                   {task.text}
                 </span>
-                <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
-                  {task.durationText}
-                </span>
+                {onDurationChange ? (
+                  <DurationPopover
+                    taskId={task.id}
+                    durationDays={task.duration}
+                    durationText={task.durationText}
+                    onDurationChange={onDurationChange}
+                  />
+                ) : (
+                  <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+                    {task.durationText}
+                  </span>
+                )}
               </div>
             );
           })}
