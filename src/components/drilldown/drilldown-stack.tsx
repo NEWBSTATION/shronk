@@ -79,19 +79,29 @@ export function DrilldownStack() {
     if (activeCount === 0) return;
 
     const handlePointerDown = (e: PointerEvent) => {
-      const target = e.target as HTMLElement;
+      const target = e.target as Node;
 
       // Check if click is inside any active panel card
       for (const el of cardRefs.current.values()) {
         if (el.contains(target)) return;
       }
 
-      // Ignore clicks inside Radix portals
-      if (target.closest(OVERLAY_IGNORE_SELECTOR)) return;
-
-      // If a Radix overlay is currently open or was very recently closed,
+      // If a floating overlay is currently open or was very recently closed,
       // this click is dismissing that overlay — not the drilldown.
       if (overlayOpenRef.current || overlayCooldownRef.current) return;
+
+      // Ignore clicks inside Radix portals / floating menus.
+      // Walk up manually to handle SVG elements where closest() may not
+      // cross namespace boundaries reliably.
+      let node: Node | null = target;
+      while (node) {
+        if (
+          node instanceof HTMLElement &&
+          node.matches(OVERLAY_IGNORE_SELECTOR)
+        )
+          return;
+        node = node.parentNode;
+      }
 
       popRef.current();
     };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { CalendarIcon, Timer, Layers3, Users, Trash2 } from "lucide-react";
@@ -78,7 +78,7 @@ export function FeatureDialog({
   milestones,
   defaultMilestoneId,
   teams = [],
-  chainTo,
+  chainTo: chainToProp,
   chainEnabled: chainEnabledProp = false,
   onOpenFeature,
 }: FeatureDialogProps) {
@@ -96,14 +96,26 @@ export function FeatureDialog({
   const [pendingTeamTracks, setPendingTeamTracks] = useState<Map<string, number>>(new Map());
   const [chainActive, setChainActive] = useState(false);
 
+  // Derive chainTo: use explicit prop if provided, otherwise compute from selected milestone
+  const chainTo = useMemo(() => {
+    if (chainToProp) return chainToProp;
+    if (!milestoneId) return null;
+    const cached = queryClient.getQueryData<{ features: { id: string; title: string; endDate: Date | string; projectId: string }[] }>(["allFeatures"]);
+    if (!cached?.features) return null;
+    const milestoneFeatures = cached.features.filter((f) => f.projectId === milestoneId);
+    const last = milestoneFeatures.length > 0 ? milestoneFeatures[milestoneFeatures.length - 1] : null;
+    if (!last) return null;
+    return { featureId: last.id, featureTitle: last.title, endDate: last.endDate };
+  }, [chainToProp, milestoneId, queryClient]);
+
   // Sync default milestone + chain state when dialog opens
   useEffect(() => {
     if (open) {
       setMilestoneId(defaultMilestoneId || milestones[0]?.id || "");
-      const shouldChain = chainEnabledProp && !!chainTo;
+      const shouldChain = chainEnabledProp && !!chainToProp;
       setChainActive(shouldChain);
-      if (shouldChain && chainTo) {
-        setStartDate(addDays(new Date(chainTo.endDate), 1));
+      if (shouldChain && chainToProp) {
+        setStartDate(addDays(new Date(chainToProp.endDate), 1));
       }
       // Pre-populate team tracks from teams with autoAdd enabled
       const autoAddTeams = teams.filter((t) => t.autoAdd);
@@ -115,7 +127,7 @@ export function FeatureDialog({
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, defaultMilestoneId, milestones, chainEnabledProp, chainTo, teams]);
+  }, [open, defaultMilestoneId, milestones, chainEnabledProp, chainToProp, teams]);
 
   // When chain toggle is turned on, snap start date to predecessor's end + 1
   const handleChainToggle = (checked: boolean) => {

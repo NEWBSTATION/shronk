@@ -231,6 +231,16 @@ body {
   letter-spacing: var(--letter-spacing);
 }
 
+/* Re-enable text selection for content areas */
+input,
+textarea,
+[contenteditable="true"],
+pre,
+code,
+.select-text {
+  user-select: text;
+}
+
 /* Ensure code elements use theme monospace font */
 code,
 kbd,
@@ -407,6 +417,19 @@ pre {
 .tiptap ul[data-type="taskList"] li[data-checked="true"] > div > p {
   text-decoration: line-through;
   color: var(--muted-foreground);
+}
+
+/* Highlight the dragged node */
+.tiptap .ProseMirror-selectednode {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Drop cursor indicator */
+.ProseMirror-dropcursor {
+  color: var(--primary) !important;
+  border-color: var(--primary) !important;
 }
 
 /* ================================================

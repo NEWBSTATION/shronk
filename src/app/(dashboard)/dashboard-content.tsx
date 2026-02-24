@@ -8,6 +8,7 @@ import {
   useDrilldown,
 } from "@/components/drilldown/drilldown-context";
 import { DrilldownStack } from "@/components/drilldown/drilldown-stack";
+import { DrilldownRestorer } from "@/components/drilldown/drilldown-restorer";
 import { DashboardTab } from "@/components/tabs/dashboard-tab";
 import { FeaturesTab } from "@/components/tabs/features-tab";
 import { TimelineTab } from "@/components/tabs/timeline-tab";
@@ -324,6 +325,7 @@ function DashboardContentInner() {
 
   return (
     <DrilldownProvider>
+      <DrilldownRestorer />
       <div
         className={cn(
           "flex flex-col h-svh transition-[filter] duration-300 ease-out",

@@ -65,6 +65,7 @@ import {
   type DurationUnit,
 } from "@/components/timeline/transformers";
 import { useDrilldown } from "@/components/drilldown/drilldown-context";
+import { useMilestones } from "@/hooks/use-milestones";
 import type {
   Milestone,
   MilestoneDependency,
@@ -766,7 +767,7 @@ export function FeatureDetailPanel({
 function TeamTracksSection({
   feature,
   teams,
-  teamDurations,
+  teamDurations: teamDurationsProp,
   onUpsertTeamDuration,
   onDeleteTeamDuration,
 }: {
@@ -776,6 +777,13 @@ function TeamTracksSection({
   onUpsertTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
   onDeleteTeamDuration?: (milestoneId: string, teamId: string) => Promise<void>;
 }) {
+  // Subscribe to the milestones query for reactive updates (the prop may be a stale snapshot from a drilldown push)
+  const { data: milestonesData } = useMilestones({ projectId: feature.projectId });
+  const teamDurations = useMemo(() => {
+    if (!milestonesData?.teamDurations) return teamDurationsProp;
+    return milestonesData.teamDurations.filter((td) => td.milestoneId === feature.id);
+  }, [milestonesData?.teamDurations, feature.id, teamDurationsProp]);
+
   const assignedTeamIds = new Set(teamDurations.map((td) => td.teamId));
   const unassignedTeams = teams.filter((t) => !assignedTeamIds.has(t.id));
 

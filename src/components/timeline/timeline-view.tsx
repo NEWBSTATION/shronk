@@ -235,30 +235,21 @@ export function TimelineView({
   const setVisibleTeamIds = useTimelineStore((s) => s.setVisibleTeamIds);
   const toggleTeamVisibility = useTimelineStore((s) => s.toggleTeamVisibility);
 
-  const prevTeamIdsRef = useRef<string[] | null>(null);
   useEffect(() => {
     const currentTeamIds = teams.map((t) => t.id);
     const currentSet = new Set(currentTeamIds);
-    const prevIds = prevTeamIdsRef.current;
-    prevTeamIdsRef.current = currentTeamIds;
 
-    // First load with no persisted selection — show all
-    if (currentTeamIds.length > 0 && visibleTeamIds === null) {
-      setVisibleTeamIds(currentTeamIds);
+    // First load with no persisted selection — default to none visible
+    if (visibleTeamIds === null) {
+      setVisibleTeamIds([]);
       return;
     }
 
     // Prune stale IDs that no longer exist
-    const pruned = (visibleTeamIds ?? []).filter((id) => currentSet.has(id));
+    const pruned = visibleTeamIds.filter((id) => currentSet.has(id));
 
-    // Only detect "new" teams after the initial mount (prevIds !== null)
-    const newTeamIds = prevIds
-      ? currentTeamIds.filter((id) => !prevIds.includes(id))
-      : [];
-    const updated = [...pruned, ...newTeamIds];
-
-    if (updated.length !== (visibleTeamIds ?? []).length || newTeamIds.length > 0) {
-      setVisibleTeamIds(updated);
+    if (pruned.length !== visibleTeamIds.length) {
+      setVisibleTeamIds(pruned);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teams]);

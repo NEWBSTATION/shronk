@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import type { Editor } from "@tiptap/react";
+import { NodeSelection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
@@ -146,6 +147,7 @@ function applyItemStyle(el: MenuItemEl, selected: boolean) {
 
 function buildMenu(
   onSelect: (idx: number) => void,
+  onHover: (idx: number) => void,
   itemRefs: MenuItemEl[],
 ) {
   const frag = document.createDocumentFragment();
@@ -197,6 +199,7 @@ function buildMenu(
 
       item.addEventListener("pointerenter", () => {
         for (let i = 0; i < itemRefs.length; i++) applyItemStyle(itemRefs[i], i === idx);
+        onHover(idx);
       });
       item.addEventListener("mousedown", (e) => {
         e.preventDefault();
@@ -223,14 +226,15 @@ export function RichTextEditor({
   const editorRef = useRef<Editor | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const selectedIndexRef = useRef(0);
+  const itemRefsRef = useRef<MenuItemEl[]>([]);
+  const dragHandleRef = useRef<HTMLDivElement>(null);
+  const addButtonRef = useRef<HTMLDivElement>(null);
+  const hoveredBlockRef = useRef<{ pos: number; dom: HTMLElement; empty: boolean } | null>(null);
 
   const cleanupSlashMenu = useCallback(() => {
     menuRef.current?.remove();
     menuRef.current = null;
-  }, []);
-
-  const renderSlashMenu = useCallback((menu: HTMLDivElement, selectedIndex: number) => {
-    menu.innerHTML = buildMenuHTML(selectedIndex);
+    itemRefsRef.current = [];
   }, []);
 
   const showSlashMenu = useCallback(
@@ -239,10 +243,13 @@ export function RichTextEditor({
 
       const menu = document.createElement("div");
       menu.setAttribute("data-floating-menu", "");
+      const isMobile = window.innerWidth < 640;
       Object.assign(menu.style, {
         position: "fixed",
         zIndex: "50",
-        width: "360px",
+        width: isMobile ? `${window.innerWidth - 16}px` : "360px",
+        maxHeight: "min(400px, 60vh)",
+        overflowY: "auto",
         borderRadius: "8px",
         border: "1px solid var(--border)",
         background: "var(--popover)",
@@ -253,29 +260,27 @@ export function RichTextEditor({
       menuRef.current = menu;
       selectedIndexRef.current = 0;
 
-      renderSlashMenu(menu, 0);
-
-      // Hover highlighting
-      menu.addEventListener("pointerover", (e) => {
-        const target = (e.target as HTMLElement).closest("[data-index]") as HTMLElement | null;
-        if (target) {
-          const idx = Number(target.dataset.index);
-          selectedIndexRef.current = idx;
-          renderSlashMenu(menu, idx);
-        }
-      });
-
-      menu.addEventListener("mousedown", (e) => {
-        e.preventDefault(); // prevent editor blur
-        const target = (e.target as HTMLElement).closest("[data-index]") as HTMLElement | null;
-        if (target && editorRef.current) {
-          const idx = Number(target.dataset.index);
-          const editor = editorRef.current;
+      const items: MenuItemEl[] = [];
+      const onSelect = (idx: number) => {
+        const editor = editorRef.current;
+        if (!editor) return;
+        // Defer so the menu stays in the DOM during all pointer events,
+        // preventing the drilldown click-outside handler from misidentifying
+        // the click as outside the panel.
+        requestAnimationFrame(() => {
           cleanupSlashMenu();
           editor.chain().focus().deleteRange({ from: from - 1, to: from }).run();
           executeSlashCommand(editor, allSlashCommands[idx].action);
-        }
-      });
+        });
+      };
+      const onHover = (idx: number) => { selectedIndexRef.current = idx; };
+
+      const frag = buildMenu(onSelect, onHover, items);
+      itemRefsRef.current = items;
+      menu.appendChild(frag);
+
+      // Highlight the first item
+      if (items.length > 0) applyItemStyle(items[0], true);
 
       const coords = view.coordsAtPos(from);
       document.body.appendChild(menu);
@@ -283,36 +288,50 @@ export function RichTextEditor({
       // Clamp position so the menu stays within the viewport
       const rect = menu.getBoundingClientRect();
       let top = coords.bottom + 4;
-      let left = coords.left;
+      let left: number;
+
+      if (isMobile) {
+        // Center horizontally on mobile
+        left = 8;
+      } else {
+        left = coords.left;
+        if (left + rect.width > window.innerWidth) {
+          left = window.innerWidth - rect.width - 8;
+        }
+        if (left < 8) left = 8;
+      }
 
       if (top + rect.height > window.innerHeight) {
         top = coords.top - rect.height - 4;
       }
-      if (left + rect.width > window.innerWidth) {
-        left = window.innerWidth - rect.width - 8;
-      }
-      if (left < 8) left = 8;
 
       menu.style.top = `${top}px`;
       menu.style.left = `${left}px`;
     },
-    [cleanupSlashMenu, renderSlashMenu],
+    [cleanupSlashMenu],
   );
 
   // Global keydown handler for slash menu navigation
   useEffect(() => {
+    function updateSelection(newIdx: number) {
+      const items = itemRefsRef.current;
+      for (let i = 0; i < items.length; i++) applyItemStyle(items[i], i === newIdx);
+      selectedIndexRef.current = newIdx;
+      // Scroll selected item into view within the menu
+      items[newIdx]?.scrollIntoView({ block: "nearest" });
+    }
+
     function handleKeydown(e: KeyboardEvent) {
       if (!menuRef.current || !editorRef.current) return;
 
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        selectedIndexRef.current = (selectedIndexRef.current + 1) % allSlashCommands.length;
-        renderSlashMenu(menuRef.current, selectedIndexRef.current);
+        updateSelection((selectedIndexRef.current + 1) % allSlashCommands.length);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        selectedIndexRef.current =
-          (selectedIndexRef.current - 1 + allSlashCommands.length) % allSlashCommands.length;
-        renderSlashMenu(menuRef.current, selectedIndexRef.current);
+        updateSelection(
+          (selectedIndexRef.current - 1 + allSlashCommands.length) % allSlashCommands.length
+        );
       } else if (e.key === "Enter") {
         e.preventDefault();
         const editor = editorRef.current;
@@ -342,7 +361,7 @@ export function RichTextEditor({
       document.removeEventListener("mousedown", handleClickOutside, true);
       cleanupSlashMenu();
     };
-  }, [cleanupSlashMenu, renderSlashMenu]);
+  }, [cleanupSlashMenu]);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -371,7 +390,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "tiptap prose prose-sm dark:prose-invert max-w-none outline-none min-h-[120px] px-3 py-2.5 text-sm [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_blockquote]:my-1 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-1 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_h4]:text-sm [&_h4]:font-medium [&_h4]:mt-2 [&_h4]:mb-1 [&_h4]:text-muted-foreground [&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_hr]:border-border [&_hr]:my-3",
+          "tiptap prose prose-sm dark:prose-invert max-w-none outline-none min-h-[120px] pl-8 pr-8 pt-6 pb-8 text-sm [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_blockquote]:my-1 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-1 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_h4]:text-sm [&_h4]:font-medium [&_h4]:mt-2 [&_h4]:mb-1 [&_h4]:text-muted-foreground [&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_hr]:border-border [&_hr]:my-3",
       },
       handleKeyDown: (view, event) => {
         if (event.key !== "/") return false;
@@ -400,10 +419,171 @@ export function RichTextEditor({
     }
   }, [content, editor]);
 
+  // Drag handle + add button — position in the left padding on block hover
+  useEffect(() => {
+    if (!editor) return;
+    const editorEl = editor.view.dom;
+    const handle = dragHandleRef.current;
+    const addBtn = addButtonRef.current;
+    if (!handle || !addBtn) return;
+
+    let currentBlockDom: HTMLElement | null = null;
+
+    const showElement = (el: HTMLElement, blockDom: HTMLElement) => {
+      const wrapperEl = el.parentElement;
+      if (!wrapperEl) return;
+      const wrapperRect = wrapperEl.getBoundingClientRect();
+      const blockRect = blockDom.getBoundingClientRect();
+      const elHeight = el.offsetHeight || 18;
+      el.style.display = "flex";
+      el.style.top = `${blockRect.top - wrapperRect.top + (blockRect.height - elHeight) / 2 - 1}px`;
+      el.style.opacity = "0.7";
+    };
+
+    const hideAll = () => {
+      handle.style.display = "none";
+      handle.style.opacity = "0";
+      addBtn.style.display = "none";
+      addBtn.style.opacity = "0";
+      hoveredBlockRef.current = null;
+      currentBlockDom = null;
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const { doc } = editor.state;
+      let found = false;
+      doc.forEach((node, offset) => {
+        if (found) return;
+        const domNode = editor.view.nodeDOM(offset);
+        if (!(domNode instanceof HTMLElement)) return;
+        const rect = domNode.getBoundingClientRect();
+        if (e.clientY < rect.top || e.clientY > rect.bottom) return;
+
+        found = true;
+        const isTextBlock = node.type.name === "paragraph" || node.type.name === "heading";
+        const isEmpty = isTextBlock && node.textContent.length === 0;
+
+        if (currentBlockDom !== domNode) {
+          currentBlockDom = domNode;
+          hoveredBlockRef.current = { pos: offset, dom: domNode, empty: isEmpty };
+          if (isEmpty) {
+            handle.style.display = "none";
+            handle.style.opacity = "0";
+            showElement(addBtn, domNode);
+          } else {
+            addBtn.style.display = "none";
+            addBtn.style.opacity = "0";
+            showElement(handle, domNode);
+          }
+        }
+      });
+      if (!found) hideAll();
+    };
+
+    const handleMouseLeave = (e: MouseEvent) => {
+      const related = e.relatedTarget as HTMLElement | null;
+      if (related && (handle.contains(related) || addBtn.contains(related))) return;
+      hideAll();
+    };
+
+    const handleElMouseLeave = (e: MouseEvent) => {
+      const related = e.relatedTarget as HTMLElement | null;
+      if (related && editorEl.contains(related)) return;
+      hideAll();
+    };
+
+    const handleElMouseEnter = (e: MouseEvent) => {
+      (e.currentTarget as HTMLElement).style.opacity = "1";
+    };
+
+    editorEl.addEventListener("mousemove", handleMouseMove);
+    editorEl.addEventListener("mouseleave", handleMouseLeave);
+    for (const el of [handle, addBtn]) {
+      el.addEventListener("mouseleave", handleElMouseLeave);
+      el.addEventListener("mouseenter", handleElMouseEnter);
+    }
+
+    return () => {
+      editorEl.removeEventListener("mousemove", handleMouseMove);
+      editorEl.removeEventListener("mouseleave", handleMouseLeave);
+      for (const el of [handle, addBtn]) {
+        el.removeEventListener("mouseleave", handleElMouseLeave);
+        el.removeEventListener("mouseenter", handleElMouseEnter);
+      }
+    };
+  }, [editor]);
+
+  const handleAddClick = useCallback(() => {
+    if (!editor || !hoveredBlockRef.current) return;
+    const { pos } = hoveredBlockRef.current;
+    // Place cursor inside the empty block and insert "/"
+    editor.chain().focus().setTextSelection(pos + 1).insertContent("/").run();
+    // Trigger slash menu at the cursor position (after the "/")
+    const from = editor.state.selection.from;
+    showSlashMenu(editor.view, from);
+  }, [editor, showSlashMenu]);
+
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      if (!editor || !hoveredBlockRef.current) {
+        e.preventDefault();
+        return;
+      }
+      const { pos, dom: blockDom } = hoveredBlockRef.current;
+      const { view } = editor;
+
+      // Select the node so ProseMirror knows what's being dragged
+      const sel = NodeSelection.create(view.state.doc, pos);
+      view.dispatch(view.state.tr.setSelection(sel));
+
+      // Serialize the block for the drag data transfer
+      const slice = sel.content();
+      const { dom, text } = view.serializeForClipboard(slice);
+      e.dataTransfer.setData("text/html", dom.innerHTML);
+      e.dataTransfer.setData("text/plain", text);
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setDragImage(blockDom, 0, 0);
+
+      // Tell ProseMirror a drag is in progress
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (view as any).dragging = { slice, move: true };
+    },
+    [editor],
+  );
+
   if (!editor) return null;
 
   return (
-    <div className={cn("rounded-lg border border-border bg-background overflow-hidden", className)}>
+    <div className={cn("relative rounded-lg border border-border bg-background overflow-hidden", className)}>
+      {/* Drag handle — grip dots for content blocks */}
+      <div
+        ref={dragHandleRef}
+        draggable
+        onDragStart={handleDragStart}
+        className="absolute left-[10px] z-10 w-[18px] h-[18px] items-center justify-center rounded-[4px] cursor-grab hover:bg-accent"
+        style={{ display: "none", opacity: 0, transition: "top 0.15s ease, opacity 0.15s ease" }}
+      >
+        <svg width="10" height="14" viewBox="0 0 10 14" className="text-foreground/70" fill="currentColor">
+          <circle cx="3" cy="2" r="1.2" />
+          <circle cx="7" cy="2" r="1.2" />
+          <circle cx="3" cy="7" r="1.2" />
+          <circle cx="7" cy="7" r="1.2" />
+          <circle cx="3" cy="12" r="1.2" />
+          <circle cx="7" cy="12" r="1.2" />
+        </svg>
+      </div>
+      {/* Add button — "+" for empty blocks, opens slash menu */}
+      <div
+        ref={addButtonRef}
+        onClick={handleAddClick}
+        className="absolute left-[10px] z-10 w-[18px] h-[18px] items-center justify-center rounded-[4px] cursor-pointer hover:bg-accent"
+        style={{ display: "none", opacity: 0, transition: "top 0.15s ease, opacity 0.15s ease" }}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-foreground/70">
+          <line x1="6" y1="1.5" x2="6" y2="10.5" />
+          <line x1="1.5" y1="6" x2="10.5" y2="6" />
+        </svg>
+      </div>
       {/* Bubble menu — appears on text selection */}
       <BubbleMenu
         editor={editor}

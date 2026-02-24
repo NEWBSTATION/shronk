@@ -97,7 +97,9 @@
       "WebFetch(domain:www.storylane.io)",
       "Bash(gh api:*)",
       "Bash(git diff:*)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(npm view:*)"
     ]
   }
 }
