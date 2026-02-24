@@ -51,8 +51,11 @@ const slashCommandGroups: SlashCommandGroup[] = [
   {
     label: "TEXT",
     commands: [
+      { label: "Normal Text", action: "paragraph", icon: icon('<path d="M13 4v16"/><path d="M17 4v16"/><path d="M19 4H9.5a4.5 4.5 0 0 0 0 9H13"/>') },
+      { label: "Heading 1", action: "heading1", icon: icon('<path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17 12l3-2v8"/>') },
       { label: "Heading 2", action: "heading2", icon: icon('<path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"/>') },
       { label: "Heading 3", action: "heading3", icon: icon('<path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 0 1-2 2"/><path d="M17 17.5c2 1.5 4 .3 4-1.5a2 2 0 0 0-2-2"/>') },
+      { label: "Heading 4", action: "heading4", icon: icon('<path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17 10v4h4"/><path d="M21 10v8"/>') },
       { label: "Bold", action: "bold", icon: icon('<path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/>') },
       { label: "Italic", action: "italic", icon: icon('<line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/>') },
       { label: "Strikethrough", action: "strike", icon: icon('<path d="M16 4H9a3 3 0 0 0-2.83 4"/><path d="M14 12a4 4 0 0 1 0 8H6"/><line x1="4" x2="20" y1="12" y2="12"/>') },
@@ -81,11 +84,20 @@ const allSlashCommands: SlashCommand[] = slashCommandGroups.flatMap((g) => g.com
 
 function executeSlashCommand(editor: Editor, action: string) {
   switch (action) {
+    case "paragraph":
+      editor.chain().focus().setParagraph().run();
+      break;
+    case "heading1":
+      editor.chain().focus().toggleHeading({ level: 1 }).run();
+      break;
     case "heading2":
       editor.chain().focus().toggleHeading({ level: 2 }).run();
       break;
     case "heading3":
       editor.chain().focus().toggleHeading({ level: 3 }).run();
+      break;
+    case "heading4":
+      editor.chain().focus().toggleHeading({ level: 4 }).run();
       break;
     case "bold":
       editor.chain().focus().toggleBold().run();
@@ -185,6 +197,7 @@ export function RichTextEditor({
       cleanupSlashMenu();
 
       const menu = document.createElement("div");
+      menu.setAttribute("data-floating-menu", "");
       Object.assign(menu.style, {
         position: "fixed",
         zIndex: "50",
@@ -211,7 +224,8 @@ export function RichTextEditor({
         }
       });
 
-      menu.addEventListener("click", (e) => {
+      menu.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // prevent editor blur
         const target = (e.target as HTMLElement).closest("[data-index]") as HTMLElement | null;
         if (target && editorRef.current) {
           const idx = Number(target.dataset.index);
@@ -293,7 +307,7 @@ export function RichTextEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
-        heading: { levels: [2, 3] },
+        heading: { levels: [1, 2, 3, 4] },
         bulletList: { keepMarks: true },
         orderedList: { keepMarks: true },
         link: false,
@@ -316,7 +330,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "tiptap prose prose-sm dark:prose-invert max-w-none outline-none min-h-[120px] px-3 py-2.5 text-sm [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_blockquote]:my-1 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_hr]:border-border [&_hr]:my-3",
+          "tiptap prose prose-sm dark:prose-invert max-w-none outline-none min-h-[120px] px-3 py-2.5 text-sm [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_blockquote]:my-1 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-1 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_h4]:text-sm [&_h4]:font-medium [&_h4]:mt-2 [&_h4]:mb-1 [&_h4]:text-muted-foreground [&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_hr]:border-border [&_hr]:my-3",
       },
       handleKeyDown: (view, event) => {
         if (event.key !== "/") return false;

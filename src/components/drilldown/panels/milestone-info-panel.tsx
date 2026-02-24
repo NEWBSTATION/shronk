@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { ArrowLeft, Ellipsis, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { format } from "date-fns";
+import { ArrowLeft, Ellipsis, Trash2, CalendarIcon, Clock, ChevronUp, ChevronDown, AlignLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -22,9 +23,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { PropertyRow } from "@/components/ui/property-row";
 import { ColorIconPicker } from "@/components/features-list/color-icon-picker";
 import { MilestoneIcon } from "@/lib/milestone-icon";
 import { getColorStyles } from "@/lib/milestone-theme";
+import { cn } from "@/lib/utils";
 import { useDrilldown } from "@/components/drilldown/drilldown-context";
 
 interface MilestoneInfo {
@@ -33,6 +36,8 @@ interface MilestoneInfo {
   color: string;
   icon: string;
   description?: string | null;
+  startDate?: string | Date | null;
+  endDate?: string | Date | null;
 }
 
 interface MilestoneInfoPanelProps {
@@ -46,6 +51,20 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
   const handleBack = onBack ?? pop;
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [hideEmptyProps, setHideEmptyProps] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [isStuck, setIsStuck] = useState(false);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsStuck(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const updateMutation = useMutation({
     mutationFn: async (data: { id: string; name?: string; color?: string; icon?: string; description?: string | null }) => {
@@ -108,32 +127,42 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
   const colorStyles = getColorStyles(milestone.color);
 
   return (
-    <div className="p-8">
-      {/* Navigation header */}
-      <div className="flex items-center justify-between mb-6">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBack}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Ellipsis className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete milestone
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+    <div>
+      <div ref={sentinelRef} className="h-0" />
+      {/* Sticky header — icon + title stick to top on scroll */}
+      <div className="sticky top-0 z-10 bg-background px-8 pt-8 pb-4 relative">
+        <div className={cn(
+          "absolute bottom-0 left-8 right-8 h-px transition-colors",
+          isStuck ? "bg-border" : "bg-transparent"
+        )} />
+        <div className={cn(
+          "absolute top-full left-0 right-0 h-4 pointer-events-none transition-opacity bg-gradient-to-b from-background to-transparent",
+          isStuck ? "opacity-100" : "opacity-0"
+        )} />
+        {/* Navigation header */}
+        <div className="flex items-center justify-between mb-4">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBack}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Ellipsis className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete milestone
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
-      {/* Icon + Name */}
-      <div className="mb-8">
+        {/* Icon + Name */}
         <div className="flex items-center gap-3">
           <ColorIconPicker
             color={milestone.color}
@@ -167,11 +196,62 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
         </div>
       </div>
 
+      {/* Scrollable content */}
+      <div className="px-8 pb-8">
+
+      {/* Properties */}
+      <div className="space-y-0.5">
+        {!(hideEmptyProps && !milestone.startDate) && (
+          <PropertyRow icon={CalendarIcon} label="Start Date" type="custom">
+            <div className="flex items-center h-8 px-2">
+              <span className="text-sm text-muted-foreground">
+                {milestone.startDate
+                  ? format(new Date(milestone.startDate), "MMM d, yyyy")
+                  : "—"}
+              </span>
+            </div>
+          </PropertyRow>
+        )}
+        {!(hideEmptyProps && !milestone.endDate) && (
+          <PropertyRow icon={Clock} label="End Date" type="custom">
+            <div className="flex items-center h-8 px-2">
+              <span className="text-sm text-muted-foreground">
+                {milestone.endDate
+                  ? format(new Date(milestone.endDate), "MMM d, yyyy")
+                  : "—"}
+              </span>
+            </div>
+          </PropertyRow>
+        )}
+
+        {/* Hide empty properties toggle */}
+        <button
+          type="button"
+          onClick={() => setHideEmptyProps((v) => !v)}
+          className="flex items-center gap-3 min-h-8 py-1.5 rounded-md px-2 -mx-2 text-xs text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent/30 transition-colors"
+        >
+          <div className="shrink-0">
+            {hideEmptyProps ? (
+              <ChevronDown className="size-4" />
+            ) : (
+              <ChevronUp className="size-4" />
+            )}
+          </div>
+          <span>{hideEmptyProps ? "Show empty properties" : "Hide empty properties"}</span>
+        </button>
+      </div>
+
       {/* Description */}
-      <RichTextEditor
-        content={milestone.description || ""}
-        onChange={handleDescriptionSave}
-      />
+      <div className="mt-6 pt-6 border-t border-border">
+        <div className="flex items-center gap-3 mb-3 px-2 -mx-2">
+          <AlignLeft className="size-4 text-muted-foreground shrink-0" />
+          <span className="text-sm text-muted-foreground">Description</span>
+        </div>
+        <RichTextEditor
+          content={milestone.description || ""}
+          onChange={handleDescriptionSave}
+        />
+      </div>
 
       {/* Delete confirmation */}
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -194,6 +274,7 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }

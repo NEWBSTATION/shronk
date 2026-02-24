@@ -69,12 +69,15 @@ function DurationPopover({
   durationText,
   onDurationChange,
   variant = 'feature',
+  onPopoverCloseRef,
 }: {
   taskId: string;
   durationDays: number;
   durationText: string;
   onDurationChange: (id: string, durationDays: number) => void;
   variant?: 'feature' | 'team';
+  /** Ref flag set to true briefly after popover closes to suppress parent row click */
+  onPopoverCloseRef?: React.MutableRefObject<boolean>;
 }) {
   const [open, setOpen] = useState(false);
   const { value: initValue, unit: initUnit } = bestFitDurationUnit(durationDays);
@@ -104,20 +107,28 @@ function DurationPopover({
     ? 'shrink-0 ml-auto rounded border border-border/60 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground/50 tabular-nums hover:bg-accent hover:text-accent-foreground hover:border-border transition-colors cursor-pointer'
     : 'shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer';
 
+  const handleOpenChange = useCallback((newOpen: boolean) => {
+    if (!newOpen && onPopoverCloseRef) {
+      onPopoverCloseRef.current = true;
+      setTimeout(() => { onPopoverCloseRef.current = false; }, 300);
+    }
+    setOpen(newOpen);
+  }, [onPopoverCloseRef]);
+
   return (
-    <ResponsivePopover open={open} onOpenChange={setOpen}>
+    <ResponsivePopover open={open} onOpenChange={handleOpenChange}>
       <ResponsivePopoverTrigger asChild>
-        <span
+        <button
+          type="button"
           className={badgeClass}
-          role="button"
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
           {durationText}
-        </span>
+        </button>
       </ResponsivePopoverTrigger>
       <ResponsivePopoverContent
-        className="w-48 p-2"
+        className="w-56 p-3"
         align="end"
         side="bottom"
         sideOffset={4}
@@ -129,7 +140,8 @@ function DurationPopover({
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-1.5">
+        <p className="text-xs font-medium text-muted-foreground mb-2">Duration</p>
+        <div className="flex items-center gap-2">
           <Input
             ref={inputRef}
             type="number"
@@ -140,10 +152,10 @@ function DurationPopover({
               if (e.key === 'Enter') handleSubmit();
               if (e.key === 'Escape') setOpen(false);
             }}
-            className="h-7 w-16 text-xs tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="h-8 w-18 flex-1 min-w-0 text-sm tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
           <Select value={unit} onValueChange={(v) => setUnit(v as DurationUnit)}>
-            <SelectTrigger className="h-7 flex-1 text-xs">
+            <SelectTrigger className="h-8 flex-[2] min-w-0 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -155,10 +167,10 @@ function DurationPopover({
           </Select>
         </div>
         {computedDays !== durationDays && (
-          <div className="mt-1.5 flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">{computedDays}d total</span>
+          <div className="mt-2 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{computedDays}d total</span>
             <button
-              className="text-[10px] font-medium text-primary hover:underline"
+              className="text-xs font-medium text-primary hover:underline"
               onClick={handleSubmit}
             >
               Apply
@@ -243,6 +255,9 @@ export function TimelineGrid({
 
   // Suppress click after drag completes
   const dragJustEndedRef = useRef(false);
+
+  // Suppress click after popover/drawer closes (prevents tap-through on mobile)
+  const popoverJustClosedRef = useRef(false);
 
   // Pointer-based drag initiation — works from anywhere on the row
   // Desktop: 5px distance threshold. Touch: 250ms long-press then move.
@@ -559,7 +574,7 @@ export function TimelineGrid({
                   } ${
                     isDragging ? '' : 'group/gridrow'
                   }`}
-                  onClick={() => { if (!dragJustEndedRef.current) onRowClick(task); }}
+                  onClick={() => { if (!dragJustEndedRef.current && !popoverJustClosedRef.current) onRowClick(task); }}
                   onPointerDown={onReorder ? (e) => handleRowPointerDown(task.id, e) : undefined}
                 >
                   <StatusToggle
@@ -582,6 +597,7 @@ export function TimelineGrid({
                       durationDays={task.duration}
                       durationText={task.durationText}
                       onDurationChange={onDurationChange}
+                      onPopoverCloseRef={popoverJustClosedRef}
                     />
                   ) : (
                     <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
@@ -620,6 +636,7 @@ export function TimelineGrid({
                     durationDays={task.duration}
                     durationText={task.durationText}
                     onDurationChange={onDurationChange}
+                    onPopoverCloseRef={popoverJustClosedRef}
                   />
                 ) : (
                   <span className="shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">

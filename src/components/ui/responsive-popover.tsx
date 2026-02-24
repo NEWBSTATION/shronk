@@ -74,14 +74,14 @@ const ResponsivePopoverContent = React.forwardRef<
 
   if (isMobile) {
     return (
-      <DrawerContent>
+      <DrawerContent className="bg-popover">
         {title && (
           <DrawerHeader>
             <DrawerTitle>{title}</DrawerTitle>
           </DrawerHeader>
         )}
         <div
-          className={cn("px-4 pb-6", className)}
+          className="px-4 pb-6"
           {...props}
         >
           {children}

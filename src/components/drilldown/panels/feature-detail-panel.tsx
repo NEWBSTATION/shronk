@@ -14,6 +14,9 @@ import {
   Ellipsis,
   CircleDot,
   Signal,
+  ChevronUp,
+  ChevronDown,
+  AlignLeft,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -190,6 +193,20 @@ export function FeatureDetailPanel({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [pendingTeamTracks, setPendingTeamTracks] = useState<Map<string, number>>(new Map());
   const [chainActive, setChainActive] = useState(false);
+  const [hideEmptyProps, setHideEmptyProps] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [isStuck, setIsStuck] = useState(false);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsStuck(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const completed = status === "completed";
   const prevStatusRef = useRef<MilestoneStatus>("not_started");
@@ -364,48 +381,58 @@ export function FeatureDetailPanel({
   }, [onCreate, title, durationValue, durationUnit, startDate, status, description, back, pendingTeamTracks, chainActive, chainTo]);
 
   return (
-    <div className="p-6 md:p-8 min-w-0">
-      {/* Navigation header — back left, title centered, menu right */}
-      <div className="flex items-center mb-6">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0 -ml-2"
-          onClick={back}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+    <div className="min-w-0">
+      <div ref={sentinelRef} className="h-0" />
+      {/* Sticky header — icon + title stick to top on scroll */}
+      <div className="sticky top-0 z-10 bg-background px-6 md:px-8 pt-6 md:pt-8 pb-4 relative">
+        <div className={cn(
+          "absolute bottom-0 left-6 right-6 md:left-8 md:right-8 h-px transition-colors",
+          isStuck ? "bg-border" : "bg-transparent"
+        )} />
+        <div className={cn(
+          "absolute top-full left-0 right-0 h-4 pointer-events-none transition-opacity bg-gradient-to-b from-background to-transparent",
+          isStuck ? "opacity-100" : "opacity-0"
+        )} />
+        {/* Navigation header — back left, menu right */}
+        <div className="flex items-center mb-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 -ml-2"
+            onClick={back}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
 
-        <div className="flex-1" />
+          <div className="flex-1" />
 
-        {isEditMode && onDelete ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-              >
-                <Ellipsis className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete feature
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <div className="h-8 w-8 shrink-0" />
-        )}
-      </div>
+          {isEditMode && onDelete ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                >
+                  <Ellipsis className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete feature
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div className="h-8 w-8 shrink-0" />
+          )}
+        </div>
 
-      {/* Title — large heading with completion toggle */}
-      <div className="mb-8">
+        {/* Title — large heading with completion toggle */}
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -465,6 +492,9 @@ export function FeatureDetailPanel({
         </div>
       </div>
 
+      {/* Scrollable content */}
+      <div className="px-6 md:px-8 pb-6 md:pb-8">
+
       {/* Properties — Dougly-style space-y-0.5 */}
       <div className="space-y-0.5">
         {/* Status */}
@@ -520,25 +550,27 @@ export function FeatureDetailPanel({
         )}
 
         {/* Priority */}
-        <PropertyRow icon={Signal} label="Priority" type="custom">
-          <Select
-            value={priority}
-            onValueChange={(v) => handlePriorityChange(v as MilestonePriority)}
-          >
-            <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0 w-auto gap-2">
-              <SelectValue>
-                <PriorityDisplay priority={priority} />
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {Object.keys(priorityConfig).map((key) => (
-                <SelectItem key={key} value={key}>
-                  <PriorityDisplay priority={key as MilestonePriority} />
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </PropertyRow>
+        {!(hideEmptyProps && priority === "none") && (
+          <PropertyRow icon={Signal} label="Priority" type="custom">
+            <Select
+              value={priority}
+              onValueChange={(v) => handlePriorityChange(v as MilestonePriority)}
+            >
+              <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0 w-auto gap-2">
+                <SelectValue>
+                  <PriorityDisplay priority={priority} />
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {Object.keys(priorityConfig).map((key) => (
+                  <SelectItem key={key} value={key}>
+                    <PriorityDisplay priority={key as MilestonePriority} />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </PropertyRow>
+        )}
 
         {/* Duration */}
         <PropertyRow icon={Timer} label="Duration" type="custom">
@@ -601,10 +633,29 @@ export function FeatureDetailPanel({
           </div>
         </PropertyRow>
 
+        {/* Hide empty properties toggle */}
+        <button
+          type="button"
+          onClick={() => setHideEmptyProps((v) => !v)}
+          className="flex items-center gap-3 min-h-8 py-1.5 rounded-md px-2 -mx-2 text-xs text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent/30 transition-colors"
+        >
+          <div className="shrink-0">
+            {hideEmptyProps ? (
+              <ChevronDown className="size-4" />
+            ) : (
+              <ChevronUp className="size-4" />
+            )}
+          </div>
+          <span>{hideEmptyProps ? "Show empty properties" : "Hide empty properties"}</span>
+        </button>
       </div>
 
       {/* Description */}
-      <div className="mt-4">
+      <div className="mt-6 pt-6 border-t border-border">
+        <div className="flex items-center gap-3 mb-3 px-2 -mx-2">
+          <AlignLeft className="size-4 text-muted-foreground shrink-0" />
+          <span className="text-sm text-muted-foreground">Description</span>
+        </div>
         <RichTextEditor
           content={description}
           onChange={handleDescriptionChange}
@@ -679,6 +730,9 @@ export function FeatureDetailPanel({
         </div>
       )}
 
+      {/* Scroll spacer */}
+      <div className="h-[40vh]" />
+
       {/* Delete confirmation dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
@@ -700,6 +754,7 @@ export function FeatureDetailPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }
@@ -734,7 +789,7 @@ function TeamTracksSection({
       </div>
 
       {teamDurations.length === 0 && (
-        <p className="text-xs text-muted-foreground/60 mb-3 px-2">
+        <p className="text-xs text-muted-foreground/60 mb-3">
           No team tracks assigned. Add a team to set per-team durations.
         </p>
       )}
@@ -762,9 +817,9 @@ function TeamTracksSection({
         <ResponsivePopover>
           <ResponsivePopoverTrigger asChild>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="mt-2 text-xs text-muted-foreground hover:text-foreground"
+              className="mt-2 text-xs"
             >
               + Add team track
             </Button>
@@ -942,7 +997,7 @@ function PendingTeamTracksSection({
       </div>
 
       {pendingTracks.size === 0 && (
-        <p className="text-xs text-muted-foreground/60 mb-3 px-2">
+        <p className="text-xs text-muted-foreground/60 mb-3">
           No team tracks assigned. Add a team to set per-team durations.
         </p>
       )}
@@ -967,9 +1022,9 @@ function PendingTeamTracksSection({
         <ResponsivePopover>
           <ResponsivePopoverTrigger asChild>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="mt-2 text-xs text-muted-foreground hover:text-foreground"
+              className="mt-2 text-xs"
             >
               + Add team track
             </Button>

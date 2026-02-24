@@ -5,14 +5,15 @@ import { useDrilldown } from "./drilldown-context";
 import { cn } from "@/lib/utils";
 
 /**
- * Selectors that identify floating Radix UI overlay elements
- * (Select content, Popover, DropdownMenu, ContextMenu, Dialog, etc.)
+ * Selectors that identify floating overlay elements the drilldown should ignore
+ * (Radix UI portals, TipTap slash menu, etc.)
  */
-const RADIX_OVERLAY_SELECTOR = [
+const OVERLAY_IGNORE_SELECTOR = [
   "[data-radix-popper-content-wrapper]",
   "[data-radix-menu-content]",
   "[role='dialog']",
   "[role='listbox']",
+  "[data-floating-menu]",
 ].join(", ");
 
 export function DrilldownStack() {
@@ -39,7 +40,7 @@ export function DrilldownStack() {
     let cooldownTimer: ReturnType<typeof setTimeout>;
 
     const checkForOverlays = () => {
-      return !!document.querySelector(RADIX_OVERLAY_SELECTOR);
+      return !!document.querySelector(OVERLAY_IGNORE_SELECTOR);
     };
 
     const observer = new MutationObserver(() => {
@@ -86,7 +87,7 @@ export function DrilldownStack() {
       }
 
       // Ignore clicks inside Radix portals
-      if (target.closest(RADIX_OVERLAY_SELECTOR)) return;
+      if (target.closest(OVERLAY_IGNORE_SELECTOR)) return;
 
       // If a Radix overlay is currently open or was very recently closed,
       // this click is dismissing that overlay — not the drilldown.
