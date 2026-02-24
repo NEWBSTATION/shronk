@@ -30,18 +30,32 @@ interface RichTextEditorProps {
   className?: string;
 }
 
-const slashCommands = [
-  { label: "Heading", description: "Large section heading", action: "heading" },
-  { label: "Bullet List", description: "Simple bullet list", action: "bulletList" },
-  { label: "Numbered List", description: "Numbered list", action: "orderedList" },
-  { label: "Quote", description: "Block quote", action: "blockquote" },
-  { label: "Code Block", description: "Code snippet", action: "codeBlock" },
+const iconSvg = (d: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+
+const slashCommandGroups = [
+  {
+    label: "TEXT",
+    commands: [
+      { label: "Heading 2", action: "heading2", icon: iconSvg('<path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"/>') },
+      { label: "Heading 3", action: "heading3", icon: iconSvg('<path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 0 1-2 2"/><path d="M17 17.5c2 1.5 4 .3 4-1.5a2 2 0 0 0-2-2"/>') },
+      { label: "Bullet List", action: "bulletList", icon: iconSvg('<line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/>') },
+      { label: "Numbered List", action: "orderedList", icon: iconSvg('<line x1="10" x2="21" y1="6" y2="6"/><line x1="10" x2="21" y1="12" y2="12"/><line x1="10" x2="21" y1="18" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>') },
+      { label: "Quote", action: "blockquote", icon: iconSvg('<path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/>') },
+      { label: "Code Block", action: "codeBlock", icon: iconSvg('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>') },
+    ],
+  },
 ] as const;
+
+const allSlashCommands = slashCommandGroups.flatMap((g) => g.commands);
 
 function executeSlashCommand(editor: Editor, action: string) {
   switch (action) {
-    case "heading":
+    case "heading2":
       editor.chain().focus().toggleHeading({ level: 2 }).run();
+      break;
+    case "heading3":
+      editor.chain().focus().toggleHeading({ level: 3 }).run();
       break;
     case "bulletList":
       editor.chain().focus().toggleBulletList().run();
@@ -74,13 +88,24 @@ export function RichTextEditor({
   }, []);
 
   const renderSlashMenu = useCallback((menu: HTMLDivElement, selectedIndex: number) => {
-    menu.innerHTML = slashCommands
+    let flatIndex = 0;
+    menu.innerHTML = slashCommandGroups
       .map(
-        (cmd, i) =>
-          `<div class="flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-sm cursor-pointer ${i === selectedIndex ? "bg-accent text-accent-foreground" : "hover:bg-accent"}" data-index="${i}">
-            <span class="font-medium">${cmd.label}</span>
-            <span class="text-xs text-muted-foreground">${cmd.description}</span>
-          </div>`,
+        (group) => {
+          const items = group.commands
+            .map((cmd) => {
+              const idx = flatIndex++;
+              return `<div class="flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer ${idx === selectedIndex ? "bg-accent text-accent-foreground" : "hover:bg-accent"}" data-index="${idx}">
+                <span class="flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-md border border-border bg-muted/50 text-muted-foreground">${cmd.icon}</span>
+                <span class="text-sm">${cmd.label}</span>
+              </div>`;
+            })
+            .join("");
+          return `<div class="mb-1">
+            <div class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-1">${group.label}</div>
+            <div class="grid grid-cols-2 gap-0.5">${items}</div>
+          </div>`;
+        },
       )
       .join("");
   }, []);
@@ -91,7 +116,7 @@ export function RichTextEditor({
 
       const menu = document.createElement("div");
       menu.className =
-        "fixed z-50 min-w-[180px] rounded-lg border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95";
+        "fixed z-50 w-[340px] rounded-lg border bg-popover p-1.5 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95";
       menuRef.current = menu;
       selectedIndexRef.current = 0;
 
@@ -105,14 +130,28 @@ export function RichTextEditor({
           cleanupSlashMenu();
           // Delete the "/" character then execute the command
           editor.chain().focus().deleteRange({ from: from - 1, to: from }).run();
-          executeSlashCommand(editor, slashCommands[idx].action);
+          executeSlashCommand(editor, allSlashCommands[idx].action);
         }
       });
 
       const coords = view.coordsAtPos(from);
-      menu.style.top = `${coords.bottom + 4}px`;
-      menu.style.left = `${coords.left}px`;
       document.body.appendChild(menu);
+
+      // Clamp position so the menu stays within the viewport
+      const rect = menu.getBoundingClientRect();
+      let top = coords.bottom + 4;
+      let left = coords.left;
+
+      if (top + rect.height > window.innerHeight) {
+        top = coords.top - rect.height - 4;
+      }
+      if (left + rect.width > window.innerWidth) {
+        left = window.innerWidth - rect.width - 8;
+      }
+      if (left < 8) left = 8;
+
+      menu.style.top = `${top}px`;
+      menu.style.left = `${left}px`;
     },
     [cleanupSlashMenu, renderSlashMenu],
   );
@@ -124,12 +163,12 @@ export function RichTextEditor({
 
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        selectedIndexRef.current = (selectedIndexRef.current + 1) % slashCommands.length;
+        selectedIndexRef.current = (selectedIndexRef.current + 1) % allSlashCommands.length;
         renderSlashMenu(menuRef.current, selectedIndexRef.current);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         selectedIndexRef.current =
-          (selectedIndexRef.current - 1 + slashCommands.length) % slashCommands.length;
+          (selectedIndexRef.current - 1 + allSlashCommands.length) % allSlashCommands.length;
         renderSlashMenu(menuRef.current, selectedIndexRef.current);
       } else if (e.key === "Enter") {
         e.preventDefault();
@@ -139,7 +178,7 @@ export function RichTextEditor({
         cleanupSlashMenu();
         // Delete the "/" then run the command
         editor.chain().focus().deleteRange({ from: from - 1, to: from }).run();
-        executeSlashCommand(editor, slashCommands[idx].action);
+        executeSlashCommand(editor, allSlashCommands[idx].action);
       } else if (e.key === "Escape") {
         e.preventDefault();
         cleanupSlashMenu();
@@ -173,7 +212,7 @@ export function RichTextEditor({
         link: false,
         underline: false,
       }),
-      Placeholder.configure({ placeholder, showOnlyCurrent: false }),
+      Placeholder.configure({ placeholder, showOnlyCurrent: true }),
       Underline,
       Link.configure({
         openOnClick: false,
