@@ -30,10 +30,10 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  ResponsivePopover,
+  ResponsivePopoverContent,
+  ResponsivePopoverTrigger,
+} from "@/components/ui/responsive-popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -564,16 +564,16 @@ export function FeatureDetailPanel({
               )}
             </div>
           ) : (
-            <Popover>
-              <PopoverTrigger asChild>
+            <ResponsivePopover>
+              <ResponsivePopoverTrigger asChild>
                 <button
                   type="button"
                   className="flex items-center h-8 px-2 text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer"
                 >
                   {format(startDate, "MMM d, yyyy")}
                 </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              </ResponsivePopoverTrigger>
+              <ResponsivePopoverContent className="w-auto p-0" align="start" title="Start Date">
                 <Calendar
                   mode="single"
                   selected={startDate}
@@ -584,8 +584,8 @@ export function FeatureDetailPanel({
                   toDate={TIMELINE_END_DATE}
                   initialFocus
                 />
-              </PopoverContent>
-            </Popover>
+              </ResponsivePopoverContent>
+            </ResponsivePopover>
           )}
         </PropertyRow>
 
@@ -759,8 +759,8 @@ function TeamTracksSection({
 
       {/* Add team track */}
       {unassignedTeams.length > 0 && onUpsertTeamDuration && (
-        <Popover>
-          <PopoverTrigger asChild>
+        <ResponsivePopover>
+          <ResponsivePopoverTrigger asChild>
             <Button
               variant="ghost"
               size="sm"
@@ -768,8 +768,8 @@ function TeamTracksSection({
             >
               + Add team track
             </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-48 p-1" align="start">
+          </ResponsivePopoverTrigger>
+          <ResponsivePopoverContent className="w-48 p-1" align="start" title="Add Team Track">
             {unassignedTeams.map((team) => (
               <button
                 key={team.id}
@@ -785,8 +785,8 @@ function TeamTracksSection({
                 {team.name}
               </button>
             ))}
-          </PopoverContent>
-        </Popover>
+          </ResponsivePopoverContent>
+        </ResponsivePopover>
       )}
     </div>
   );
@@ -856,16 +856,16 @@ function TeamTrackRow({
 
       {/* Duration + date range — right side */}
       <div className="flex items-center gap-1.5 shrink-0">
-        <Popover open={open} onOpenChange={handleClose}>
-          <PopoverTrigger asChild>
+        <ResponsivePopover open={open} onOpenChange={handleClose}>
+          <ResponsivePopoverTrigger asChild>
             <button
               type="button"
               className="text-xs tabular-nums font-medium px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors"
             >
               {durationLabel}
             </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-3" align="end">
+          </ResponsivePopoverTrigger>
+          <ResponsivePopoverContent className="w-auto p-3" align="end" title="Duration">
             <div className="flex items-center gap-2">
               <NumberStepper
                 value={localValue}
@@ -888,8 +888,8 @@ function TeamTrackRow({
                 </SelectContent>
               </Select>
             </div>
-          </PopoverContent>
-        </Popover>
+          </ResponsivePopoverContent>
+        </ResponsivePopover>
 
         {dateRange && (
           <span className="text-[11px] text-muted-foreground/50 tabular-nums hidden sm:inline">
@@ -964,8 +964,8 @@ function PendingTeamTracksSection({
       </div>
 
       {unassignedTeams.length > 0 && (
-        <Popover>
-          <PopoverTrigger asChild>
+        <ResponsivePopover>
+          <ResponsivePopoverTrigger asChild>
             <Button
               variant="ghost"
               size="sm"
@@ -973,8 +973,8 @@ function PendingTeamTracksSection({
             >
               + Add team track
             </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-48 p-1" align="start">
+          </ResponsivePopoverTrigger>
+          <ResponsivePopoverContent className="w-48 p-1" align="start" title="Add Team Track">
             {unassignedTeams.map((team) => (
               <button
                 key={team.id}
@@ -988,8 +988,8 @@ function PendingTeamTracksSection({
                 {team.name}
               </button>
             ))}
-          </PopoverContent>
-        </Popover>
+          </ResponsivePopoverContent>
+        </ResponsivePopover>
       )}
     </div>
   );
@@ -1046,16 +1046,16 @@ function PendingTeamTrackRow({
       <span className="text-sm font-medium truncate min-w-0 flex-1">{team.name}</span>
 
       <div className="flex items-center gap-1.5 shrink-0">
-        <Popover open={open} onOpenChange={handleClose}>
-          <PopoverTrigger asChild>
+        <ResponsivePopover open={open} onOpenChange={handleClose}>
+          <ResponsivePopoverTrigger asChild>
             <button
               type="button"
               className="text-xs tabular-nums font-medium px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors"
             >
               {durationLabel}
             </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-3" align="end">
+          </ResponsivePopoverTrigger>
+          <ResponsivePopoverContent className="w-auto p-3" align="end" title="Duration">
             <div className="flex items-center gap-2">
               <NumberStepper
                 value={localValue}
@@ -1078,8 +1078,8 @@ function PendingTeamTrackRow({
                 </SelectContent>
               </Select>
             </div>
-          </PopoverContent>
-        </Popover>
+          </ResponsivePopoverContent>
+        </ResponsivePopover>
       </div>
 
       <button
@@ -1127,8 +1127,8 @@ function DurationPopover({
   };
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
+    <ResponsivePopover open={open} onOpenChange={handleOpenChange}>
+      <ResponsivePopoverTrigger asChild>
         <button
           type="button"
           className="flex items-center h-8 px-2 text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer"
@@ -1138,8 +1138,8 @@ function DurationPopover({
             ? durationUnit.slice(0, -1)
             : durationUnit}
         </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-3" align="start">
+      </ResponsivePopoverTrigger>
+      <ResponsivePopoverContent className="w-auto p-3" align="start" title="Duration">
         <div className="flex items-center gap-2">
           <NumberStepper
             value={localValue}
@@ -1162,7 +1162,7 @@ function DurationPopover({
             </SelectContent>
           </Select>
         </div>
-      </PopoverContent>
-    </Popover>
+      </ResponsivePopoverContent>
+    </ResponsivePopover>
   );
 }

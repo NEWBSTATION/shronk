@@ -200,7 +200,7 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
                     </PopoverTrigger>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" sideOffset={8}>
-                    <span className="flex items-center gap-1.5">Create <kbd className="text-[11px] font-mono text-background/40 bg-background/10 px-1 py-0.5 rounded">C</kbd></span>
+                    <span className="flex items-center gap-1.5">Create <kbd className="hidden md:inline text-[11px] font-mono text-background/40 bg-background/10 px-1 py-0.5 rounded">C</kbd></span>
                   </TooltipContent>
                 </Tooltip>
                 <PopoverContent
@@ -223,7 +223,7 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
                       >
                         <Icon className="h-4 w-4 text-muted-foreground" />
                         <span className="flex-1 text-left">{option.label}</span>
-                        <kbd className="ml-auto text-[11px] font-mono text-muted-foreground/50">{option.shortcutKey}</kbd>
+                        <kbd className="hidden md:inline ml-auto text-[11px] font-mono text-muted-foreground/50">{option.shortcutKey}</kbd>
                       </button>
                     );
                   })}

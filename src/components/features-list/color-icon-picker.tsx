@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  ResponsivePopover,
+  ResponsivePopoverContent,
+  ResponsivePopoverTrigger,
+} from "@/components/ui/responsive-popover";
 import {
   Tooltip,
   TooltipContent,
@@ -126,16 +126,16 @@ export function ColorIconPicker({
   children,
 }: ColorIconPickerProps) {
   return (
-    <Popover onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className="w-64 p-3" align="start">
+    <ResponsivePopover onOpenChange={onOpenChange}>
+      <ResponsivePopoverTrigger asChild>{children}</ResponsivePopoverTrigger>
+      <ResponsivePopoverContent className="w-64 p-3" align="start" title="Appearance">
         <PickerGrid
           color={color}
           icon={icon}
           onColorChange={onColorChange}
           onIconChange={onIconChange}
         />
-      </PopoverContent>
-    </Popover>
+      </ResponsivePopoverContent>
+    </ResponsivePopover>
   );
 }

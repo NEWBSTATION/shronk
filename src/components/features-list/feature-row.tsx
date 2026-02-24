@@ -11,10 +11,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { Checkbox } from "@/components/ui/checkbox";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  ResponsivePopover,
+  ResponsivePopoverContent,
+  ResponsivePopoverTrigger,
+} from "@/components/ui/responsive-popover";
 import {
   Select,
   SelectContent,
@@ -275,8 +275,8 @@ export function FeatureRow({
 
         {/* Col 2: Status — desktop only */}
         <div className="hidden md:flex items-center">
-          <Popover open={statusOpen} onOpenChange={setStatusOpen}>
-            <PopoverTrigger asChild>
+          <ResponsivePopover open={statusOpen} onOpenChange={setStatusOpen}>
+            <ResponsivePopoverTrigger asChild>
               <button
                 type="button"
                 onPointerDown={(e) => e.stopPropagation()}
@@ -286,11 +286,12 @@ export function FeatureRow({
                 <span className={cn("h-2 w-2 rounded-full shrink-0", statusCfg.dotClass)} />
                 <span>{statusCfg.label}</span>
               </button>
-            </PopoverTrigger>
-            <PopoverContent
+            </ResponsivePopoverTrigger>
+            <ResponsivePopoverContent
               className="w-36 p-1"
               align="start"
               sideOffset={4}
+              title="Status"
               onClick={(e) => e.stopPropagation()}
             >
               {STATUS_OPTIONS.map(([key, cfg]) => (
@@ -312,14 +313,14 @@ export function FeatureRow({
                   {cfg.label}
                 </button>
               ))}
-            </PopoverContent>
-          </Popover>
+            </ResponsivePopoverContent>
+          </ResponsivePopover>
         </div>
 
         {/* Col 3: Priority — desktop only */}
         <div className="hidden md:flex items-center justify-center">
-          <Popover open={priorityOpen} onOpenChange={setPriorityOpen}>
-            <PopoverTrigger asChild>
+          <ResponsivePopover open={priorityOpen} onOpenChange={setPriorityOpen}>
+            <ResponsivePopoverTrigger asChild>
               <button
                 type="button"
                 onPointerDown={(e) => e.stopPropagation()}
@@ -333,11 +334,12 @@ export function FeatureRow({
               >
                 {(() => { const Icon = priorityCfg.icon; return <Icon className="h-3.5 w-3.5" />; })()}
               </button>
-            </PopoverTrigger>
-            <PopoverContent
+            </ResponsivePopoverTrigger>
+            <ResponsivePopoverContent
               className="w-36 p-1"
               align="start"
               sideOffset={4}
+              title="Priority"
               onClick={(e) => e.stopPropagation()}
             >
               {PRIORITY_OPTIONS.map(([key, cfg]) => {
@@ -362,16 +364,16 @@ export function FeatureRow({
                   </button>
                 );
               })}
-            </PopoverContent>
-          </Popover>
+            </ResponsivePopoverContent>
+          </ResponsivePopover>
         </div>
 
         {/* Col 4: Duration — desktop only */}
         <div className="hidden md:flex items-center justify-center">
-          <Popover open={durationOpen} onOpenChange={handleDurationOpenChange}>
+          <ResponsivePopover open={durationOpen} onOpenChange={handleDurationOpenChange}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <PopoverTrigger asChild>
+                <ResponsivePopoverTrigger asChild>
                   <button
                     type="button"
                     onPointerDown={(e) => e.stopPropagation()}
@@ -380,7 +382,7 @@ export function FeatureRow({
                   >
                     {formatDurationIn(duration, durationUnit)}
                   </button>
-                </PopoverTrigger>
+                </ResponsivePopoverTrigger>
               </TooltipTrigger>
               {dateRangeLabel && !durationOpen && (
                 <TooltipContent side="top" sideOffset={4}>
@@ -388,10 +390,11 @@ export function FeatureRow({
                 </TooltipContent>
               )}
             </Tooltip>
-            <PopoverContent
+            <ResponsivePopoverContent
               className="w-auto p-3"
               align="center"
               sideOffset={4}
+              title="Duration"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-2">
@@ -416,8 +419,8 @@ export function FeatureRow({
                   </SelectContent>
                 </Select>
               </div>
-            </PopoverContent>
-          </Popover>
+            </ResponsivePopoverContent>
+          </ResponsivePopover>
         </div>
       </div>
 

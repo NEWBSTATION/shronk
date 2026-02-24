@@ -3,10 +3,10 @@
 import { type RefObject, useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import { Link2, Plus, ChevronDown, Pencil } from 'lucide-react';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+  ResponsivePopover,
+  ResponsivePopoverContent,
+  ResponsivePopoverTrigger,
+} from '@/components/ui/responsive-popover';
 import {
   Select,
   SelectContent,
@@ -105,8 +105,8 @@ function DurationPopover({
     : 'shrink-0 ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer';
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <ResponsivePopover open={open} onOpenChange={setOpen}>
+      <ResponsivePopoverTrigger asChild>
         <span
           className={badgeClass}
           role="button"
@@ -115,12 +115,13 @@ function DurationPopover({
         >
           {durationText}
         </span>
-      </PopoverTrigger>
-      <PopoverContent
+      </ResponsivePopoverTrigger>
+      <ResponsivePopoverContent
         className="w-48 p-2"
         align="end"
         side="bottom"
         sideOffset={4}
+        title="Duration"
         onOpenAutoFocus={(e) => {
           e.preventDefault();
           setTimeout(() => inputRef.current?.select(), 0);
@@ -164,8 +165,8 @@ function DurationPopover({
             </button>
           </div>
         )}
-      </PopoverContent>
-    </Popover>
+      </ResponsivePopoverContent>
+    </ResponsivePopover>
   );
 }
 
@@ -390,8 +391,8 @@ export function TimelineGrid({
         className="flex items-center gap-1.5 px-3 border-b border-border shrink-0"
         style={{ height: SCALE_HEIGHT * 2 }}
       >
-        <Popover>
-          <PopoverTrigger asChild>
+        <ResponsivePopover>
+          <ResponsivePopoverTrigger asChild>
             <button className="flex items-center gap-1.5 min-w-0 flex-1 rounded-md px-1.5 -ml-1 py-1 hover:bg-accent/40 transition-colors">
               <div
                 className="flex items-center justify-center h-5 w-5 rounded-full shrink-0"
@@ -402,8 +403,8 @@ export function TimelineGrid({
               <span className="text-sm font-medium truncate min-w-0">{project.name}</span>
               <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 ml-auto" />
             </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+          </ResponsivePopoverTrigger>
+          <ResponsivePopoverContent className="w-56 p-0" align="start" title="Milestone" onOpenAutoFocus={(e) => e.preventDefault()}>
             <div className="py-1 max-h-64 overflow-y-auto">
               {(allProjects ?? [project]).map((p) => {
                 const isActive = p.id === project.id;
@@ -453,8 +454,8 @@ export function TimelineGrid({
                 </div>
               </>
             )}
-          </PopoverContent>
-        </Popover>
+          </ResponsivePopoverContent>
+        </ResponsivePopover>
       </div>
 
       {/* Scrollable row body — overflow hidden, synced via translateY from chart scroll */}
@@ -487,7 +488,7 @@ export function TimelineGrid({
                   <span className="text-xs">
                     {showChainHint ? 'Chain feature' : 'Add feature'}
                   </span>
-                  <kbd className="ml-auto text-[11px] font-mono text-muted-foreground/40 mr-1">
+                  <kbd className="hidden md:inline ml-auto text-[11px] font-mono text-muted-foreground/40 mr-1">
                     {showChainHint ? 'Shift F' : 'F'}
                   </kbd>
                 </div>

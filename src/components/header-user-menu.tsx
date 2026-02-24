@@ -177,7 +177,7 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
                   >
                     <Dices className="h-3.5 w-3.5" />
                     <span className="flex-1 text-left">Random theme</span>
-                    <kbd className="text-[10px] rounded bg-muted px-1.5 py-0.5 font-medium text-muted-foreground/60">
+                    <kbd className="hidden md:inline text-[10px] rounded bg-muted px-1.5 py-0.5 font-medium text-muted-foreground/60">
                       {typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "⌘\\" : "Ctrl+\\"}
                     </kbd>
                   </button>

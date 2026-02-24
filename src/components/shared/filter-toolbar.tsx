@@ -4,10 +4,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  ResponsivePopover,
+  ResponsivePopoverContent,
+  ResponsivePopoverTrigger,
+} from "@/components/ui/responsive-popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -118,8 +118,8 @@ export function FilterToolbar({ teams: _teams = [] }: FilterToolbarProps) {
       </div>
 
       {/* Filters */}
-      <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-        <PopoverTrigger asChild>
+      <ResponsivePopover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+        <ResponsivePopoverTrigger asChild>
           <Button variant="outline" className="gap-2">
             <Filter className="h-4 w-4" />
             Filter
@@ -130,8 +130,8 @@ export function FilterToolbar({ teams: _teams = [] }: FilterToolbarProps) {
             )}
             <ChevronDown className="h-4 w-4 opacity-50" />
           </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[320px] p-0" align="start">
+        </ResponsivePopoverTrigger>
+        <ResponsivePopoverContent className="w-[320px] p-0" align="start" title="Filters">
           <div className="p-4 space-y-4">
             {/* Status */}
             <div className="space-y-2">
@@ -204,8 +204,8 @@ export function FilterToolbar({ teams: _teams = [] }: FilterToolbarProps) {
               </Button>
             </div>
           )}
-        </PopoverContent>
-      </Popover>
+        </ResponsivePopoverContent>
+      </ResponsivePopover>
 
       {/* Sort */}
       <div className="flex items-center gap-1">
