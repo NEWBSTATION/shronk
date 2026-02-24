@@ -82,6 +82,7 @@ interface FeatureRowProps {
 }
 
 export function FeatureRow({
+  id,
   title,
   status,
   priority,
@@ -181,6 +182,7 @@ export function FeatureRow({
     <div
       ref={nodeRef}
       style={style}
+      data-feature-id={id}
       {...(!selectMode ? dragHandleProps : {})}
       onContextMenu={(e) => {
         if (onContextMenu) {

@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
 import { milestones, milestoneDependencies, projects } from "@/db/schema";
-import { eq, and, or, inArray } from "drizzle-orm";
+import { eq, and, or, inArray, asc } from "drizzle-orm";
 import { z } from "zod";
 import { unifiedReflow } from "@/lib/unified-reflow";
 
 const moveFeatureSchema = z.object({
   featureId: z.string().uuid(),
   targetProjectId: z.string().uuid(),
+  insertAtIndex: z.number().int().min(0).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -180,6 +181,35 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       })
       .where(eq(milestones.id, data.featureId));
+
+    // Update sort order in target project to place feature at requested position
+    if (data.insertAtIndex !== undefined) {
+      // Get existing features in target project (excluding the just-moved one) sorted by current order
+      const targetFeatures = await db
+        .select({ id: milestones.id })
+        .from(milestones)
+        .where(
+          and(
+            eq(milestones.projectId, data.targetProjectId),
+          )
+        )
+        .orderBy(asc(milestones.sortOrder));
+
+      // Build the desired order: existing features with the moved one spliced in
+      const otherIds = targetFeatures.filter((f) => f.id !== data.featureId).map((f) => f.id);
+      const clampedIndex = Math.min(data.insertAtIndex, otherIds.length);
+      otherIds.splice(clampedIndex, 0, data.featureId);
+
+      // Batch update sort orders
+      await Promise.all(
+        otherIds.map((id, index) =>
+          db
+            .update(milestones)
+            .set({ sortOrder: index })
+            .where(eq(milestones.id, id))
+        )
+      );
+    }
 
     // Reflow both projects
     const [oldReflow, newReflow] = await Promise.all([

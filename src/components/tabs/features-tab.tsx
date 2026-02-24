@@ -225,12 +225,12 @@ export function FeaturesTab() {
   );
 
   const handleMoveFeature = useCallback(
-    async (featureId: string, targetProjectId: string) => {
+    async (featureId: string, targetProjectId: string, insertAtIndex?: number) => {
       try {
         const response = await fetch("/api/features/move", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ featureId, targetProjectId }),
+          body: JSON.stringify({ featureId, targetProjectId, insertAtIndex }),
         });
         if (!response.ok) {
           const err = await response.json();

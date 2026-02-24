@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useCallback, useState } from "react";
+import { useMemo, useRef, useCallback, useState, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -14,6 +14,7 @@ import {
   type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -90,7 +91,7 @@ interface FeaturesSectionListProps {
   onDeleteMilestone?: (milestoneId: string) => void;
   onUpdateAppearance?: (milestoneId: string, data: { color: string; icon: string }) => void;
   onAddMilestone?: () => void;
-  onMoveFeature?: (featureId: string, targetProjectId: string) => void;
+  onMoveFeature?: (featureId: string, targetProjectId: string, insertAtIndex?: number) => void;
   onReorderFeatures?: (projectId: string, orderedFeatureIds: string[]) => void;
   onRenameMilestone?: (milestoneId: string, newName: string) => void;
   onRenameFeature?: (featureId: string, newTitle: string) => void;
@@ -114,6 +115,7 @@ interface PendingMove {
   targetMilestoneName: string;
   brokenDeps: Array<{ predecessorId: string; successorId: string; predecessorTitle: string; successorTitle: string }>;
   bridgedDeps: Array<{ predecessorTitle: string; successorTitle: string }>;
+  insertAtIndex?: number;
 }
 
 // Pointer-first collision so the drop point tracks the cursor tightly,
@@ -240,6 +242,19 @@ export function FeaturesSectionList({
   const lastClickedRef = useRef<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<{
+    milestoneId: string;
+    insertIndex: number;
+  } | null>(null);
+  const pointerYRef = useRef(0);
+
+  // Track pointer position during drag for accurate insertion detection
+  useEffect(() => {
+    if (!activeId) return;
+    const handler = (e: PointerEvent) => { pointerYRef.current = e.clientY; };
+    window.addEventListener("pointermove", handler);
+    return () => window.removeEventListener("pointermove", handler);
+  }, [activeId]);
 
   const { open: openContextMenu, menu: contextMenuEl } = useFeatureContextMenu({
     onOpen: (id) => {
@@ -364,9 +379,63 @@ export function FeaturesSectionList({
     [selectMode, clearSelection]
   );
 
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { over } = event;
+      if (!over || !activeProjectId) {
+        setDropIndicator(null);
+        return;
+      }
+
+      const overId = String(over.id);
+
+      // Over a droppable section zone (header / empty area)
+      if (overId.startsWith("drop-milestone-")) {
+        const targetId = overId.replace("drop-milestone-", "");
+        if (targetId !== activeProjectId) {
+          const section = sections.find((s) => s.milestone.id === targetId);
+          setDropIndicator({
+            milestoneId: targetId,
+            insertIndex: section?.features.length ?? 0,
+          });
+        } else {
+          setDropIndicator(null);
+        }
+        return;
+      }
+
+      // Over a feature row
+      const overFeature = features.find((f) => f.id === overId);
+      if (!overFeature || overFeature.projectId === activeProjectId) {
+        setDropIndicator(null);
+        return;
+      }
+
+      // Cross-milestone hover — determine insertion index
+      const section = sections.find((s) => s.milestone.id === overFeature.projectId);
+      if (!section) { setDropIndicator(null); return; }
+
+      const featureIndex = section.features.findIndex((f) => f.id === overId);
+
+      // Use DOM rect for accurate top/bottom half detection
+      const el = document.querySelector(`[data-feature-id="${overId}"]`);
+      let insertIndex = featureIndex;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        insertIndex = pointerYRef.current > midY ? featureIndex + 1 : featureIndex;
+      }
+
+      setDropIndicator({ milestoneId: overFeature.projectId, insertIndex });
+    },
+    [activeProjectId, features, sections]
+  );
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      const currentIndicator = dropIndicator;
       setActiveId(null);
+      setDropIndicator(null);
 
       const { active, over } = event;
       if (!over) return;
@@ -375,15 +444,26 @@ export function FeaturesSectionList({
       const draggedFeature = features.find((f) => f.id === active.id);
       if (!draggedFeature) return;
 
-      // --- Cross-milestone drop (onto a droppable section zone) ---
+      // Determine if this is a cross-milestone drop
+      let targetMilestoneId: string | null = null;
+
       if (overId.startsWith("drop-milestone-")) {
-        const targetMilestoneId = overId.replace("drop-milestone-", "");
+        targetMilestoneId = overId.replace("drop-milestone-", "");
+      } else {
+        const overFeature = features.find((f) => f.id === overId);
+        if (overFeature && overFeature.projectId !== draggedFeature.projectId) {
+          targetMilestoneId = overFeature.projectId;
+        }
+      }
 
-        // Same milestone — no-op
-        if (draggedFeature.projectId === targetMilestoneId) return;
-
+      // --- Cross-milestone move ---
+      if (targetMilestoneId && targetMilestoneId !== draggedFeature.projectId) {
         const targetMilestone = milestones.find((m) => m.id === targetMilestoneId);
         if (!targetMilestone) return;
+
+        const insertAtIndex = currentIndicator?.milestoneId === targetMilestoneId
+          ? currentIndicator.insertIndex
+          : undefined;
 
         // Check if feature has dependencies
         const featureDeps = dependencies.filter(
@@ -424,9 +504,10 @@ export function FeaturesSectionList({
             targetMilestoneName: targetMilestone.name,
             brokenDeps,
             bridgedDeps,
+            insertAtIndex,
           });
         } else {
-          onMoveFeature?.(draggedFeature.id, targetMilestoneId);
+          onMoveFeature?.(draggedFeature.id, targetMilestoneId, insertAtIndex);
         }
         return;
       }
@@ -455,16 +536,17 @@ export function FeaturesSectionList({
       const newOrder = arrayMove(currentIds, oldIndex, newIndex);
       onReorderFeatures?.(draggedFeature.projectId, newOrder);
     },
-    [features, milestones, dependencies, featureTitleMap, onMoveFeature, onReorderFeatures, sections]
+    [features, milestones, dependencies, featureTitleMap, onMoveFeature, onReorderFeatures, sections, dropIndicator]
   );
 
   const handleDragCancel = useCallback(() => {
     setActiveId(null);
+    setDropIndicator(null);
   }, []);
 
   const confirmMove = useCallback(() => {
     if (pendingMove) {
-      onMoveFeature?.(pendingMove.featureId, pendingMove.targetProjectId);
+      onMoveFeature?.(pendingMove.featureId, pendingMove.targetProjectId, pendingMove.insertAtIndex);
       setPendingMove(null);
     }
   }, [pendingMove, onMoveFeature]);
@@ -475,6 +557,7 @@ export function FeaturesSectionList({
         sensors={sensors}
         collisionDetection={pointerCollision}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
@@ -556,36 +639,52 @@ export function FeaturesSectionList({
                               items={section.features.map((f) => f.id)}
                               strategy={verticalListSortingStrategy}
                             >
-                              {section.features.map((feature) => (
-                                <SortableFeatureRow
-                                  key={feature.id}
-                                  id={feature.id}
-                                  title={feature.title}
-                                  status={feature.status}
-                                  priority={feature.priority}
-                                  duration={feature.duration}
-                                  durationUnit={durationUnit}
-                                  startDate={feature.startDate}
-                                  endDate={feature.endDate}
-                                  teamDurations={teamDurationsMap?.get(feature.id)}
-                                  selected={selectedIds.has(feature.id)}
-                                  selectMode={selectMode}
-                                  isAnyDragging={!!activeId}
-                                  dimmed={searchMatchIds != null && !searchMatchIds.has(feature.id)}
-                                  onSelect={(e) => handleSelect(feature.id, e)}
-                                  onClick={() => onFeatureClick(feature)}
-                                  onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}
-                                  onStatusChange={(newStatus) => onStatusChange?.(feature.id, newStatus)}
-                                  onPriorityChange={(newPriority) => onPriorityChange?.(feature.id, newPriority)}
-                                  onRename={(newTitle) => onRenameFeature?.(feature.id, newTitle)}
-                                  onDurationChange={(days) => onDurationChange?.(feature.id, days)}
-                                  onContextMenu={(e) => openContextMenu({
-                                    featureId: feature.id,
-                                    status: feature.status,
-                                    priority: feature.priority,
-                                  }, e)}
-                                />
+                              {section.features.map((feature, featureIndex) => (
+                                <div key={feature.id}>
+                                  {dropIndicator?.milestoneId === section.milestone.id &&
+                                    dropIndicator.insertIndex === featureIndex && (
+                                    <div className="relative h-0.5 mx-3">
+                                      <div className="absolute inset-x-0 top-0 h-0.5 rounded-full bg-primary" />
+                                      <div className="absolute -left-0.5 -top-[3px] h-2 w-2 rounded-full bg-primary" />
+                                    </div>
+                                  )}
+                                  <SortableFeatureRow
+                                    id={feature.id}
+                                    title={feature.title}
+                                    status={feature.status}
+                                    priority={feature.priority}
+                                    duration={feature.duration}
+                                    durationUnit={durationUnit}
+                                    startDate={feature.startDate}
+                                    endDate={feature.endDate}
+                                    teamDurations={teamDurationsMap?.get(feature.id)}
+                                    selected={selectedIds.has(feature.id)}
+                                    selectMode={selectMode}
+                                    isAnyDragging={!!activeId}
+                                    dimmed={searchMatchIds != null && !searchMatchIds.has(feature.id)}
+                                    onSelect={(e) => handleSelect(feature.id, e)}
+                                    onClick={() => onFeatureClick(feature)}
+                                    onToggleComplete={() => onToggleComplete?.(feature.id, feature.status)}
+                                    onStatusChange={(newStatus) => onStatusChange?.(feature.id, newStatus)}
+                                    onPriorityChange={(newPriority) => onPriorityChange?.(feature.id, newPriority)}
+                                    onRename={(newTitle) => onRenameFeature?.(feature.id, newTitle)}
+                                    onDurationChange={(days) => onDurationChange?.(feature.id, days)}
+                                    onContextMenu={(e) => openContextMenu({
+                                      featureId: feature.id,
+                                      status: feature.status,
+                                      priority: feature.priority,
+                                    }, e)}
+                                  />
+                                </div>
                               ))}
+                              {/* Drop indicator at end of list */}
+                              {dropIndicator?.milestoneId === section.milestone.id &&
+                                dropIndicator.insertIndex === section.features.length && (
+                                <div className="relative h-0.5 mx-3">
+                                  <div className="absolute inset-x-0 top-0 h-0.5 rounded-full bg-primary" />
+                                  <div className="absolute -left-0.5 -top-[3px] h-2 w-2 rounded-full bg-primary" />
+                                </div>
+                              )}
                             </SortableContext>
                             <button
                               onClick={(e) => onAddFeature?.(section.milestone.id, e)}
