@@ -105,7 +105,7 @@ function MemberRow({
                   onRoleChange(member.id, value as "admin" | "member")
                 }
               >
-                <SelectTrigger className="h-7 w-[90px] text-xs border-0 bg-transparent shadow-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity">
+                <SelectTrigger className="h-7 w-auto text-xs border-0 bg-transparent shadow-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -697,7 +697,7 @@ export function MembersTab() {
 
         {/* Invite form — inline at bottom like teams add form */}
         {showInviteForm ? (
-          <div className="flex items-center gap-3 px-4 py-3.5 border-t bg-background">
+          <div className="flex items-center gap-3 px-4 py-3.5 bg-background">
             <Input
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
@@ -749,7 +749,7 @@ export function MembersTab() {
         ) : (
           <button
             onClick={() => setShowInviteForm(true)}
-            className="w-full px-4 py-3.5 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer border-t"
+            className="w-full px-4 py-3.5 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer"
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center">
               <Plus className="h-4 w-4" />

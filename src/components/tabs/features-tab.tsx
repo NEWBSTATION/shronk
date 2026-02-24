@@ -411,6 +411,13 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
     [handleUpdateFeature]
   );
 
+  const handleDurationChange = useCallback(
+    (featureId: string, newDurationDays: number) => {
+      handleUpdateFeature({ id: featureId, duration: newDurationDays });
+    },
+    [handleUpdateFeature]
+  );
+
   const handleRenameMilestone = useCallback(
     async (milestoneId: string, newName: string) => {
       try {
@@ -613,6 +620,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
           onReorderFeatures={handleReorderFeatures}
           onRenameMilestone={handleRenameMilestone}
           onRenameFeature={handleRenameFeature}
+          onDurationChange={handleDurationChange}
           onDeleteFeature={handleDeleteFeature}
         />
         )}

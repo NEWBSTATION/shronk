@@ -76,11 +76,11 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <div className="inline-flex items-center rounded-2xl bg-card border border-border/50 p-1 relative">
-          <button className="flex items-center justify-center h-8 w-8 rounded-xl hover:glass-highlight hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.7)] dark:hover:shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)] transition-all">
-            <Avatar className="h-7 w-7 rounded-lg">
+        <div className="inline-flex items-center rounded-full bg-card border border-border/50 p-1 relative">
+          <button className="flex items-center justify-center h-8 w-8 rounded-full hover:glass-highlight hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.7)] dark:hover:shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.06)] transition-all">
+            <Avatar className="h-7 w-7 !rounded-full">
               {user.hasImage && <AvatarImage src={user.imageUrl} alt={displayName} />}
-              <AvatarFallback className="rounded-lg text-xs">
+              <AvatarFallback className="!rounded-full text-xs">
                 {initials}
               </AvatarFallback>
             </Avatar>

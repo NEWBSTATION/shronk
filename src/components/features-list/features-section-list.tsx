@@ -93,6 +93,7 @@ interface FeaturesSectionListProps {
   onReorderFeatures?: (projectId: string, orderedFeatureIds: string[]) => void;
   onRenameMilestone?: (milestoneId: string, newName: string) => void;
   onRenameFeature?: (featureId: string, newTitle: string) => void;
+  onDurationChange?: (featureId: string, newDurationDays: number) => void;
   onDeleteFeature?: (featureId: string) => void;
 }
 
@@ -218,6 +219,7 @@ export function FeaturesSectionList({
   onReorderFeatures,
   onRenameMilestone,
   onRenameFeature,
+  onDurationChange,
   onDeleteFeature,
 }: FeaturesSectionListProps) {
   const {
@@ -572,6 +574,7 @@ export function FeaturesSectionList({
                                   onStatusChange={(newStatus) => onStatusChange?.(feature.id, newStatus)}
                                   onPriorityChange={(newPriority) => onPriorityChange?.(feature.id, newPriority)}
                                   onRename={(newTitle) => onRenameFeature?.(feature.id, newTitle)}
+                                  onDurationChange={(days) => onDurationChange?.(feature.id, days)}
                                   onContextMenu={(e) => openContextMenu({
                                     featureId: feature.id,
                                     status: feature.status,

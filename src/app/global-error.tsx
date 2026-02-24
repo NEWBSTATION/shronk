@@ -1,5 +1,17 @@
 "use client";
 
+import { useState } from "react";
+
+function buildErrorLog(error: Error & { digest?: string }) {
+  const parts = [`Error: ${error.message}`];
+  if (error.digest) parts.push(`Digest: ${error.digest}`);
+  if (error.stack) parts.push(`\nStack:\n${error.stack}`);
+  parts.push(`\nURL: ${window.location.href}`);
+  parts.push(`Time: ${new Date().toISOString()}`);
+  parts.push(`UA: ${navigator.userAgent}`);
+  return parts.join("\n");
+}
+
 export default function GlobalError({
   error,
   reset,
@@ -7,6 +19,26 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(buildErrorLog(error));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement("textarea");
+      textarea.value = buildErrorLog(error);
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
     <html lang="en">
       <body
@@ -68,24 +100,50 @@ export default function GlobalError({
               </span>
             )}
           </p>
-          <button
-            onClick={reset}
-            style={{
-              background: "#fafafa",
-              color: "#0a0a0a",
-              border: "none",
-              borderRadius: 8,
-              padding: "10px 24px",
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: "pointer",
-              transition: "opacity 0.15s",
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.opacity = "0.85")}
-            onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
-          >
-            Try again
-          </button>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <button
+              onClick={reset}
+              style={{
+                background: "#fafafa",
+                color: "#0a0a0a",
+                border: "none",
+                borderRadius: 8,
+                padding: "10px 24px",
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "opacity 0.15s",
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.opacity = "0.85")}
+              onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              Try again
+            </button>
+            <button
+              onClick={handleCopy}
+              style={{
+                background: "transparent",
+                color: "#737373",
+                border: "1px solid #282828",
+                borderRadius: 8,
+                padding: "10px 24px",
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.borderColor = "#404040";
+                e.currentTarget.style.color = "#a3a3a3";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = "#282828";
+                e.currentTarget.style.color = "#737373";
+              }}
+            >
+              {copied ? "Copied!" : "Copy error"}
+            </button>
+          </div>
         </div>
       </body>
     </html>

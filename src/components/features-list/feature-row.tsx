@@ -5,14 +5,23 @@ import { format, getYear } from "date-fns";
 import { ChevronRight, GripVertical } from "lucide-react";
 import { formatDuration, formatDurationIn } from "@/lib/format-duration";
 import type { DurationUnit } from "@/store/features-list-store";
+import { DURATION_UNIT_MULTIPLIERS, bestFitDurationUnit } from "@/components/timeline/transformers";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Checkbox } from "@/components/ui/checkbox";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
@@ -60,6 +69,7 @@ interface FeatureRowProps {
   onStatusChange?: (newStatus: string) => void;
   onPriorityChange?: (newPriority: string) => void;
   onRename?: (newTitle: string) => void;
+  onDurationChange?: (newDurationDays: number) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   durationUnit?: DurationUnit;
   isDragging?: boolean;
@@ -87,6 +97,7 @@ export function FeatureRow({
   onStatusChange,
   onPriorityChange,
   onRename,
+  onDurationChange,
   onContextMenu,
   durationUnit = "days",
   isDragging,
@@ -106,8 +117,30 @@ export function FeatureRow({
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(title);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const [durationOpen, setDurationOpen] = useState(false);
+  const bestFit = useMemo(() => bestFitDurationUnit(duration), [duration]);
+  const [localDurValue, setLocalDurValue] = useState(bestFit.value);
+  const [localDurUnit, setLocalDurUnit] = useState<DurationUnit>(bestFit.unit);
 
   useEffect(() => { setTitleDraft(title); }, [title]);
+
+  useEffect(() => {
+    if (durationOpen) {
+      const fit = bestFitDurationUnit(duration);
+      setLocalDurValue(fit.value);
+      setLocalDurUnit(fit.unit);
+    }
+  }, [durationOpen, duration]);
+
+  const handleDurationOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      const totalDays = Math.max(1, localDurValue * DURATION_UNIT_MULTIPLIERS[localDurUnit]);
+      if (totalDays !== duration) {
+        onDurationChange?.(totalDays);
+      }
+    }
+    setDurationOpen(open);
+  }, [localDurValue, localDurUnit, duration, onDurationChange]);
   useEffect(() => {
     if (titleEditing) {
       titleInputRef.current?.focus();
@@ -383,18 +416,55 @@ export function FeatureRow({
 
         {/* Col 4: Duration — desktop only */}
         <div className="hidden md:flex items-center justify-center">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="text-xs tabular-nums text-foreground/50">
-                {formatDurationIn(duration, durationUnit)}
-              </span>
-            </TooltipTrigger>
-            {dateRangeLabel && (
-              <TooltipContent side="top" sideOffset={4}>
-                {dateRangeLabel}
-              </TooltipContent>
-            )}
-          </Tooltip>
+          <Popover open={durationOpen} onOpenChange={handleDurationOpenChange}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center rounded-md min-h-[28px] px-2 py-0.5 text-xs tabular-nums text-foreground/50 hover:text-foreground hover:bg-muted/60 transition-colors"
+                  >
+                    {formatDurationIn(duration, durationUnit)}
+                  </button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              {dateRangeLabel && !durationOpen && (
+                <TooltipContent side="top" sideOffset={4}>
+                  {dateRangeLabel}
+                </TooltipContent>
+              )}
+            </Tooltip>
+            <PopoverContent
+              className="w-auto p-3"
+              align="center"
+              sideOffset={4}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2">
+                <NumberStepper
+                  value={localDurValue}
+                  onChange={(v) => setLocalDurValue(Math.max(0, v))}
+                  min={0}
+                  className="w-20"
+                />
+                <Select
+                  value={localDurUnit}
+                  onValueChange={(v) => setLocalDurUnit(v as DurationUnit)}
+                >
+                  <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="days">days</SelectItem>
+                    <SelectItem value="weeks">weeks</SelectItem>
+                    <SelectItem value="months">months</SelectItem>
+                    <SelectItem value="years">years</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
