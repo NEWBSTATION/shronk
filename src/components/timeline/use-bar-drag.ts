@@ -151,7 +151,7 @@ export function useBarDrag({
         if (contentEl) {
           highlightEl = document.createElement('div');
           highlightEl.style.cssText =
-            'position:absolute;top:0;bottom:0;pointer-events:none;background:color-mix(in srgb, var(--primary) 6%, transparent);transition:left 50ms ease-out, width 50ms ease-out;';
+            'position:absolute;top:0;bottom:0;pointer-events:none;background:color-mix(in srgb, var(--primary) 10%, transparent);';
           highlightEl.style.left = `${origLeftRef.current}px`;
           highlightEl.style.width = `${origWidthRef.current}px`;
           contentEl.insertBefore(highlightEl, contentEl.firstChild);

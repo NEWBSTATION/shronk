@@ -494,66 +494,94 @@ pre {
   opacity: 0.65;
 }
 
-/* Resize handles (left/right edges) */
+/* Resize handles (left/right edges) — extends over the visible drag indicator */
 .timeline-bar-handle {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 8px;
+  top: -4px;
+  bottom: -4px;
+  width: 20px;
   cursor: ew-resize;
-  z-index: 2;
+  z-index: 5;
 }
 
 .timeline-bar-handle-left {
-  left: -2px;
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  right: calc(100% - 4px);
 }
 
 .timeline-bar-handle-right {
-  right: -2px;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  left: calc(100% - 4px);
+}
+
+/* Side containers for connection handle + drag indicator */
+.timeline-bar-side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 4;
+}
+
+.timeline-bar-side-left {
+  right: 100%;
+  flex-direction: row;
+  gap: 6px;
+  padding-right: 6px;
+}
+
+.timeline-bar-side-right {
+  left: 100%;
+  flex-direction: row;
+  gap: 6px;
+  padding-left: 6px;
+}
+
+/* Show the correct side based on cursor proximity (JS-managed classes) */
+.timeline-bar-hover-left .timeline-bar-side-left,
+.timeline-bar-hover-right .timeline-bar-side-right {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Drag indicator — vertical bar between node and connection circle */
+.timeline-drag-indicator {
+  width: 3px;
+  height: 16px;
+  border-radius: 1.5px;
+  background-color: color-mix(in srgb, var(--foreground) 20%, var(--background));
+  transition: background-color 0.15s ease;
+}
+
+.timeline-bar:hover .timeline-drag-indicator {
+  background-color: color-mix(in srgb, var(--foreground) 30%, var(--background));
 }
 
 /* Connection handles (radio-button style) */
 .timeline-connect-handle {
-  position: absolute;
-  top: 50%;
   width: 14px;
   height: 14px;
   border-radius: 50%;
   background-color: var(--background);
-  border: 2px solid color-mix(in srgb, var(--foreground) 35%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 10%, transparent);
-  transform: translateY(-50%);
+  border: 2px solid color-mix(in srgb, var(--foreground) 35%, var(--background));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 10%, var(--background));
   cursor: crosshair;
-  z-index: 3;
-  opacity: 0;
-  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
-}
-
-.timeline-connect-handle-left {
-  left: -20px;
-}
-
-.timeline-connect-handle-right {
-  right: -20px;
-}
-
-/* Show connection handles on bar hover */
-.timeline-bar:hover .timeline-connect-handle {
-  opacity: 1;
+  flex-shrink: 0;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
 }
 
 /* Connection handle hover state */
 .timeline-connect-handle:hover {
   border-color: var(--chart-2);
-  transform: translateY(-50%) scale(1.15);
+  transform: scale(1.15);
 }
 
 /* Bar label — positioned past the right connection handle */
 .timeline-bar-label {
   position: absolute;
-  left: calc(100% + 32px);
+  left: calc(100% + 38px);
   top: 0;
   height: 100%;
   display: flex;
@@ -813,9 +841,10 @@ pre {
   fill: none;
 }
 
-/* During drag: show all connection handles */
-.drag-link-active .timeline-connect-handle {
+/* During drag-link: show all side containers */
+.drag-link-active .timeline-bar-side {
   opacity: 1;
+  pointer-events: auto;
 }
 
 /* Crosshair cursor while dragging */
@@ -827,14 +856,14 @@ pre {
 .drag-link-active .drag-link-source {
   border-color: var(--chart-2) !important;
   background-color: var(--chart-2) !important;
-  transform: translateY(-50%) scale(1.2) !important;
+  transform: scale(1.2) !important;
 }
 
 /* Valid drop target — pulsing accent ring */
 .drag-link-active .drag-link-target-hover {
   border-color: var(--chart-2) !important;
   background-color: var(--background) !important;
-  transform: translateY(-50%) scale(1.3) !important;
+  transform: scale(1.3) !important;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--chart-2) 30%, transparent) !important;
 }
 

@@ -95,7 +95,8 @@
       "WebFetch(domain:www.shadcn.io)",
       "WebFetch(domain:everhour.com)",
       "WebFetch(domain:www.storylane.io)",
-      "Bash(gh api:*)"
+      "Bash(gh api:*)",
+      "Bash(git diff:*)"
     ]
   }
 }

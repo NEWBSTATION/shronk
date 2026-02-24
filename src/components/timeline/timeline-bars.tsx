@@ -161,6 +161,28 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
 
     let hoveredBar: HTMLElement | null = null;
     let tooltipTimer: ReturnType<typeof setTimeout> | null = null;
+    let activeSide: 'left' | 'right' | null = null;
+
+    function updateSideHover(bar: HTMLElement | null, clientX?: number) {
+      // Suppress hover effects while dragging/resizing
+      if (bar?.classList.contains('timeline-bar-dragging')) return;
+
+      if (!bar || clientX == null) {
+        if (activeSide && hoveredBar) {
+          hoveredBar.classList.remove('timeline-bar-hover-left', 'timeline-bar-hover-right');
+        }
+        activeSide = null;
+        return;
+      }
+      const rect = bar.getBoundingClientRect();
+      const relX = clientX - rect.left;
+      const side = relX < rect.width / 2 ? 'left' : 'right';
+      if (side !== activeSide) {
+        bar.classList.remove('timeline-bar-hover-left', 'timeline-bar-hover-right');
+        bar.classList.add(side === 'left' ? 'timeline-bar-hover-left' : 'timeline-bar-hover-right');
+        activeSide = side;
+      }
+    }
 
     function highlightLinks(taskId: string | null) {
       const svg = layer?.parentElement?.querySelector('.timeline-links-overlay');
@@ -182,6 +204,7 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
       const bar = (e.target as HTMLElement).closest('.timeline-bar') as HTMLElement | null;
       if (!bar || bar === hoveredBar) return;
       hoveredBar = bar;
+      updateSideHover(bar, e.clientX);
       const taskId = bar.dataset.taskId;
       if (taskId) {
         clearTooltipTimer();
@@ -190,10 +213,16 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
       }
     }
 
+    function handleMouseMove(e: MouseEvent) {
+      if (!hoveredBar) return;
+      updateSideHover(hoveredBar, e.clientX);
+    }
+
     function handleMouseOut(e: MouseEvent) {
       const bar = (e.target as HTMLElement).closest('.timeline-bar') as HTMLElement | null;
       const related = (e.relatedTarget as HTMLElement | null)?.closest?.('.timeline-bar') as HTMLElement | null;
       if (bar === hoveredBar && related !== hoveredBar) {
+        updateSideHover(hoveredBar);
         hoveredBar = null;
         clearTooltipTimer();
         hideTooltip();
@@ -202,18 +231,21 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
     }
 
     function handleMouseDown() {
+      updateSideHover(hoveredBar);
       hoveredBar = null;
       clearTooltipTimer();
       hideTooltip();
     }
 
     layer.addEventListener('mouseover', handleMouseOver);
+    layer.addEventListener('mousemove', handleMouseMove);
     layer.addEventListener('mouseout', handleMouseOut);
     layer.addEventListener('mousedown', handleMouseDown);
 
     return () => {
       clearTooltipTimer();
       layer.removeEventListener('mouseover', handleMouseOver);
+      layer.removeEventListener('mousemove', handleMouseMove);
       layer.removeEventListener('mouseout', handleMouseOut);
       layer.removeEventListener('mousedown', handleMouseDown);
     };
@@ -281,12 +313,20 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
             {/* Right resize handle */}
             <div className="timeline-bar-handle timeline-bar-handle-right" />
 
-            {/* Connection handles — only on parent/milestone bars, not team tracks */}
+            {/* Left drag handle + connection — only on parent/milestone bars */}
             {!isTeam && (
-              <>
+              <div className="timeline-bar-side timeline-bar-side-left">
                 <div className="timeline-connect-handle timeline-connect-handle-left" />
+                <div className="timeline-drag-indicator timeline-drag-indicator-left" />
+              </div>
+            )}
+
+            {/* Right drag handle + connection */}
+            {!isTeam && (
+              <div className="timeline-bar-side timeline-bar-side-right">
+                <div className="timeline-drag-indicator timeline-drag-indicator-right" />
                 <div className="timeline-connect-handle timeline-connect-handle-right" />
-              </>
+              </div>
             )}
 
             {/* Label + duration/done badge — positioned past the right connect handle (hidden for team tracks) */}
