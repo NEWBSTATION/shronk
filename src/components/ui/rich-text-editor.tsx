@@ -133,44 +133,85 @@ function executeSlashCommand(editor: Editor, action: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Slash menu — rendered as raw DOM with inline styles for theme compat       */
+/*  Slash menu — built with real DOM elements for reliable event handling      */
 /* -------------------------------------------------------------------------- */
 
-function buildMenuItemHTML(cmd: (typeof allSlashCommands)[number], idx: number, isSelected: boolean) {
-  return `<div data-index="${idx}" style="
-    display: flex; align-items: center; gap: 8px;
-    border-radius: 6px; padding: 5px 8px; cursor: pointer;
-    background: ${isSelected ? "var(--accent)" : "transparent"};
-    color: ${isSelected ? "var(--accent-foreground)" : "inherit"};
-  ">
-    <span style="
-      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-      width: 28px; height: 28px; border-radius: 6px;
-      border: 1px solid var(--border);
-      background: color-mix(in srgb, var(--muted) 50%, transparent);
-      color: var(--muted-foreground);
-    ">${cmd.icon}</span>
-    <span style="font-size: 13px;">${cmd.label}</span>
-  </div>`;
+/** Refs to every item element so we can restyle without replacing innerHTML */
+type MenuItemEl = HTMLDivElement;
+
+function applyItemStyle(el: MenuItemEl, selected: boolean) {
+  el.style.background = selected ? "var(--accent)" : "transparent";
+  el.style.color = selected ? "var(--accent-foreground)" : "inherit";
 }
 
-function buildMenuHTML(selectedIndex: number) {
+function buildMenu(
+  onSelect: (idx: number) => void,
+  itemRefs: MenuItemEl[],
+) {
+  const frag = document.createDocumentFragment();
   let flatIndex = 0;
-  return slashCommandGroups
-    .map((group) => {
-      const items = group.commands
-        .map((cmd) => buildMenuItemHTML(cmd, flatIndex++, flatIndex - 1 === selectedIndex))
-        .join("");
-      return `<div style="margin-bottom: 4px;">
-        <div style="
-          font-size: 11px; font-weight: 600; text-transform: uppercase;
-          letter-spacing: 0.05em; padding: 4px 8px;
-          color: var(--muted-foreground);
-        ">${group.label}</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px;">${items}</div>
-      </div>`;
-    })
-    .join("");
+
+  for (const group of slashCommandGroups) {
+    const section = document.createElement("div");
+    section.style.marginBottom = "4px";
+
+    const label = document.createElement("div");
+    Object.assign(label.style, {
+      fontSize: "11px", fontWeight: "600", textTransform: "uppercase",
+      letterSpacing: "0.05em", padding: "4px 8px",
+      color: "var(--muted-foreground)",
+    });
+    label.textContent = group.label;
+    section.appendChild(label);
+
+    const grid = document.createElement("div");
+    Object.assign(grid.style, {
+      display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px",
+    });
+
+    for (const cmd of group.commands) {
+      const idx = flatIndex++;
+      const item = document.createElement("div") as MenuItemEl;
+      Object.assign(item.style, {
+        display: "flex", alignItems: "center", gap: "8px",
+        borderRadius: "6px", padding: "5px 8px", cursor: "pointer",
+        background: "transparent", color: "inherit",
+      });
+
+      const iconWrap = document.createElement("span");
+      Object.assign(iconWrap.style, {
+        flexShrink: "0", display: "flex", alignItems: "center", justifyContent: "center",
+        width: "28px", height: "28px", borderRadius: "6px",
+        border: "1px solid var(--border)",
+        background: "color-mix(in srgb, var(--muted) 50%, transparent)",
+        color: "var(--muted-foreground)",
+      });
+      iconWrap.innerHTML = cmd.icon;
+
+      const labelSpan = document.createElement("span");
+      labelSpan.style.fontSize = "13px";
+      labelSpan.textContent = cmd.label;
+
+      item.appendChild(iconWrap);
+      item.appendChild(labelSpan);
+
+      item.addEventListener("pointerenter", () => {
+        for (let i = 0; i < itemRefs.length; i++) applyItemStyle(itemRefs[i], i === idx);
+      });
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        onSelect(idx);
+      });
+
+      itemRefs.push(item);
+      grid.appendChild(item);
+    }
+
+    section.appendChild(grid);
+    frag.appendChild(section);
+  }
+
+  return frag;
 }
 
 export function RichTextEditor({

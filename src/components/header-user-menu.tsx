@@ -181,7 +181,13 @@ export function HeaderUserMenu({ onOpenSettings }: HeaderUserMenuProps) {
                       {typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "⌘\\" : "Ctrl+\\"}
                     </kbd>
                   </button>
-                  {Object.entries(themePresets).map(([key, preset]) => {
+                  {(() => {
+                    const entries = Object.entries(themePresets);
+                    const defaultEntry = entries.find(([k]) => k === "default");
+                    const otherEntries = entries.filter(([k]) => k !== "default");
+                    otherEntries.sort((a, b) => a[1].label.localeCompare(b[1].label));
+                    return defaultEntry ? [defaultEntry, ...otherEntries] : otherEntries;
+                  })().map(([key, preset]) => {
                     const isActive = currentPresetKey === key;
                     return (
                       <button
