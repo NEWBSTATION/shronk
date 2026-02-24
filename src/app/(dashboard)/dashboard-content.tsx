@@ -17,7 +17,8 @@ import {
   type SettingsSection,
 } from "@/components/settings/settings-panel";
 import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
-import { useProjects } from "@/hooks/use-milestones";
+import { FeatureDialog } from "@/components/feature/feature-dialog";
+import { useProjects, useTeams } from "@/hooks/use-milestones";
 import { cn } from "@/lib/utils";
 import { WorkspaceDeletionBanner } from "@/components/workspace-deletion-banner";
 
@@ -33,15 +34,11 @@ const VALID_SETTINGS_SECTIONS: SettingsSection[] = [
 function DashboardMain({
   activeTab,
   mountedTabs,
-  createIntent,
-  createType,
   selectedMilestoneId,
   onMilestoneChange,
 }: {
   activeTab: TabId;
   mountedTabs: Set<TabId>;
-  createIntent: number;
-  createType: CreateAction;
   selectedMilestoneId: string | null;
   onMilestoneChange: (id: string | null) => void;
 }) {
@@ -113,12 +110,7 @@ function DashboardMain({
             activeTab !== "features" && "invisible opacity-0 pointer-events-none"
           )}
         >
-          {mountedTabs.has("features") && (
-            <FeaturesTab
-              createIntent={activeTab === "features" ? createIntent : 0}
-              createType={createType}
-            />
-          )}
+          {mountedTabs.has("features") && <FeaturesTab />}
         </div>
         <div
           className={cn(
@@ -208,12 +200,12 @@ function DashboardContentInner() {
     () => new Set([initialTab])
   );
 
-  // Trigger for "create feature" action from header — incremented to signal features tab
-  const [createIntent, setCreateIntent] = useState(0);
-  const [createType, setCreateType] = useState<CreateAction>("feature");
-
-  // Milestone dialog — lives at layout level so it opens from any tab
+  // Create dialogs — live at layout level so they open from any tab
   const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
+  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
+
+  const { data: teamsData } = useTeams();
+  const teams = teamsData?.teams ?? [];
 
   // Controlled create-popover state (shared with AppHeader for global hotkey)
   const [createOpen, setCreateOpen] = useState(false);
@@ -308,13 +300,10 @@ function DashboardContentInner() {
       if (type === "milestone") {
         setMilestoneDialogOpen(true);
       } else {
-        handleTabChange("features");
-        setCreateType(type);
-        // Use setTimeout so the tab switch mounts/activates before the intent fires
-        setTimeout(() => setCreateIntent((n) => n + 1), 0);
+        setFeatureDialogOpen(true);
       }
     },
-    [handleTabChange]
+    []
   );
 
   // Global hotkey: C opens create popover (M/F handled inside AppHeader)
@@ -353,17 +342,22 @@ function DashboardContentInner() {
         <DashboardMain
           activeTab={activeTab}
           mountedTabs={mountedTabs}
-          createIntent={createIntent}
-          createType={createType}
           selectedMilestoneId={selectedMilestoneId}
           onMilestoneChange={handleMilestoneChange}
         />
       </div>
 
-      {/* Milestone creation dialog — layout-level so it works from any tab */}
+      {/* Creation dialogs — layout-level so they work from any tab */}
       <MilestoneDialog
         open={milestoneDialogOpen}
         onOpenChange={setMilestoneDialogOpen}
+      />
+      <FeatureDialog
+        open={featureDialogOpen}
+        onOpenChange={setFeatureDialogOpen}
+        milestones={projects.map((p) => ({ id: p.id, name: p.name, color: p.color, icon: p.icon }))}
+        defaultMilestoneId={selectedMilestoneId}
+        teams={teams.map((t) => ({ id: t.id, name: t.name, color: t.color }))}
       />
 
       {/* Settings dialog */}

@@ -108,7 +108,7 @@ async function fetchFeatures(): Promise<FeaturesResponse> {
   return response.json();
 }
 
-export function FeaturesTab({ createIntent = 0, createType = "feature" }: { createIntent?: number; createType?: "milestone" | "feature" }) {
+export function FeaturesTab() {
   const { push, isOpen } = useDrilldown();
   const queryClient = useQueryClient();
   const clearSelection = useFeaturesListStore((s) => s.clearSelection);
@@ -311,41 +311,6 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
     },
     [features]
   );
-
-  // React to create intent from the header plus button
-  const prevIntent = useRef(createIntent);
-  useEffect(() => {
-    if (createIntent > 0 && createIntent !== prevIntent.current) {
-      prevIntent.current = createIntent;
-      if (createType === "milestone") {
-        setMilestoneDialogOpen(true);
-      } else {
-        // Use the first milestone as default and compute chain info like section add does
-        const defaultId = milestoneOptions[0]?.id || null;
-        setFeatureDialogMilestoneId(defaultId);
-
-        if (defaultId) {
-          const milestoneFeatures = features.filter((f) => f.projectId === defaultId);
-          const lastFeature = milestoneFeatures.length > 0
-            ? milestoneFeatures[milestoneFeatures.length - 1]
-            : null;
-          if (lastFeature) {
-            setChainTo({
-              featureId: lastFeature.id,
-              featureTitle: lastFeature.title,
-              endDate: lastFeature.endDate,
-            });
-          } else {
-            setChainTo(null);
-          }
-        } else {
-          setChainTo(null);
-        }
-        setChainEnabled(false);
-        setFeatureDialogOpen(true);
-      }
-    }
-  }, [createIntent, createType, milestoneOptions, features]);
 
   const handleEditMilestone = useCallback(
     (milestoneId: string) => {
