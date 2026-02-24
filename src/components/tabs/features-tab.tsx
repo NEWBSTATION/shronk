@@ -492,11 +492,11 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
       <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6 overflow-y-auto [scrollbar-gutter:stable]">
         <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl pt-6 md:pt-8">
           {/* Search bar */}
-          <Skeleton className="h-9 w-full rounded-md mb-4" />
+          <Skeleton className="h-9 w-full rounded-md mb-3" />
 
           {/* Milestone sections */}
           {[0, 1].map((s) => (
-            <div key={s} className="mb-1">
+            <div key={s} className="mb-3 last:mb-0">
               {/* Section header */}
               <div className="flex items-center gap-2 pl-3 pr-4 py-2.5">
                 <Skeleton className="h-7 w-7 rounded-md shrink-0" />
@@ -564,7 +564,7 @@ export function FeaturesTab({ createIntent = 0, createType = "feature" }: { crea
       <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl flex flex-col min-h-0 pt-6 md:pt-8">
         {/* Search input */}
         {(features.length > 0 || milestoneOptions.length > 0) && (
-          <div className="relative mb-4">
+          <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               ref={searchInputRef}

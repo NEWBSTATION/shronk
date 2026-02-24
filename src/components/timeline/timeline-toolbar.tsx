@@ -182,7 +182,7 @@ export function TimelineToolbar({
 
         {/* Time period selector */}
         <Select value={timePeriod} onValueChange={(v) => onTimePeriodChange(v as TimePeriod)}>
-          <SelectTrigger className="h-7 w-auto gap-1 text-xs">
+          <SelectTrigger className="h-7 w-auto gap-1 text-xs font-medium">
             <Calendar className="h-3 w-3" />
             <SelectValue>
               {(() => { const opt = timePeriodOptions.find(o => o.value === timePeriod); return opt ? (<><span className="sm:hidden">{opt.shortLabel}</span><span className="hidden sm:inline">{opt.label}</span></>) : null; })()}

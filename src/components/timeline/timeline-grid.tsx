@@ -318,11 +318,14 @@ export function TimelineGrid({
                   }`}
                   onClick={(e) => onAddFeature(e.shiftKey && hasFeatures ? { chain: true } : undefined)}
                 >
-                  {showChainHint ? (
-                    <Link2 className="h-3.5 w-3.5" />
-                  ) : (
-                    <Plus className="h-3.5 w-3.5" />
-                  )}
+                  <div className="shrink-0 w-0 overflow-hidden" />
+                  <span className="shrink-0 flex items-center justify-center w-5 h-5">
+                    {showChainHint ? (
+                      <Link2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <Plus className="h-3.5 w-3.5" />
+                    )}
+                  </span>
                   <span className="text-xs">
                     {showChainHint ? 'Chain feature' : 'Add feature'}
                   </span>

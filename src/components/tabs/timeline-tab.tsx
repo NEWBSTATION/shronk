@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { ChartGantt, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+
 import { FeatureDetailPanel, type PanelChainTo } from "@/components/drilldown/panels/feature-detail-panel";
 import { MilestoneInfoPanel } from "@/components/drilldown/panels/milestone-info-panel";
 import { MilestoneDialog } from "@/components/milestone/milestone-dialog";
@@ -51,9 +52,47 @@ const BAR_CONFIGS = [
   { left: "22%", width: "40%" },
 ];
 
+/** Read persisted timeline settings synchronously to avoid layout shift */
+function getPersistedTimelineSettings() {
+  if (typeof window === "undefined") return { gridColumnWidth: 200, sidebarCollapsed: false };
+  try {
+    const raw = localStorage.getItem("shronk-timeline-storage");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const state = parsed?.state ?? parsed;
+      return {
+        gridColumnWidth: typeof state.gridColumnWidth === "number" ? state.gridColumnWidth : 200,
+        sidebarCollapsed: typeof state.sidebarCollapsed === "boolean" ? state.sidebarCollapsed : false,
+      };
+    }
+  } catch { /* ignore */ }
+  return { gridColumnWidth: 200, sidebarCollapsed: false };
+}
+
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 function TimelineSkeleton() {
+  const [ready, setReady] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(200);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Read persisted settings and reveal in one batched update — the skeleton
+  // stays invisible (opacity 0) until we know the correct layout, then appears
+  // at the right width with no flash.
+  useIsomorphicLayoutEffect(() => {
+    const settings = getPersistedTimelineSettings();
+    setSidebarWidth(settings.gridColumnWidth);
+    setSidebarCollapsed(settings.sidebarCollapsed);
+    setReady(true);
+  }, []);
+
+  const sidebarOpen = !sidebarCollapsed;
+
   return (
-    <div className="flex flex-col flex-1 min-h-0 border border-border rounded-lg overflow-hidden">
+    <div
+      className="flex flex-col flex-1 min-h-0 border border-border rounded-lg overflow-hidden"
+      style={{ opacity: ready ? 1 : 0 }}
+    >
       {/* Toolbar skeleton */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">
@@ -68,21 +107,26 @@ function TimelineSkeleton() {
 
       {/* Chart area */}
       <div className="flex-1 min-h-0 flex">
-        {/* Left column — feature names (hidden on mobile, sidebar auto-collapses) */}
-        <div className="w-[200px] shrink-0 border-r border-border hidden md:block">
-          {/* Scale header spacer */}
-          <div style={{ height: SCALE_HEIGHT * 2 }} className="border-b border-border bg-muted/20" />
-          {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-2 px-3 border-b border-border/50"
-              style={{ height: ROW_HEIGHT }}
-            >
-              <Skeleton className="h-3.5 flex-1 rounded" />
-              <Skeleton className="h-4 w-8 rounded" />
-            </div>
-          ))}
-        </div>
+        {/* Left column — feature names (CSS hides on mobile, JS handles collapsed) */}
+        {sidebarOpen && (
+          <div
+            className="shrink-0 border-r border-border hidden md:block"
+            style={{ width: sidebarWidth }}
+          >
+            {/* Scale header spacer */}
+            <div style={{ height: SCALE_HEIGHT * 2 }} className="border-b border-border bg-muted/20" />
+            {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 px-3 border-b border-border/50"
+                style={{ height: ROW_HEIGHT }}
+              >
+                <Skeleton className="h-3.5 flex-1 rounded" />
+                <Skeleton className="h-4 w-8 rounded" />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Right chart area — scale headers + task bars */}
         <div className="flex-1 min-w-0">

@@ -474,7 +474,7 @@ export function FeaturesSectionList({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="space-y-6">
+        <div className="space-y-3">
           {sections.map((section) => {
             const isCollapsed = collapsedSections.has(section.milestone.id);
             const isSectionDimmed = searchMatchMilestoneIds != null && !searchMatchMilestoneIds.has(section.milestone.id);
