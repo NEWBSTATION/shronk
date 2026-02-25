@@ -3,9 +3,14 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Layers, Search, X, Plus } from "lucide-react";
+import { Layers, Search, SlidersHorizontal, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,6 +118,8 @@ export function FeaturesTab() {
   const queryClient = useQueryClient();
   const clearSelection = useFeaturesListStore((s) => s.clearSelection);
   const selectMode = useFeaturesListStore((s) => s.selectMode);
+  const durationUnit = useFeaturesListStore((s) => s.durationUnit);
+  const setDurationUnit = useFeaturesListStore((s) => s.setDurationUnit);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
@@ -546,33 +553,61 @@ export function FeaturesTab() {
   return (
     <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6 overflow-y-auto [scrollbar-gutter:stable] [mask-image:linear-gradient(to_bottom,transparent,black_16px)]">
       <div className="mx-auto w-full max-w-xl lg:max-w-2xl xl:max-w-4xl flex flex-col min-h-0 pt-6 md:pt-8">
-        {/* Search input */}
+        {/* Search input + display settings */}
         {(features.length > 0 || milestoneOptions.length > 0) && (
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search features..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-9 bg-transparent dark:bg-transparent"
-            />
-            {searchQuery ? (
-              <button
-                onClick={() => {
-                  setSearchQuery("");
-                  searchInputRef.current?.focus();
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            ) : (
-              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-0.5 rounded bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/50 pointer-events-none">
-                ⌘K
-              </kbd>
-            )}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search features..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 pr-9 bg-transparent dark:bg-transparent"
+              />
+              {searchQuery ? (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    searchInputRef.current?.focus();
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : (
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-0.5 rounded bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground pointer-events-none">
+                  ⌘K
+                </kbd>
+              )}
+            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" className="relative shrink-0 h-9 w-9 bg-background dark:bg-background text-muted-foreground hover:text-foreground">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  {durationUnit !== "days" && (
+                    <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary" />
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-1" align="end" sideOffset={4}>
+                <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Duration unit</p>
+                {(["days", "weeks", "months", "years"] as const).map((unit) => (
+                  <button
+                    key={unit}
+                    onClick={() => setDurationUnit(unit)}
+                    className={`flex w-full items-center rounded-md px-2 py-1.5 text-xs transition-colors capitalize ${
+                      durationUnit === unit
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-accent/50"
+                    }`}
+                  >
+                    {unit}
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
           </div>
         )}
 
@@ -589,6 +624,7 @@ export function FeaturesTab() {
           milestones={milestoneOptions}
           dependencies={data?.dependencies}
           teamDurationsMap={teamDurationsMap}
+          allTeams={teams}
           searchMatchIds={searchMatchIds}
           searchMatchMilestoneIds={searchMatchMilestoneIds}
           onFeatureClick={handleFeatureClick}
@@ -605,6 +641,11 @@ export function FeaturesTab() {
           onRenameMilestone={handleRenameMilestone}
           onRenameFeature={handleRenameFeature}
           onDurationChange={handleDurationChange}
+          onAddTeamTrack={(featureId, teamId) => {
+            const feature = features.find((f) => f.id === featureId);
+            handleUpsertTeamDuration(featureId, teamId, feature?.duration ?? 14);
+          }}
+          onRemoveTeamTrack={handleDeleteTeamDuration}
           onDeleteFeature={handleDeleteFeature}
         />
         )}

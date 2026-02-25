@@ -1,9 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
-import { format, getYear } from "date-fns";
-import { formatDuration } from "@/lib/format-duration";
-import { Check, CheckSquare, ChevronDown, MoreHorizontal, Pencil, Plus, Square, Trash2 } from "lucide-react";
+import { Check, CheckSquare, MoreHorizontal, Pencil, Plus, Square, Trash2 } from "lucide-react";
 import { MilestoneIcon } from "@/lib/milestone-icon";
 import { getColorStyles } from "@/lib/milestone-theme";
 import { cn } from "@/lib/utils";
@@ -20,7 +17,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ColorIconPicker } from "./color-icon-picker";
 
 interface SectionHeaderProps {
   milestoneId: string;
@@ -66,45 +62,8 @@ export function SectionHeader({
   onDeselectAll,
   hasSelectedFeatures,
 }: SectionHeaderProps) {
-  const [localColor, setLocalColor] = useState(color);
-  const [localIcon, setLocalIcon] = useState(icon);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const initialRef = useRef({ color, icon });
 
-  useEffect(() => {
-    setLocalColor(color);
-    setLocalIcon(icon);
-    initialRef.current = { color, icon };
-  }, [color, icon]);
-
-  const handlePickerOpenChange = (open: boolean) => {
-    setPickerOpen(open);
-    if (!open) {
-      if (localColor !== initialRef.current.color || localIcon !== initialRef.current.icon) {
-        onUpdateAppearance?.({ color: localColor, icon: localIcon });
-        initialRef.current = { color: localColor, icon: localIcon };
-      }
-    }
-  };
-
-  const dateRangeLabel = useMemo(() => {
-    if (!startDate || !endDate) return null;
-    const now = new Date();
-    const currentYear = getYear(now);
-    const startYear = getYear(startDate);
-    const endYear = getYear(endDate);
-
-    const startStr = startYear === currentYear
-      ? format(startDate, "MMM d")
-      : format(startDate, "MMM d, yyyy");
-    const endStr = endYear === currentYear
-      ? format(endDate, "MMM d")
-      : format(endDate, "MMM d, yyyy");
-
-    return `${startStr} – ${endStr}`;
-  }, [startDate, endDate]);
-
-  const styles = getColorStyles(localColor);
+  const styles = getColorStyles(color);
   const progress =
     featureCount > 0 ? Math.round((completedCount / featureCount) * 100) : 0;
   const allCompleted = featureCount > 0 && completedCount === featureCount;
@@ -113,7 +72,7 @@ export function SectionHeader({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
-          onClick={() => { if (!pickerOpen) onToggle(); }}
+          onClick={onToggle}
           className={cn(
             "w-full text-left group relative overflow-hidden pl-3 pr-4 py-2.5 cursor-pointer",
             isDropTarget && "ring-2 ring-primary/50",
@@ -131,120 +90,85 @@ export function SectionHeader({
 
           <div className="relative flex items-center gap-2">
             {/* Icon — aligned with row completion circles */}
-            <ColorIconPicker
-              color={localColor}
-              icon={localIcon}
-              onColorChange={setLocalColor}
-              onIconChange={setLocalIcon}
-              onOpenChange={handlePickerOpenChange}
+            <div
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+              style={{ backgroundColor: styles.iconBg, color: styles.hex }}
             >
-              <button
-                type="button"
-                onClick={(e) => e.stopPropagation()}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:opacity-80 transition-opacity"
-                style={{ backgroundColor: styles.iconBg, color: styles.hex }}
-                title="Change icon & color"
-              >
-                <MilestoneIcon name={localIcon} className="h-3.5 w-3.5" />
-              </button>
-            </ColorIconPicker>
+              <MilestoneIcon name={icon} className="h-3.5 w-3.5" />
+            </div>
 
             {/* Name */}
-            <span className="text-[13px] font-semibold tracking-tight truncate">
+            <span className="text-sm font-semibold tracking-tight truncate">
               {name}
             </span>
 
-            {/* Actions — left side, after name */}
-            <div className="flex items-center gap-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={(e) => e.stopPropagation()}
-                    className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-background/40 transition-all"
-                  >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {onEditMilestone && (
-                    <DropdownMenuItem onClick={onEditMilestone}>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Edit milestone
-                    </DropdownMenuItem>
-                  )}
-                  {onAddFeature && (
-                    <DropdownMenuItem onClick={onAddFeature}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add feature
-                    </DropdownMenuItem>
-                  )}
-                  {onDeleteMilestone && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={onDeleteMilestone}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete milestone
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+            {/* Feature count pill — next to name */}
+            {allCompleted ? (
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5">
+                <Check className="h-3 w-3 text-emerald-500" />
+                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                  Completed
+                </span>
+              </span>
+            ) : (
+              <span className="shrink-0 inline-flex items-center rounded-full bg-foreground/[0.06] px-2 py-0.5">
+                <span className="text-[11px] font-medium tabular-nums text-foreground/70">
+                  {completedCount}/{featureCount}
+                </span>
+              </span>
+            )}
 
-              {onAddFeature && (
+            {/* More menu — hover only on desktop */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <button
-                  onClick={(e) => { e.stopPropagation(); onAddFeature(e); }}
-                  className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-background/40 transition-all"
-                  title="Add feature (Shift+click to chain)"
+                  type="button"
+                  onClick={(e) => e.stopPropagation()}
+                  className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-foreground/60 md:opacity-0 md:group-hover:opacity-100 hover:text-foreground hover:bg-background/40 transition-all"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <MoreHorizontal className="h-3.5 w-3.5" />
                 </button>
-              )}
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {onEditMilestone && (
+                  <DropdownMenuItem onClick={onEditMilestone}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit milestone
+                  </DropdownMenuItem>
+                )}
+                {onAddFeature && (
+                  <DropdownMenuItem onClick={onAddFeature}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add feature
+                  </DropdownMenuItem>
+                )}
+                {onDeleteMilestone && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={onDeleteMilestone}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete milestone
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <div className="flex-1" />
 
-            {/* Right side — counter + date + chevron */}
-            <div className="flex items-center gap-1.5">
-              {/* Feature count pill */}
-              {allCompleted ? (
-                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5">
-                  <Check className="h-3 w-3 text-emerald-500" />
-                  <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                    Completed
-                  </span>
-                </span>
-              ) : (
-                <span className="shrink-0 inline-flex items-center rounded-full bg-foreground/[0.06] px-2 py-0.5">
-                  <span className="text-[11px] font-medium tabular-nums text-foreground/70">
-                    {completedCount}/{featureCount}
-                  </span>
-                </span>
-              )}
-
-              {/* Date range + duration chip */}
-              {totalDuration > 0 && dateRangeLabel && (
-                <span className="hidden sm:inline-flex items-center gap-1.5 shrink-0 rounded-full bg-foreground/[0.06] px-2 py-0.5">
-                  <span className="text-[11px] text-foreground/60 tabular-nums">
-                    {dateRangeLabel}
-                  </span>
-                  <span className="h-0.5 w-0.5 rounded-full bg-foreground/25" />
-                  <span className="text-[11px] font-medium tabular-nums text-foreground/70">
-                    {formatDuration(totalDuration)}
-                  </span>
-                </span>
-              )}
-
-              <ChevronDown
-                className={cn(
-                  "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
-                  collapsed && "-rotate-90"
-                )}
-              />
-            </div>
+            {/* Add feature — always visible, far right */}
+            {onAddFeature && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onAddFeature(e); }}
+                className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-background/40 transition-colors"
+                title="Add feature (Shift+click to chain)"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
           {/* Progress rail */}

@@ -822,36 +822,73 @@ function TeamTracksSection({
 
       {/* Add team track */}
       {unassignedTeams.length > 0 && onUpsertTeamDuration && (
-        <ResponsivePopover>
-          <ResponsivePopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2 text-xs"
-            >
-              + Add team track
-            </Button>
-          </ResponsivePopoverTrigger>
-          <ResponsivePopoverContent className="w-48 p-1" align="start" title="Add Team Track">
-            {unassignedTeams.map((team) => (
-              <button
-                key={team.id}
-                onClick={() => {
-                  onUpsertTeamDuration(feature.id, team.id, feature.duration);
-                }}
-                className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
-              >
-                <div
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: team.color }}
-                />
-                {team.name}
-              </button>
-            ))}
-          </ResponsivePopoverContent>
-        </ResponsivePopover>
+        <AddTeamPopover
+          teams={unassignedTeams}
+          placeholder="Set team tracks..."
+          onSelect={(teamId) => onUpsertTeamDuration(feature.id, teamId, feature.duration)}
+        />
       )}
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Searchable Add Team Popover                                                */
+/* -------------------------------------------------------------------------- */
+
+function AddTeamPopover({
+  teams,
+  placeholder,
+  onSelect,
+}: {
+  teams: Team[];
+  placeholder: string;
+  onSelect: (teamId: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const filtered = teams.filter((t) => t.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <ResponsivePopover onOpenChange={(open) => { if (!open) setSearch(""); }}>
+      <ResponsivePopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="mt-2 text-xs">
+          + Add team track
+        </Button>
+      </ResponsivePopoverTrigger>
+      <ResponsivePopoverContent
+        className="w-48 p-0"
+        align="start"
+        title="Add Team Track"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="px-1.5 pt-1.5 pb-1">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={placeholder}
+            className="w-full h-7 px-2 text-xs rounded-md bg-muted/50 border border-border/40 outline-none placeholder:text-muted-foreground/50 focus:border-ring"
+          />
+        </div>
+        <div className="flex flex-col p-1 pt-0 max-h-48 overflow-y-auto">
+          {filtered.length > 0 ? filtered.map((team) => (
+            <button
+              key={team.id}
+              onClick={() => onSelect(team.id)}
+              className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
+            >
+              <div
+                className="h-2.5 w-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: team.color }}
+              />
+              {team.name}
+            </button>
+          )) : (
+            <p className="px-2 py-2 text-xs text-center text-muted-foreground">No matches</p>
+          )}
+        </div>
+      </ResponsivePopoverContent>
+    </ResponsivePopover>
   );
 }
 
@@ -1027,32 +1064,11 @@ function PendingTeamTracksSection({
       </div>
 
       {unassignedTeams.length > 0 && (
-        <ResponsivePopover>
-          <ResponsivePopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2 text-xs"
-            >
-              + Add team track
-            </Button>
-          </ResponsivePopoverTrigger>
-          <ResponsivePopoverContent className="w-48 p-1" align="start" title="Add Team Track">
-            {unassignedTeams.map((team) => (
-              <button
-                key={team.id}
-                onClick={() => onAdd(team.id, defaultDuration)}
-                className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
-              >
-                <div
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: team.color }}
-                />
-                {team.name}
-              </button>
-            ))}
-          </ResponsivePopoverContent>
-        </ResponsivePopover>
+        <AddTeamPopover
+          teams={unassignedTeams}
+          placeholder="Set team tracks..."
+          onSelect={(teamId) => onAdd(teamId, defaultDuration)}
+        />
       )}
     </div>
   );
