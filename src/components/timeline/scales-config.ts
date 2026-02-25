@@ -20,7 +20,7 @@ export function isToday(date: Date): boolean {
   return isEqual(startOfDay(date), startOfDay(new Date()));
 }
 
-export const ROW_HEIGHT = 52;
+export const ROW_HEIGHT = 44;
 export const SCALE_HEIGHT = 32;
 
 // ================================================

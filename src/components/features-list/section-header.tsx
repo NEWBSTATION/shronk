@@ -17,6 +17,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface SectionHeaderProps {
   milestoneId: string;
@@ -74,7 +79,7 @@ export function SectionHeader({
         <div
           onClick={onToggle}
           className={cn(
-            "w-full text-left group relative overflow-hidden pl-3 pr-4 py-2.5 cursor-pointer",
+            "w-full text-left group relative overflow-hidden pl-4 pr-4 py-2.5 cursor-pointer",
             isDropTarget && "ring-2 ring-primary/50",
             !collapsed && "border-b border-border/40"
           )}
@@ -88,11 +93,11 @@ export function SectionHeader({
             }}
           />
 
-          <div className="relative flex items-center gap-2">
+          <div className="relative flex items-center gap-3">
             {/* Icon — aligned with row completion circles */}
             <div
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-              style={{ backgroundColor: styles.iconBg, color: styles.hex }}
+              className="flex shrink-0 items-center justify-center"
+              style={{ backgroundColor: styles.iconBg, color: styles.hex, width: 20, height: 20, borderRadius: 4 }}
             >
               <MilestoneIcon name={icon} className="h-3.5 w-3.5" />
             </div>
@@ -120,15 +125,20 @@ export function SectionHeader({
 
             {/* More menu — hover only on desktop */}
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  onClick={(e) => e.stopPropagation()}
-                  className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-foreground/60 md:opacity-0 md:group-hover:opacity-100 hover:text-foreground hover:bg-background/40 transition-all"
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </button>
-              </DropdownMenuTrigger>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-foreground/60 md:opacity-0 md:group-hover:opacity-100 hover:text-foreground hover:bg-background/40 transition-all"
+                    >
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={4}>More actions</TooltipContent>
+              </Tooltip>
               <DropdownMenuContent align="start">
                 {onEditMilestone && (
                   <DropdownMenuItem onClick={onEditMilestone}>
@@ -140,6 +150,18 @@ export function SectionHeader({
                   <DropdownMenuItem onClick={onAddFeature}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add feature
+                  </DropdownMenuItem>
+                )}
+                {onSelectAll && (
+                  <DropdownMenuItem onClick={onSelectAll}>
+                    <CheckSquare className="h-4 w-4 mr-2" />
+                    Select all features
+                  </DropdownMenuItem>
+                )}
+                {hasSelectedFeatures && onDeselectAll && (
+                  <DropdownMenuItem onClick={onDeselectAll}>
+                    <Square className="h-4 w-4 mr-2" />
+                    Deselect all features
                   </DropdownMenuItem>
                 )}
                 {onDeleteMilestone && (
@@ -161,13 +183,19 @@ export function SectionHeader({
 
             {/* Add feature — always visible, far right */}
             {onAddFeature && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onAddFeature(e); }}
-                className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-background/40 transition-colors"
-                title="Add feature (Shift+click to chain)"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onAddFeature(e); }}
+                    className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-foreground/60 hover:text-foreground hover:bg-background/40 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={4}>
+                  <span className="flex items-center gap-1.5">Add feature <kbd className="text-[11px] font-mono text-background/70 bg-background/20 px-1 py-0.5 rounded-[2px]">F</kbd></span>
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
 
@@ -182,18 +210,6 @@ export function SectionHeader({
       </ContextMenuTrigger>
 
       <ContextMenuContent>
-        {onSelectAll && (
-          <ContextMenuItem onClick={onSelectAll}>
-            <CheckSquare className="h-4 w-4 mr-2" />
-            Select all features
-          </ContextMenuItem>
-        )}
-        {hasSelectedFeatures && onDeselectAll && (
-          <ContextMenuItem onClick={onDeselectAll}>
-            <Square className="h-4 w-4 mr-2" />
-            Deselect all features
-          </ContextMenuItem>
-        )}
         {onEditMilestone && (
           <ContextMenuItem onClick={onEditMilestone}>
             <Pencil className="h-4 w-4 mr-2" />
@@ -204,6 +220,18 @@ export function SectionHeader({
           <ContextMenuItem onClick={onAddFeature}>
             <Plus className="h-4 w-4 mr-2" />
             Add feature
+          </ContextMenuItem>
+        )}
+        {onSelectAll && (
+          <ContextMenuItem onClick={onSelectAll}>
+            <CheckSquare className="h-4 w-4 mr-2" />
+            Select all features
+          </ContextMenuItem>
+        )}
+        {hasSelectedFeatures && onDeselectAll && (
+          <ContextMenuItem onClick={onDeselectAll}>
+            <Square className="h-4 w-4 mr-2" />
+            Deselect all features
           </ContextMenuItem>
         )}
         {onDeleteMilestone && (

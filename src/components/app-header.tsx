@@ -200,7 +200,7 @@ export function AppHeader({ activeTab, onTabChange, onCreateAction, onOpenSettin
                     </PopoverTrigger>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" sideOffset={8}>
-                    <span className="flex items-center gap-1.5">Create <kbd className="hidden md:inline text-[11px] font-mono text-background/40 bg-background/10 px-1 py-0.5 rounded">C</kbd></span>
+                    <span className="flex items-center gap-1.5">Create <kbd className="hidden md:inline text-[11px] font-mono text-background/70 bg-background/20 px-1 py-0.5 rounded-[2px]">C</kbd></span>
                   </TooltipContent>
                 </Tooltip>
                 <PopoverContent

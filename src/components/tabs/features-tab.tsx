@@ -478,6 +478,29 @@ export function FeaturesTab() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  // F / Shift+F — add feature (defaults to first milestone)
+  // M — new milestone
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        const firstMilestone = milestoneOptions[0];
+        if (firstMilestone) {
+          handleAddFeatureForMilestone(firstMilestone.id, { shiftKey: e.shiftKey } as React.MouseEvent);
+        }
+      }
+      if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        setMilestoneDialogOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [milestoneOptions, handleAddFeatureForMilestone]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col flex-1 min-h-0 px-4 md:px-6 overflow-y-auto [scrollbar-gutter:stable]">
@@ -501,11 +524,11 @@ export function FeaturesTab() {
               {[0, 1, 2].map((i) => (
                 <div key={i} className="flex items-center gap-2 px-3 py-3 border-b border-border/40">
                   <Skeleton className="h-[18px] w-[18px] rounded-full shrink-0" />
-                  <div className="flex-1 ml-2 min-w-0 grid grid-cols-1 md:grid-cols-[1fr_100px_72px_56px] items-center gap-x-3">
-                    <Skeleton className="h-4 w-[60%]" />
-                    <Skeleton className="h-5 w-16 rounded-md hidden md:block" />
-                    <Skeleton className="h-4 w-12 hidden md:block" />
-                    <Skeleton className="h-4 w-8 hidden md:block" />
+                  <div className="flex-1 ml-2 min-w-0 flex items-center gap-2">
+                    <Skeleton className="h-4 w-[60%] min-w-0" />
+                    <Skeleton className="h-5 w-16 rounded-full shrink-0" />
+                    <Skeleton className="h-5 w-7 rounded-full shrink-0 hidden sm:block" />
+                    <Skeleton className="h-4 w-8 shrink-0" />
                   </div>
                 </div>
               ))}

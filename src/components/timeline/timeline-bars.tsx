@@ -17,10 +17,10 @@ interface TimelineBarsProps {
   searchMatchIds?: Set<string> | null;
 }
 
-const BAR_HEIGHT = 40;
+const BAR_HEIGHT = 32;
 const BAR_TOP_PAD = 6;
-const TEAM_BAR_HEIGHT = 32;
-const TEAM_BAR_TOP_PAD = 10;
+const TEAM_BAR_HEIGHT = 26;
+const TEAM_BAR_TOP_PAD = 9;
 
 const STATUS_LABELS: Record<string, string> = {
   not_started: 'Not Started',

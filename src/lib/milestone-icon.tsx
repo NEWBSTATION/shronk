@@ -68,5 +68,5 @@ interface MilestoneIconProps {
 
 export function MilestoneIcon({ name, className }: MilestoneIconProps) {
   const Icon = getMilestoneIcon(name);
-  return <Icon className={className} />;
+  return <Icon className={className} strokeWidth={2.5} />;
 }

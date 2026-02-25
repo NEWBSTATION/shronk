@@ -47,6 +47,8 @@ import { topoSortFeatures } from '@/lib/topo-sort';
 import { useBarDrag } from './use-bar-drag';
 import { useDragLink } from './use-drag-link';
 import { useLinkDelete } from './use-link-delete';
+import { BulkActionBar } from '@/components/features-list/bulk-action-bar';
+import { useFeaturesListStore } from '@/store/features-list-store';
 import type { CascadedUpdate } from '@/hooks/use-milestones';
 import type { TimePeriod, TimelineTask, TimelineLink } from './types';
 import type { Milestone, MilestoneDependency, MilestoneStatus, MilestonePriority, Team, Project, TeamMilestoneDuration } from '@/db/schema';
@@ -534,9 +536,18 @@ export function TimelineView({
     return () => clearTimeout(timeout);
   }, [scrollToToday]);
 
+  // --- Selection ---
+  const { selectedIds, selectMode, clearSelection } = useFeaturesListStore();
+
   // --- Keyboard shortcuts ---
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Escape clears selection
+      if (e.key === 'Escape' && selectMode) {
+        clearSelection();
+        return;
+      }
+
       // Ignore when typing in an input/textarea
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
@@ -550,7 +561,7 @@ export function TimelineView({
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, []);
+  }, [selectMode, clearSelection]);
 
   // --- Drag-to-connect & link delete ---
   useDragLink(ganttContainerRef, onCreateDependencyRef, ADD_FEATURE_TASK_ID);
@@ -1091,6 +1102,7 @@ export function TimelineView({
             chainInfo={chainInfo}
             hideTeamTracks={isGridDragging}
             searchMatchIds={searchMatchIds}
+            selectedIds={selectedIds}
           />
 
           <TodayMarker
@@ -1143,6 +1155,7 @@ export function TimelineView({
           </div>
         </div>
       </div>
+      <BulkActionBar />
     </div>
   );
 }

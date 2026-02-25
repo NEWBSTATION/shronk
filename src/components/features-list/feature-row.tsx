@@ -6,8 +6,6 @@ import { Check, Users } from "lucide-react";
 import { formatDuration, formatDurationIn } from "@/lib/format-duration";
 import { DURATION_UNIT_MULTIPLIERS, bestFitDurationUnit } from "@/components/timeline/transformers";
 import { useFeaturesListStore, type DurationUnit } from "@/store/features-list-store";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -84,11 +82,7 @@ interface FeatureRowProps {
   onContextMenu?: (e: React.MouseEvent) => void;
   isDragging?: boolean;
   isAnyDragging?: boolean;
-  isOverlay?: boolean;
   dimmed?: boolean;
-  dragHandleProps?: Record<string, unknown>;
-  nodeRef?: (node: HTMLElement | null) => void;
-  style?: React.CSSProperties;
 }
 
 export function FeatureRow({
@@ -116,11 +110,7 @@ export function FeatureRow({
   onContextMenu,
   isDragging,
   isAnyDragging,
-  isOverlay,
   dimmed,
-  dragHandleProps,
-  nodeRef,
-  style,
 }: FeatureRowProps) {
   const durationUnit = useFeaturesListStore((s) => s.durationUnit);
   const completed = status === "completed";
@@ -180,10 +170,7 @@ export function FeatureRow({
 
   return (
     <div
-      ref={nodeRef}
-      style={style}
       data-feature-id={id}
-      {...(!selectMode ? dragHandleProps : {})}
       onContextMenu={(e) => {
         if (onContextMenu) {
           e.preventDefault();
@@ -205,7 +192,6 @@ export function FeatureRow({
         selected && "bg-muted/40",
         isDragging && "opacity-30",
         dimmed && !isDragging && "opacity-40",
-        isOverlay && "bg-background border rounded-lg shadow-lg"
       )}
     >
       {/* Checkbox — select mode only */}
@@ -283,7 +269,7 @@ export function FeatureRow({
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                     className={cn(
-                      "hidden md:inline-flex shrink-0 items-center justify-center h-5 w-5 rounded transition-colors",
+                      "inline-flex shrink-0 items-center justify-center h-5 w-5 rounded transition-colors",
                       priority === "high" || priority === "critical"
                         ? "text-orange-500 dark:text-orange-400"
                         : "text-muted-foreground/60 hover:text-muted-foreground"
@@ -347,17 +333,10 @@ export function FeatureRow({
           </ResponsivePopover>
         )}
 
-        {/* Mobile-only: inline metadata */}
-        <div className="flex md:hidden items-center gap-1.5 text-[11px] leading-none text-muted-foreground shrink-0">
-          <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", statusCfg.dotClass)} />
-          <span>{statusCfg.label}</span>
-          <span className="text-muted-foreground/30">&middot;</span>
-          <span className="tabular-nums">{formatDurationIn(duration, durationUnit)}</span>
-        </div>
       </div>
 
-      {/* Right zone — desktop pills */}
-      <div className="hidden md:flex items-center gap-1.5 shrink-0">
+      {/* Right zone — pills */}
+      <div className="flex items-center gap-1.5 shrink-0">
         {/* Status pill */}
         <ResponsivePopover open={statusOpen} onOpenChange={(open) => { setStatusOpen(open); if (!open) setStatusSearch(""); }}>
           <ResponsivePopoverTrigger asChild>
@@ -415,7 +394,7 @@ export function FeatureRow({
           </ResponsivePopoverContent>
         </ResponsivePopover>
 
-        {/* Tracks pill — checkbox popover to add/remove teams */}
+        {/* Tracks pill — checkbox popover to add/remove teams (hidden on small screens) */}
         <ResponsivePopover open={tracksOpen} onOpenChange={(open) => { setTracksOpen(open); if (!open) setTracksSearch(""); }}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -426,6 +405,7 @@ export function FeatureRow({
                   onClick={(e) => e.stopPropagation()}
                   className={cn(
                     PILL,
+                    "hidden sm:inline-flex",
                     !hasTeams && "px-0 w-7 justify-center text-muted-foreground/40 border-dashed"
                   )}
                 >
@@ -514,7 +494,7 @@ export function FeatureRow({
                   type="button"
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
-                  className="hidden md:inline-grid items-center justify-items-end shrink-0 h-7 px-1.5 text-[11px] tabular-nums text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
+                  className="inline-grid items-center justify-items-end shrink-0 h-7 px-1.5 text-[11px] tabular-nums text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
                 >
                   {maxDurationLabel && (
                     <span className="[grid-area:1/1] invisible whitespace-nowrap">{maxDurationLabel}</span>
@@ -590,35 +570,3 @@ export function FeatureRow({
   );
 }
 
-export function SortableFeatureRow(
-  props: Omit<
-    FeatureRowProps,
-    "isDragging" | "isOverlay" | "dragHandleProps" | "nodeRef" | "style"
-  > & { dimmed?: boolean; onContextMenu?: (e: React.MouseEvent) => void }
-) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: props.id });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <FeatureRow
-      {...props}
-      nodeRef={setNodeRef}
-      style={style}
-      isDragging={isDragging}
-      dragHandleProps={
-        props.selectMode ? undefined : { ...attributes, ...listeners }
-      }
-    />
-  );
-}

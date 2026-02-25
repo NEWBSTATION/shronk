@@ -15,10 +15,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ROW_HEIGHT, SCALE_HEIGHT } from './scales-config';
 import { MilestoneIcon } from '@/lib/milestone-icon';
 import { getColorStyles } from '@/lib/milestone-theme';
 import { bestFitDurationUnit, DURATION_UNIT_MULTIPLIERS, type DurationUnit } from './transformers';
+import { useFeaturesListStore } from '@/store/features-list-store';
 import type { TimelineTask } from './types';
 import type { Milestone, MilestoneStatus, Project } from '@/db/schema';
 
@@ -228,6 +230,28 @@ export function TimelineGrid({
   );
   const featureIdSet = useMemo(() => new Set(featureIds), [featureIds]);
 
+  // --- Shift-click selection (shared with features tab) ---
+  const { selectedIds, selectMode, toggleSelected, rangeSelect, clearSelection } = useFeaturesListStore();
+  const lastClickedRef = useRef<string | null>(null);
+
+  const handleFeatureSelect = useCallback(
+    (featureId: string, e: React.MouseEvent) => {
+      if (e.shiftKey && lastClickedRef.current) {
+        const startIdx = featureIds.indexOf(lastClickedRef.current);
+        const endIdx = featureIds.indexOf(featureId);
+        if (startIdx !== -1 && endIdx !== -1) {
+          const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+          rangeSelect(featureIds.slice(from, to + 1));
+          lastClickedRef.current = featureId;
+          return;
+        }
+      }
+      toggleSelected(featureId);
+      lastClickedRef.current = featureId;
+    },
+    [featureIds, toggleSelected, rangeSelect]
+  );
+
   // --- Manual drag state ---
   const [dragState, setDragState] = useState<{
     featureId: string;
@@ -396,6 +420,20 @@ export function TimelineGrid({
 
   const hasFeatures = featureIds.length > 0;
 
+  // Precompute which team tracks are the last child of their parent
+  const lastChildIds = useMemo(() => {
+    const set = new Set<string>();
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
+      if (!task.$custom?.isTeamTrack || !task.parent) continue;
+      const next = tasks[i + 1];
+      if (!next || !next.$custom?.isTeamTrack || next.parent !== task.parent) {
+        set.add(task.id);
+      }
+    }
+    return set;
+  }, [tasks]);
+
   return (
     <div
       style={{ width, minWidth: width, maxWidth: width }}
@@ -517,6 +555,7 @@ export function TimelineGrid({
               const hideTrack = isDragging;
               const parentId = task.parent;
               const isTeamSearchDimmed = !hideTrack && searchMatchIds != null && parentId != null && !searchMatchIds.has(parentId);
+              const isLastChild = lastChildIds.has(task.id);
               return (
                 <div
                   key={task.id}
@@ -525,13 +564,22 @@ export function TimelineGrid({
                     opacity: hideTrack ? 0 : isTeamSearchDimmed ? 0.4 : 1,
                     transition: 'height 200ms ease, opacity 150ms ease',
                   }}
-                  className="flex items-center gap-1.5 min-w-0 pl-11 pr-3 cursor-pointer border-b border-border overflow-hidden"
+                  className={`relative flex items-center gap-1.5 min-w-0 pl-[38px] pr-3 cursor-pointer overflow-hidden ${isLastChild ? 'border-b border-border' : ''}`}
                   onClick={() => onRowClick(task)}
                 >
-                  <div
-                    className="h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: custom?.teamColor }}
-                  />
+                  {/* Tree connector lines */}
+                  <div className="absolute inset-y-0 left-[22px] pointer-events-none" style={{ width: 14 }}>
+                    {/* Vertical line — full height for non-last, half for last */}
+                    <div
+                      className="absolute left-0 w-px bg-border"
+                      style={{ top: 0, bottom: isLastChild ? '50%' : 0 }}
+                    />
+                    {/* Horizontal line at vertical center */}
+                    <div
+                      className="absolute left-0 right-0 h-px bg-border"
+                      style={{ top: '50%' }}
+                    />
+                  </div>
                   <span className="truncate min-w-0 flex-1 text-xs text-muted-foreground">
                     {task.text}
                   </span>
@@ -557,6 +605,7 @@ export function TimelineGrid({
               const isDragSource = task.id === activeId;
               const isSearchDimmed = searchMatchIds != null && !searchMatchIds.has(task.id);
               const isSearchMatch = searchMatchIds != null && searchMatchIds.has(task.id);
+              const isSelected = selectedIds.has(task.id);
 
               return (
                 <div
@@ -565,23 +614,43 @@ export function TimelineGrid({
                     height: ROW_HEIGHT,
                     opacity: isDragSource ? 0.3 : isSearchDimmed ? 0.4 : 1,
                     transition: 'opacity 150ms ease',
-                    ...(onReorder ? { touchAction: 'none' } : {}),
+                    ...(onReorder && !selectMode ? { touchAction: 'none' } : {}),
                   }}
                   className={`flex items-center gap-1.5 min-w-0 px-3 border-b border-border ${
-                    onReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                    onReorder && !selectMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
                   } ${
-                    isSearchMatch ? 'bg-primary/[0.06]' : 'bg-background'
+                    isSelected ? 'bg-primary/[0.08]' : isSearchMatch ? 'bg-primary/[0.06]' : 'bg-background'
                   } ${
                     isDragging ? '' : 'group/gridrow'
                   }`}
-                  onClick={() => { if (!dragJustEndedRef.current && !popoverJustClosedRef.current) onRowClick(task); }}
-                  onPointerDown={onReorder ? (e) => handleRowPointerDown(task.id, e) : undefined}
+                  onClick={(e) => {
+                    if (dragJustEndedRef.current || popoverJustClosedRef.current) return;
+                    if (e.shiftKey || selectMode) {
+                      e.preventDefault();
+                      handleFeatureSelect(task.id, e);
+                      return;
+                    }
+                    onRowClick(task);
+                  }}
+                  onPointerDown={onReorder && !selectMode ? (e) => handleRowPointerDown(task.id, e) : undefined}
                 >
-                  <StatusToggle
-                    id={task.id}
-                    status={custom?.status ?? 'not_started'}
-                    onToggle={onStatusChange}
-                  />
+                  {selectMode ? (
+                    <div
+                      className="shrink-0 flex items-center justify-center w-5 h-5"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFeatureSelect(task.id, e);
+                      }}
+                    >
+                      <Checkbox checked={isSelected} className="h-4 w-4" />
+                    </div>
+                  ) : (
+                    <StatusToggle
+                      id={task.id}
+                      status={custom?.status ?? 'not_started'}
+                      onToggle={onStatusChange}
+                    />
+                  )}
                   <span
                     className={`truncate min-w-0 flex-1 text-sm ${
                       custom?.status === 'completed'

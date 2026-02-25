@@ -2,7 +2,7 @@ import type { TimePeriod, TimePeriodConfig, StatusConfig } from './types';
 import type { MilestoneStatus, MilestonePriority } from '@/db/schema';
 
 // Layout constants
-export const ROW_HEIGHT = 52;
+export const ROW_HEIGHT = 44;
 export const HEADER_HEIGHT = 56;
 export const SIDEBAR_WIDTH = 260;
 export const SIDEBAR_WIDTH_COLLAPSED = 0;

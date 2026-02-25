@@ -175,6 +175,7 @@ interface TimelineChartProps {
   chainInfo?: ChainInfo | null;
   hideTeamTracks?: boolean;
   searchMatchIds?: Set<string> | null;
+  selectedIds?: Set<string>;
 }
 
 export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>(
@@ -195,6 +196,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
       chainInfo,
       hideTeamTracks,
       searchMatchIds,
+      selectedIds,
     },
     ref
   ) {
@@ -296,6 +298,27 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
                 pixelsPerDay={pixelsPerDay}
                 timePeriod={timePeriod}
               />
+
+              {/* Selected row highlights */}
+              {selectedIds && selectedIds.size > 0 && tasks.map((task, i) => {
+                if (!task.$custom?.isTeamTrack && selectedIds.has(task.id)) {
+                  return (
+                    <div
+                      key={`sel-${task.id}`}
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        top: i * ROW_HEIGHT,
+                        height: ROW_HEIGHT,
+                        backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  );
+                }
+                return null;
+              })}
 
               {/* Weekend columns */}
               <WeekendColumns
