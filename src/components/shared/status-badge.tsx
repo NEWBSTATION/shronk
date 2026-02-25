@@ -25,53 +25,46 @@ function PriorityNoneIcon(props: IconProps) {
   );
 }
 
-/** 1 of 4 bars filled */
+/** 1 of 3 bars filled */
 function PriorityLowIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
-      <rect x="1" y="11" width="2.5" height="3" rx="0.5" opacity="1" />
-      <rect x="5" y="8" width="2.5" height="6" rx="0.5" opacity="0.2" />
-      <rect x="9" y="5" width="2.5" height="9" rx="0.5" opacity="0.2" />
-      <rect x="13" y="2" width="2.5" height="12" rx="0.5" opacity="0.2" />
+      <rect x="1" y="8" width="3" height="6" rx="0.75" opacity="1" />
+      <rect x="6.5" y="5" width="3" height="9" rx="0.75" opacity="0.35" />
+      <rect x="12" y="2" width="3" height="12" rx="0.75" opacity="0.35" />
     </svg>
   );
 }
 
-/** 2 of 4 bars filled */
+/** 2 of 3 bars filled */
 function PriorityMediumIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
-      <rect x="1" y="11" width="2.5" height="3" rx="0.5" opacity="1" />
-      <rect x="5" y="8" width="2.5" height="6" rx="0.5" opacity="1" />
-      <rect x="9" y="5" width="2.5" height="9" rx="0.5" opacity="0.2" />
-      <rect x="13" y="2" width="2.5" height="12" rx="0.5" opacity="0.2" />
+      <rect x="1" y="8" width="3" height="6" rx="0.75" opacity="1" />
+      <rect x="6.5" y="5" width="3" height="9" rx="0.75" opacity="1" />
+      <rect x="12" y="2" width="3" height="12" rx="0.75" opacity="0.35" />
     </svg>
   );
 }
 
-/** 3 of 4 bars filled */
+/** 3 of 3 bars filled */
 function PriorityHighIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
-      <rect x="1" y="11" width="2.5" height="3" rx="0.5" opacity="1" />
-      <rect x="5" y="8" width="2.5" height="6" rx="0.5" opacity="1" />
-      <rect x="9" y="5" width="2.5" height="9" rx="0.5" opacity="1" />
-      <rect x="13" y="2" width="2.5" height="12" rx="0.5" opacity="0.2" />
+      <rect x="1" y="8" width="3" height="6" rx="0.75" opacity="1" />
+      <rect x="6.5" y="5" width="3" height="9" rx="0.75" opacity="1" />
+      <rect x="12" y="2" width="3" height="12" rx="0.75" opacity="1" />
     </svg>
   );
 }
 
-/** Exclamation in rounded square — "Urgent" */
+/** Exclamation in filled rounded square — "Urgent" */
 function PriorityUrgentIcon(props: IconProps) {
   return (
-    <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
-      <path
-        d="M3 1a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V3a2 2 0 00-2-2H3z"
-        fillOpacity="0.15"
-      />
-      <path d="M3 1a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V3a2 2 0 00-2-2H3zm0 1h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" />
-      <rect x="7" y="4" width="2" height="5" rx="1" />
-      <circle cx="8" cy="11.5" r="1" />
+    <svg viewBox="0 0 16 16" {...props}>
+      <rect x="0" y="0" width="16" height="16" rx="3.5" fill="currentColor" />
+      <rect x="7" y="3" width="2" height="6" rx="1" fill="var(--background, #fff)" />
+      <circle cx="8" cy="12" r="1.15" fill="var(--background, #fff)" />
     </svg>
   );
 }

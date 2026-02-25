@@ -272,7 +272,7 @@ export function FeatureRow({
                       "inline-flex shrink-0 items-center justify-center h-5 w-5 rounded transition-colors",
                       priority === "high" || priority === "critical"
                         ? "text-orange-500 dark:text-orange-400"
-                        : "text-muted-foreground/60 hover:text-muted-foreground"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     <PriorityIcon className="h-3.5 w-3.5" />
