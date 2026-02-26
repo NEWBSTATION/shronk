@@ -512,8 +512,8 @@ export function FeaturesTab() {
           {[0, 1].map((s) => (
             <div key={s} className="mb-3 last:mb-0">
               {/* Section header */}
-              <div className="flex items-center gap-2 pl-3 pr-4 py-2.5">
-                <Skeleton className="h-7 w-7 rounded-md shrink-0" />
+              <div className="flex items-center gap-1.5 px-3 py-2.5">
+                <Skeleton className="h-6 w-6 rounded shrink-0" />
                 <Skeleton className="h-4 w-28" />
                 <div className="flex-1" />
                 <Skeleton className="h-5 w-10 rounded-full" />
@@ -522,14 +522,13 @@ export function FeaturesTab() {
               </div>
               {/* Feature rows */}
               {[0, 1, 2].map((i) => (
-                <div key={i} className="flex items-center gap-2 px-3 py-3 border-b border-border/40">
+                <div key={i} className="flex items-center gap-1.5 px-3 h-11 border-b border-border/40">
                   <Skeleton className="h-[18px] w-[18px] rounded-full shrink-0" />
-                  <div className="flex-1 ml-2 min-w-0 flex items-center gap-2">
-                    <Skeleton className="h-4 w-[60%] min-w-0" />
-                    <Skeleton className="h-5 w-16 rounded-full shrink-0" />
-                    <Skeleton className="h-5 w-7 rounded-full shrink-0 hidden sm:block" />
-                    <Skeleton className="h-4 w-8 shrink-0" />
-                  </div>
+                  <Skeleton className="h-4 w-[45%] min-w-0" />
+                  <div className="flex-1" />
+                  <Skeleton className="h-5 w-16 rounded-full shrink-0" />
+                  <Skeleton className="h-5 w-7 rounded-full shrink-0 hidden sm:block" />
+                  <Skeleton className="h-4 w-8 shrink-0" />
                 </div>
               ))}
             </div>

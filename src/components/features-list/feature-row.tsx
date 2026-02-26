@@ -115,6 +115,7 @@ export function FeatureRow({
   const durationUnit = useFeaturesListStore((s) => s.durationUnit);
   const completed = status === "completed";
   const priorityCfg = priorityConfig[priority as keyof typeof priorityConfig] ?? priorityConfig.none;
+  const hasPriority = priority !== "none";
   const hasTeams = teamDurations && teamDurations.length > 0;
   const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.not_started;
   const [statusOpen, setStatusOpen] = useState(false);
@@ -216,79 +217,6 @@ export function FeatureRow({
         </div>
       )}
 
-      {/* Priority icon — always visible, left of completion circle */}
-      <ResponsivePopover open={priorityOpen} onOpenChange={(open) => { setPriorityOpen(open); if (!open) setPrioritySearch(""); suppressClickOnClose(open); }}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <ResponsivePopoverTrigger asChild>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-                className={cn(
-                  "shrink-0 h-6 w-6 flex items-center justify-center rounded transition-colors",
-                  priority === "high" || priority === "critical"
-                    ? "text-orange-500 dark:text-orange-400"
-                    : "text-muted-foreground/70 hover:text-muted-foreground"
-                )}
-              >
-                <PriorityIcon className="h-3.5 w-3.5" />
-              </button>
-            </ResponsivePopoverTrigger>
-          </TooltipTrigger>
-          {!priorityOpen && (
-            <TooltipContent side="top" sideOffset={4}>
-              {priorityCfg.label}
-            </TooltipContent>
-          )}
-        </Tooltip>
-        <ResponsivePopoverContent
-          className="w-44 p-0"
-          align="start"
-          sideOffset={4}
-          title="Priority"
-          onClick={(e) => e.stopPropagation()}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-        >
-          <div className="px-1.5 pt-1.5 pb-1">
-            <input
-              type="text"
-              value={prioritySearch}
-              onChange={(e) => setPrioritySearch(e.target.value)}
-              placeholder="Set priority..."
-              className="w-full h-7 px-2 text-xs rounded-md bg-muted/50 border border-border/40 outline-none placeholder:text-muted-foreground/50 focus:border-ring"
-              onPointerDown={(e) => e.stopPropagation()}
-            />
-          </div>
-          <div className="flex flex-col p-1 pt-0">
-            {PRIORITY_OPTIONS
-              .filter(([, cfg]) => cfg.label.toLowerCase().includes(prioritySearch.toLowerCase()))
-              .map(([key, cfg]) => {
-              const Icon = cfg.icon;
-              return (
-                <button
-                  key={key}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPriorityOpen(false);
-                    if (key !== priority) onPriorityChange?.(key);
-                  }}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-                    key === priority
-                      ? "bg-accent text-accent-foreground"
-                      : "hover:bg-accent/50"
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  {cfg.label}
-                </button>
-              );
-            })}
-          </div>
-        </ResponsivePopoverContent>
-      </ResponsivePopover>
-
       {/* Completion toggle */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -343,6 +271,81 @@ export function FeatureRow({
 
       {/* Right zone — pills */}
       <div className="flex items-center gap-1.5 shrink-0 ml-2">
+        {/* Priority icon — only when set */}
+        {hasPriority && (
+          <ResponsivePopover open={priorityOpen} onOpenChange={(open) => { setPriorityOpen(open); if (!open) setPrioritySearch(""); suppressClickOnClose(open); }}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <ResponsivePopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className={cn(
+                      "shrink-0 h-7 w-7 flex items-center justify-center rounded-full transition-colors",
+                      priority === "high" || priority === "critical"
+                        ? "text-orange-500 dark:text-orange-400"
+                        : "text-muted-foreground/70 hover:text-muted-foreground"
+                    )}
+                  >
+                    <PriorityIcon className="h-3.5 w-3.5" />
+                  </button>
+                </ResponsivePopoverTrigger>
+              </TooltipTrigger>
+              {!priorityOpen && (
+                <TooltipContent side="top" sideOffset={4}>
+                  {priorityCfg.label}
+                </TooltipContent>
+              )}
+            </Tooltip>
+            <ResponsivePopoverContent
+              className="w-44 p-0"
+              align="end"
+              sideOffset={4}
+              title="Priority"
+              onClick={(e) => e.stopPropagation()}
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <div className="px-1.5 pt-1.5 pb-1">
+                <input
+                  type="text"
+                  value={prioritySearch}
+                  onChange={(e) => setPrioritySearch(e.target.value)}
+                  placeholder="Set priority..."
+                  className="w-full h-7 px-2 text-xs rounded-md bg-muted/50 border border-border/40 outline-none placeholder:text-muted-foreground/50 focus:border-ring"
+                  onPointerDown={(e) => e.stopPropagation()}
+                />
+              </div>
+              <div className="flex flex-col p-1 pt-0">
+                {PRIORITY_OPTIONS
+                  .filter(([, cfg]) => cfg.label.toLowerCase().includes(prioritySearch.toLowerCase()))
+                  .map(([key, cfg]) => {
+                  const Icon = cfg.icon;
+                  return (
+                    <button
+                      key={key}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPriorityOpen(false);
+                        if (key !== priority) onPriorityChange?.(key);
+                      }}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                        key === priority
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-accent/50"
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      {cfg.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </ResponsivePopoverContent>
+          </ResponsivePopover>
+        )}
+
         {/* Status pill */}
         <ResponsivePopover open={statusOpen} onOpenChange={(open) => { setStatusOpen(open); if (!open) setStatusSearch(""); suppressClickOnClose(open); }}>
           <ResponsivePopoverTrigger asChild>

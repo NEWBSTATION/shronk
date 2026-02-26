@@ -578,9 +578,9 @@ export function FeaturesSectionList({
         {onAddMilestone && (
           <button
             onClick={onAddMilestone}
-            className="w-full rounded-xl border border-dashed border-border/60 pl-3 pr-4 py-3 flex items-center gap-2 text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-colors"
+            className="w-full rounded-xl border border-dashed border-border/60 px-3 py-3 flex items-center gap-1.5 text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-colors"
           >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded">
               <Plus className="h-4 w-4" />
             </div>
             <span className="text-sm">New milestone</span>

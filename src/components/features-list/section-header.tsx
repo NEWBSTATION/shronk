@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CheckSquare, ChevronRight, MoreHorizontal, Pencil, Plus, Square, Trash2 } from "lucide-react";
+import { Check, CheckSquare, MoreHorizontal, Pencil, Plus, Square, Trash2 } from "lucide-react";
 import { MilestoneIcon } from "@/lib/milestone-icon";
 import { getColorStyles } from "@/lib/milestone-theme";
 import { cn } from "@/lib/utils";
@@ -94,26 +94,16 @@ export function SectionHeader({
           />
 
           <div className="relative flex items-center gap-1.5">
-            {/* Collapse chevron — same w-6 as priority icon column */}
-            <div className="shrink-0 h-6 w-6 flex items-center justify-center">
-              <ChevronRight
-                className={cn(
-                  "h-3.5 w-3.5 text-foreground/50 transition-transform duration-200",
-                  !collapsed && "rotate-90"
-                )}
-              />
-            </div>
-
-            {/* Icon — same w-6 as completion circle column */}
+            {/* Icon — h-6 w-6 to align with feature row check circle */}
             <div
-              className="shrink-0 flex items-center justify-center rounded"
-              style={{ backgroundColor: styles.iconBg, color: styles.hex, width: 24, height: 24, borderRadius: 5 }}
+              className="shrink-0 h-6 w-6 flex items-center justify-center rounded"
+              style={{ backgroundColor: styles.iconBg, color: styles.hex, borderRadius: 5 }}
             >
               <MilestoneIcon name={icon} className="h-3.5 w-3.5" />
             </div>
 
             {/* Name */}
-            <span className="text-sm font-semibold tracking-tight truncate">
+            <span className="text-sm font-medium tracking-tight truncate text-foreground/80">
               {name}
             </span>
 
