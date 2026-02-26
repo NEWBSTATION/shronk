@@ -336,7 +336,7 @@ export function FeatureRow({
       </div>
 
       {/* Right zone — pills */}
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0 ml-2">
         {/* Status pill */}
         <ResponsivePopover open={statusOpen} onOpenChange={(open) => { setStatusOpen(open); if (!open) setStatusSearch(""); }}>
           <ResponsivePopoverTrigger asChild>
