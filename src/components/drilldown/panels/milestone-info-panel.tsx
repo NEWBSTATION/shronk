@@ -130,9 +130,9 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
     <div>
       <div ref={sentinelRef} className="h-0" />
       {/* Sticky header — icon + title stick to top on scroll */}
-      <div className="sticky top-0 z-10 bg-background px-8 pt-8 pb-4 relative">
+      <div className="sticky top-0 z-10 bg-background px-3 md:px-8 pt-8 pb-4 relative">
         <div className={cn(
-          "absolute bottom-0 left-8 right-8 h-px transition-colors",
+          "absolute bottom-0 left-3 right-3 md:left-8 md:right-8 h-px transition-colors",
           isStuck ? "bg-border" : "bg-transparent"
         )} />
         <div className={cn(
@@ -197,7 +197,7 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
       </div>
 
       {/* Scrollable content */}
-      <div className="px-8 pb-8">
+      <div className="px-3 md:px-8 pb-8">
 
       {/* Properties */}
       <div className="space-y-0.5">

@@ -115,7 +115,6 @@ export function FeatureRow({
   const durationUnit = useFeaturesListStore((s) => s.durationUnit);
   const completed = status === "completed";
   const priorityCfg = priorityConfig[priority as keyof typeof priorityConfig] ?? priorityConfig.none;
-  const hasPriority = priority !== "none";
   const hasTeams = teamDurations && teamDurations.length > 0;
   const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.not_started;
   const [statusOpen, setStatusOpen] = useState(false);
@@ -125,12 +124,21 @@ export function FeatureRow({
   const [durationOpen, setDurationOpen] = useState(false);
   const [tracksOpen, setTracksOpen] = useState(false);
   const [tracksSearch, setTracksSearch] = useState("");
+  const popoverJustClosedRef = useRef(false);
   const bestFit = useMemo(() => bestFitDurationUnit(duration), [duration]);
   const [localDurValue, setLocalDurValue] = useState(bestFit.value);
   const [localDurUnit, setLocalDurUnit] = useState<DurationUnit>(bestFit.unit);
   const durationInputRef = useRef<HTMLInputElement>(null);
 
   const computedDays = localDurValue * DURATION_UNIT_MULTIPLIERS[localDurUnit];
+
+  // Suppress row click when a popover/drawer just closed (mobile overlay tap falls through)
+  const suppressClickOnClose = useCallback((open: boolean) => {
+    if (!open) {
+      popoverJustClosedRef.current = true;
+      setTimeout(() => { popoverJustClosedRef.current = false; }, 300);
+    }
+  }, []);
 
   useEffect(() => {
     if (!durationOpen) {
@@ -178,6 +186,7 @@ export function FeatureRow({
         }
       }}
       onClick={(e) => {
+        if (popoverJustClosedRef.current) return;
         if (e.shiftKey || selectMode) {
           e.preventDefault();
           onSelect(e);
@@ -186,7 +195,7 @@ export function FeatureRow({
         onClick();
       }}
       className={cn(
-        "relative flex items-center gap-1 px-3 h-11 border-b border-border/40 last:border-b-0 transition-colors duration-100",
+        "relative flex items-center gap-1.5 px-3 h-11 border-b border-border/40 last:border-b-0 transition-colors duration-100",
         !selectMode ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         !isAnyDragging && "group hover:bg-muted/40",
         selected && "bg-muted/40",
@@ -197,7 +206,7 @@ export function FeatureRow({
       {/* Checkbox — select mode only */}
       {selectMode && (
         <div
-          className="shrink-0 flex items-center justify-center mr-1"
+          className="shrink-0 flex items-center justify-center"
           onClick={(e) => {
             e.stopPropagation();
             onSelect(e);
@@ -206,6 +215,79 @@ export function FeatureRow({
           <Checkbox checked={selected} className="h-4 w-4" />
         </div>
       )}
+
+      {/* Priority icon — always visible, left of completion circle */}
+      <ResponsivePopover open={priorityOpen} onOpenChange={(open) => { setPriorityOpen(open); if (!open) setPrioritySearch(""); suppressClickOnClose(open); }}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <ResponsivePopoverTrigger asChild>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                className={cn(
+                  "shrink-0 h-6 w-6 flex items-center justify-center rounded transition-colors",
+                  priority === "high" || priority === "critical"
+                    ? "text-orange-500 dark:text-orange-400"
+                    : "text-muted-foreground/70 hover:text-muted-foreground"
+                )}
+              >
+                <PriorityIcon className="h-3.5 w-3.5" />
+              </button>
+            </ResponsivePopoverTrigger>
+          </TooltipTrigger>
+          {!priorityOpen && (
+            <TooltipContent side="top" sideOffset={4}>
+              {priorityCfg.label}
+            </TooltipContent>
+          )}
+        </Tooltip>
+        <ResponsivePopoverContent
+          className="w-44 p-0"
+          align="start"
+          sideOffset={4}
+          title="Priority"
+          onClick={(e) => e.stopPropagation()}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <div className="px-1.5 pt-1.5 pb-1">
+            <input
+              type="text"
+              value={prioritySearch}
+              onChange={(e) => setPrioritySearch(e.target.value)}
+              placeholder="Set priority..."
+              className="w-full h-7 px-2 text-xs rounded-md bg-muted/50 border border-border/40 outline-none placeholder:text-muted-foreground/50 focus:border-ring"
+              onPointerDown={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="flex flex-col p-1 pt-0">
+            {PRIORITY_OPTIONS
+              .filter(([, cfg]) => cfg.label.toLowerCase().includes(prioritySearch.toLowerCase()))
+              .map(([key, cfg]) => {
+              const Icon = cfg.icon;
+              return (
+                <button
+                  key={key}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPriorityOpen(false);
+                    if (key !== priority) onPriorityChange?.(key);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                    key === priority
+                      ? "bg-accent text-accent-foreground"
+                      : "hover:bg-accent/50"
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  {cfg.label}
+                </button>
+              );
+            })}
+          </div>
+        </ResponsivePopoverContent>
+      </ResponsivePopover>
 
       {/* Completion toggle */}
       <Tooltip>
@@ -217,7 +299,7 @@ export function FeatureRow({
               onToggleComplete?.();
             }}
             className={cn(
-              "shrink-0 h-7 w-7 flex items-center justify-center rounded-full transition-colors",
+              "shrink-0 h-6 w-6 flex items-center justify-center rounded-full transition-colors",
               completed
                 ? "text-green-500 hover:text-green-600"
                 : "text-muted-foreground/40 hover:text-muted-foreground/70"
@@ -245,11 +327,11 @@ export function FeatureRow({
         </TooltipContent>
       </Tooltip>
 
-      {/* Middle zone — title + inline priority */}
-      <div className="flex-1 ml-1 min-w-0 flex items-center gap-1.5">
+      {/* Title */}
+      <div className="flex-1 min-w-0">
         <span
           className={cn(
-            "text-sm font-medium truncate",
+            "text-sm font-medium truncate block",
             completed
               ? "text-muted-foreground/60 line-through"
               : "text-foreground"
@@ -257,88 +339,12 @@ export function FeatureRow({
         >
           {title}
         </span>
-
-        {/* Priority icon — inline after title, hidden when none */}
-        {hasPriority && (
-          <ResponsivePopover open={priorityOpen} onOpenChange={(open) => { setPriorityOpen(open); if (!open) setPrioritySearch(""); }}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <ResponsivePopoverTrigger asChild>
-                  <button
-                    type="button"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    className={cn(
-                      "inline-flex shrink-0 items-center justify-center h-5 w-5 rounded transition-colors",
-                      priority === "high" || priority === "critical"
-                        ? "text-orange-500 dark:text-orange-400"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <PriorityIcon className="h-3.5 w-3.5" />
-                  </button>
-                </ResponsivePopoverTrigger>
-              </TooltipTrigger>
-              {!priorityOpen && (
-                <TooltipContent side="top" sideOffset={4}>
-                  {priorityCfg.label}
-                </TooltipContent>
-              )}
-            </Tooltip>
-            <ResponsivePopoverContent
-              className="w-44 p-0"
-              align="start"
-              sideOffset={4}
-              title="Priority"
-              onClick={(e) => e.stopPropagation()}
-              onOpenAutoFocus={(e) => e.preventDefault()}
-            >
-              <div className="px-1.5 pt-1.5 pb-1">
-                <input
-                  type="text"
-                  value={prioritySearch}
-                  onChange={(e) => setPrioritySearch(e.target.value)}
-                  placeholder="Set priority..."
-                  className="w-full h-7 px-2 text-xs rounded-md bg-muted/50 border border-border/40 outline-none placeholder:text-muted-foreground/50 focus:border-ring"
-                  onPointerDown={(e) => e.stopPropagation()}
-                />
-              </div>
-              <div className="flex flex-col p-1 pt-0">
-                {PRIORITY_OPTIONS
-                  .filter(([, cfg]) => cfg.label.toLowerCase().includes(prioritySearch.toLowerCase()))
-                  .map(([key, cfg]) => {
-                  const Icon = cfg.icon;
-                  return (
-                    <button
-                      key={key}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPriorityOpen(false);
-                        if (key !== priority) onPriorityChange?.(key);
-                      }}
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-                        key === priority
-                          ? "bg-accent text-accent-foreground"
-                          : "hover:bg-accent/50"
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5 shrink-0" />
-                      {cfg.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </ResponsivePopoverContent>
-          </ResponsivePopover>
-        )}
-
       </div>
 
       {/* Right zone — pills */}
       <div className="flex items-center gap-1.5 shrink-0 ml-2">
         {/* Status pill */}
-        <ResponsivePopover open={statusOpen} onOpenChange={(open) => { setStatusOpen(open); if (!open) setStatusSearch(""); }}>
+        <ResponsivePopover open={statusOpen} onOpenChange={(open) => { setStatusOpen(open); if (!open) setStatusSearch(""); suppressClickOnClose(open); }}>
           <ResponsivePopoverTrigger asChild>
             <button
               type="button"
@@ -395,7 +401,7 @@ export function FeatureRow({
         </ResponsivePopover>
 
         {/* Tracks pill — checkbox popover to add/remove teams (hidden on small screens) */}
-        <ResponsivePopover open={tracksOpen} onOpenChange={(open) => { setTracksOpen(open); if (!open) setTracksSearch(""); }}>
+        <ResponsivePopover open={tracksOpen} onOpenChange={(open) => { setTracksOpen(open); if (!open) setTracksSearch(""); suppressClickOnClose(open); }}>
           <Tooltip>
             <TooltipTrigger asChild>
               <ResponsivePopoverTrigger asChild>
@@ -406,7 +412,7 @@ export function FeatureRow({
                   className={cn(
                     PILL,
                     "hidden sm:inline-flex",
-                    !hasTeams && "px-0 w-7 justify-center text-muted-foreground/40 border-dashed"
+                    !hasTeams && "px-0 w-7 justify-center text-muted-foreground/55 border-dashed"
                   )}
                 >
                   <Users className="h-3 w-3" />
@@ -486,7 +492,7 @@ export function FeatureRow({
         </ResponsivePopover>
 
         {/* Duration */}
-        <ResponsivePopover open={durationOpen} onOpenChange={setDurationOpen}>
+        <ResponsivePopover open={durationOpen} onOpenChange={(open) => { setDurationOpen(open); suppressClickOnClose(open); }}>
           <Tooltip>
             <TooltipTrigger asChild>
               <ResponsivePopoverTrigger asChild>

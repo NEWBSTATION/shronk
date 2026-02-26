@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CheckSquare, MoreHorizontal, Pencil, Plus, Square, Trash2 } from "lucide-react";
+import { Check, CheckSquare, ChevronRight, MoreHorizontal, Pencil, Plus, Square, Trash2 } from "lucide-react";
 import { MilestoneIcon } from "@/lib/milestone-icon";
 import { getColorStyles } from "@/lib/milestone-theme";
 import { cn } from "@/lib/utils";
@@ -79,7 +79,7 @@ export function SectionHeader({
         <div
           onClick={onToggle}
           className={cn(
-            "w-full text-left group relative overflow-hidden pl-4 pr-4 py-2.5 cursor-pointer",
+            "w-full text-left group relative overflow-hidden px-3 py-2.5 cursor-pointer",
             isDropTarget && "ring-2 ring-primary/50",
             !collapsed && "border-b border-border/40"
           )}
@@ -93,11 +93,21 @@ export function SectionHeader({
             }}
           />
 
-          <div className="relative flex items-center gap-3">
-            {/* Icon — aligned with row completion circles */}
+          <div className="relative flex items-center gap-1.5">
+            {/* Collapse chevron — same w-6 as priority icon column */}
+            <div className="shrink-0 h-6 w-6 flex items-center justify-center">
+              <ChevronRight
+                className={cn(
+                  "h-3.5 w-3.5 text-foreground/50 transition-transform duration-200",
+                  !collapsed && "rotate-90"
+                )}
+              />
+            </div>
+
+            {/* Icon — same w-6 as completion circle column */}
             <div
-              className="flex shrink-0 items-center justify-center"
-              style={{ backgroundColor: styles.iconBg, color: styles.hex, width: 20, height: 20, borderRadius: 4 }}
+              className="shrink-0 flex items-center justify-center rounded"
+              style={{ backgroundColor: styles.iconBg, color: styles.hex, width: 24, height: 24, borderRadius: 5 }}
             >
               <MilestoneIcon name={icon} className="h-3.5 w-3.5" />
             </div>

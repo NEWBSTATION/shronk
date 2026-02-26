@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -33,10 +33,10 @@ interface FeatureContextMenuProps {
  */
 export function useFeatureContextMenu(props: FeatureContextMenuProps) {
   const triggerRef = useRef<HTMLDivElement>(null);
-  const stateRef = useRef<FeatureContextMenuState | null>(null);
+  const [menuState, setMenuState] = useState<FeatureContextMenuState | null>(null);
 
   const open = useCallback((state: FeatureContextMenuState, e: React.MouseEvent | MouseEvent) => {
-    stateRef.current = state;
+    setMenuState(state);
     // Dispatch a real contextmenu event on the hidden trigger so Radix
     // captures the coordinates and positions the menu natively.
     const syntheticEvent = new MouseEvent("contextmenu", {
@@ -65,7 +65,7 @@ export function useFeatureContextMenu(props: FeatureContextMenuProps) {
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
         <ContextMenuItem onClick={() => {
-          if (stateRef.current) props.onOpen(stateRef.current.featureId);
+          if (menuState) props.onOpen(menuState.featureId);
         }}>
           <Pencil className="mr-2 h-4 w-4" />
           Open
@@ -85,9 +85,9 @@ export function useFeatureContextMenu(props: FeatureContextMenuProps) {
                 <ContextMenuItem
                   key={key}
                   onClick={() => {
-                    if (stateRef.current) props.onStatusChange(stateRef.current.featureId, key);
+                    if (menuState) props.onStatusChange(menuState.featureId, key);
                   }}
-                  className={stateRef.current?.status === key ? "bg-accent text-accent-foreground" : ""}
+                  className={menuState?.status === key ? "bg-accent text-accent-foreground" : ""}
                 >
                   <Icon className="mr-2 h-4 w-4" />
                   {config.label}
@@ -109,9 +109,9 @@ export function useFeatureContextMenu(props: FeatureContextMenuProps) {
                 <ContextMenuItem
                   key={key}
                   onClick={() => {
-                    if (stateRef.current) props.onPriorityChange(stateRef.current.featureId, key);
+                    if (menuState) props.onPriorityChange(menuState.featureId, key);
                   }}
-                  className={stateRef.current?.priority === key ? "bg-accent text-accent-foreground" : ""}
+                  className={menuState?.priority === key ? "bg-accent text-accent-foreground" : ""}
                 >
                   <Icon className="mr-2 h-4 w-4" />
                   {config.label}
@@ -125,7 +125,7 @@ export function useFeatureContextMenu(props: FeatureContextMenuProps) {
 
         <ContextMenuItem
           onClick={() => {
-            if (stateRef.current) props.onDelete(stateRef.current.featureId);
+            if (menuState) props.onDelete(menuState.featureId);
           }}
           className="text-destructive focus:text-destructive"
         >

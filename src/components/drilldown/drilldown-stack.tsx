@@ -159,7 +159,7 @@ export function DrilldownStack() {
           >
             <div
               ref={(el) => setCardRef(index, el)}
-              className="w-full md:w-[600px] px-4 md:px-0 pb-8"
+              className="w-full md:w-[600px] md:px-0 pb-8"
             >
               {panel.content}
             </div>

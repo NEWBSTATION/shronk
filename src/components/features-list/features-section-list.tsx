@@ -503,14 +503,16 @@ export function FeaturesSectionList({
                       {section.features.map((feature, featureIndex) => (
                         <div
                           key={feature.id}
-                          onPointerDown={!selectMode ? (e) => handleRowPointerDown(feature.id, section.milestone.id, featureIndex, e) : undefined}
+                          onPointerDown={!selectMode ? (e) => {
+                            if (e.pointerType === 'touch') return;
+                            handleRowPointerDown(feature.id, section.milestone.id, featureIndex, e);
+                          } : undefined}
                           onClickCapture={(e) => {
                             if (dragJustEndedRef.current) {
                               e.stopPropagation();
                               e.preventDefault();
                             }
                           }}
-                          style={!selectMode ? { touchAction: 'none' } : undefined}
                         >
                           <FeatureRow
                             id={feature.id}

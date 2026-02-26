@@ -385,7 +385,7 @@ export function FeatureDetailPanel({
     <div className="min-w-0">
       <div ref={sentinelRef} className="h-0" />
       {/* Sticky header — icon + title stick to top on scroll */}
-      <div className="sticky top-0 z-10 bg-background px-6 md:px-8 pt-6 md:pt-8 pb-4 relative">
+      <div className="sticky top-0 z-10 bg-background px-3 md:px-8 pt-6 md:pt-8 pb-4 relative">
         <div className={cn(
           "absolute bottom-0 left-6 right-6 md:left-8 md:right-8 h-px transition-colors",
           isStuck ? "bg-border" : "bg-transparent"
@@ -494,7 +494,7 @@ export function FeatureDetailPanel({
       </div>
 
       {/* Scrollable content */}
-      <div className="px-6 md:px-8 pb-6 md:pb-8">
+      <div className="px-3 md:px-8 pb-6 md:pb-8">
 
       {/* Properties — Dougly-style space-y-0.5 */}
       <div className="space-y-0.5">

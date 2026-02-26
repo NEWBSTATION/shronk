@@ -187,7 +187,7 @@ export function MilestoneDetailPanel({
   }, [push, teams, milestone.name, milestone.id, createMutation]);
 
   return (
-    <div className="p-8">
+    <div className="p-3 md:p-8">
       {/* Navigation header — Dougly style: back left, menu right */}
       <div className="flex items-center justify-between mb-6">
         <Button
