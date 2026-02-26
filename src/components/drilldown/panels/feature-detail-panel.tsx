@@ -13,7 +13,6 @@ import {
   ArrowLeft,
   Ellipsis,
   CircleDot,
-  Signal,
   ChevronUp,
   ChevronDown,
   AlignLeft,
@@ -54,7 +53,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { priorityConfig } from "@/components/shared/status-badge";
+import { priorityConfig, PriorityHighIcon } from "@/components/shared/status-badge";
 import { formatDuration } from "@/lib/format-duration";
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
 import {
@@ -184,6 +183,7 @@ export function FeatureDetailPanel({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [descSaved, setDescSaved] = useState(false);
   const [status, setStatus] = useState<MilestoneStatus>("not_started");
   const [priority, setPriority] = useState<MilestonePriority>("none");
   const [startDate, setStartDate] = useState<Date>(new Date());
@@ -211,6 +211,32 @@ export function FeatureDetailPanel({
 
   const completed = status === "completed";
   const prevStatusRef = useRef<MilestoneStatus>("not_started");
+
+  // Subscribe to live query data so undo / external changes sync into the panel
+  const { data: liveData } = useMilestones({ projectId: feature?.projectId ?? "" });
+  const liveFeature = useMemo(() => {
+    if (!feature || !liveData) return null;
+    return liveData.milestones.find((m) => m.id === feature.id) ?? null;
+  }, [feature, liveData]);
+
+  // Sync discrete fields when live data diverges (e.g. after Ctrl+Z undo)
+  // Uses functional updaters so React bails out if values already match.
+  useEffect(() => {
+    if (!liveFeature || !isEditMode) return;
+    setTitle((prev) => prev !== liveFeature.title ? liveFeature.title : prev);
+    setStatus((prev) => prev !== liveFeature.status ? liveFeature.status : prev);
+    setPriority((prev) => prev !== liveFeature.priority ? liveFeature.priority : prev);
+    const s = new Date(liveFeature.startDate);
+    const e = new Date(liveFeature.endDate);
+    setStartDate(s);
+    setEndDate(e);
+    const days = computeDurationDays(s, e);
+    const best = bestFitDurationUnit(days);
+    setDurationValue(best.value);
+    setDurationUnit(best.unit);
+    // Skip description — it has its own debounce/save + "Saved" indicator
+  }, [liveFeature?.status, liveFeature?.priority, liveFeature?.title,
+      liveFeature?.startDate, liveFeature?.endDate, liveFeature?.duration, isEditMode]);
 
   const isChained = useMemo(() => {
     if (!feature) return false;
@@ -269,6 +295,11 @@ export function FeatureDetailPanel({
     },
     [feature, onUpdate]
   );
+
+  // Keep a ref to the latest saveField so the debounce flush on unmount
+  // always calls the current version (avoids stale closure).
+  const saveFieldRef = useRef(saveField);
+  saveFieldRef.current = saveField;
 
   const handleTitleSave = useCallback(
     (newTitle: string) => {
@@ -339,12 +370,63 @@ export function FeatureDetailPanel({
     [isEditMode, saveField, durationValue, durationUnit]
   );
 
+  // --- Debounced description save ---
+  const descriptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDescriptionRef = useRef<string | null>(null);
+  const savedIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Flush any pending description save on unmount so edits aren't lost
+  useEffect(() => {
+    return () => {
+      if (descriptionTimerRef.current) {
+        clearTimeout(descriptionTimerRef.current);
+        descriptionTimerRef.current = null;
+      }
+      if (savedIndicatorTimerRef.current) {
+        clearTimeout(savedIndicatorTimerRef.current);
+        savedIndicatorTimerRef.current = null;
+      }
+      if (pendingDescriptionRef.current !== null) {
+        saveFieldRef.current({ description: pendingDescriptionRef.current || null });
+        pendingDescriptionRef.current = null;
+      }
+    };
+  }, []);
+
   const handleDescriptionChange = useCallback(
     (newDescription: string) => {
-      setDescription(newDescription);
-      if (isEditMode) {
-        saveField({ description: newDescription || null });
+      if (!isEditMode) {
+        // Create mode — keep React state for the submit handler
+        setDescription(newDescription);
+        return;
       }
+
+      // Edit mode — skip setState, TipTap owns the DOM. Only use the ref for debounce.
+      pendingDescriptionRef.current = newDescription;
+
+      // Hide "Saved" indicator immediately (functional updater avoids re-render when already false)
+      setDescSaved((prev) => prev ? false : prev);
+      if (savedIndicatorTimerRef.current) {
+        clearTimeout(savedIndicatorTimerRef.current);
+        savedIndicatorTimerRef.current = null;
+      }
+
+      if (descriptionTimerRef.current) {
+        clearTimeout(descriptionTimerRef.current);
+      }
+      descriptionTimerRef.current = setTimeout(async () => {
+        descriptionTimerRef.current = null;
+        const pending = pendingDescriptionRef.current;
+        pendingDescriptionRef.current = null;
+        if (pending !== null) {
+          await saveField({ description: pending || null });
+          setDescSaved(true);
+          savedIndicatorTimerRef.current = setTimeout(() => {
+            savedIndicatorTimerRef.current = null;
+            setDescSaved(false);
+          }, 2000);
+        }
+      }, 800);
     },
     [isEditMode, saveField]
   );
@@ -433,29 +515,8 @@ export function FeatureDetailPanel({
           )}
         </div>
 
-        {/* Title — large heading with completion toggle */}
+        {/* Title */}
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleCompletionToggle}
-            className={cn(
-              "shrink-0 rounded-full transition-colors -mb-0.5 -ml-1.5",
-              completed
-                ? "text-green-500 hover:text-green-600"
-                : "text-muted-foreground/40 hover:text-muted-foreground/70"
-            )}
-            title={completed ? "Mark incomplete" : "Mark completed"}
-          >
-            {completed ? (
-              <svg className="h-7 w-7" viewBox="0 -960 960 960" fill="currentColor">
-                <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Z" />
-              </svg>
-            ) : (
-              <svg className="h-7 w-7" viewBox="0 -960 960 960" fill="currentColor">
-                <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Zm0-72q130 0 221-91t91-221q0-130-91-221t-221-91q-130 0-221 91t-91 221q0 130 91 221t221 91Zm0-312Z" />
-              </svg>
-            )}
-          </button>
           {isEditMode ? (
             <input
               value={title}
@@ -552,7 +613,7 @@ export function FeatureDetailPanel({
 
         {/* Priority */}
         {!(hideEmptyProps && priority === "none") && (
-          <PropertyRow icon={Signal} label="Priority" type="custom">
+          <PropertyRow icon={PriorityHighIcon} label="Priority" type="custom">
             <Select
               value={priority}
               onValueChange={(v) => handlePriorityChange(v as MilestonePriority)}
@@ -660,6 +721,7 @@ export function FeatureDetailPanel({
         <RichTextEditor
           content={description}
           onChange={handleDescriptionChange}
+          saveStatus={isEditMode && descSaved ? "saved" : "idle"}
         />
       </div>
 

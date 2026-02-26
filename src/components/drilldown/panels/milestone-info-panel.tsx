@@ -163,7 +163,7 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
         </div>
 
         {/* Icon + Name */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2">
           <ColorIconPicker
             color={milestone.color}
             icon={milestone.icon}
@@ -190,7 +190,7 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
             onKeyDown={(e) => {
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
-            className="flex-1 min-w-0 bg-transparent text-3xl font-bold placeholder:text-muted-foreground/40 outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors text-foreground overflow-hidden text-ellipsis"
+            className="w-full min-w-0 bg-transparent text-3xl font-bold placeholder:text-muted-foreground/40 outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors text-foreground overflow-hidden text-ellipsis"
             placeholder="Milestone name..."
           />
         </div>

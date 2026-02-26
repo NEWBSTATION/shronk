@@ -30,6 +30,8 @@ import {
   useReorderFeatures,
 } from "@/hooks/use-milestones";
 import type { CascadedUpdate } from "@/hooks/use-milestones";
+import { useUndoToast } from "@/hooks/use-undo-toast";
+import { describeUpdate } from "@/lib/undo-descriptions";
 import type { Milestone, MilestoneStatus, Project } from "@/db/schema";
 
 const DynamicTimelineView = dynamic(
@@ -325,6 +327,7 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
   const upsertTeamDurationMutation = useUpsertTeamDuration();
   const deleteTeamDurationMutation = useDeleteTeamDuration();
   const reorderMutation = useReorderFeatures();
+  const showUndoToast = useUndoToast();
 
   const handleEditFeature = useCallback(
     (feature: Milestone) => {
@@ -353,28 +356,93 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
   }, []);
 
   const handleUpdateFeature = useCallback(
-    async (data: Partial<Milestone> & { id: string; duration?: number }) => {
+    async (updateData: Partial<Milestone> & { id: string; duration?: number }, options?: { silent?: boolean }) => {
+      const feature = features.find((f) => f.id === updateData.id);
+      const oldValues: Record<string, unknown> = {};
+      if (feature) {
+        for (const key of Object.keys(updateData)) {
+          if (key !== "id" && key in feature) {
+            oldValues[key] = feature[key as keyof Milestone];
+          }
+        }
+      }
+
       try {
-        await updateFeatureMutation.mutateAsync(data);
+        await updateFeatureMutation.mutateAsync(updateData);
+
+        const desc = describeUpdate(updateData, feature?.title);
+        showUndoToast({
+          description: desc,
+          silent: options?.silent,
+          undo: async () => {
+            await updateFeatureMutation.mutateAsync({ id: updateData.id, ...oldValues } as Partial<Milestone> & { id: string });
+          },
+        });
       } catch {
         toast.error("Failed to update feature");
       }
     },
-    [updateFeatureMutation]
+    [updateFeatureMutation, features, showUndoToast]
+  );
+
+  const handleUpdateFeatureSilent = useCallback(
+    (data: Partial<Milestone> & { id: string; duration?: number }) =>
+      handleUpdateFeature(data, { silent: true }),
+    [handleUpdateFeature]
   );
 
   const handleDeleteFeature = useCallback(
     async (id: string) => {
       const feature = features.find((f) => f.id === id);
+      const featureDeps = dependencies.filter(
+        (d) => d.predecessorId === id || d.successorId === id
+      );
+      const featureTeamDurs = teamDurations.filter((td) => td.milestoneId === id);
+
       try {
         await deleteFeatureMutation.mutateAsync(id);
         closePanel();
-        toast.success("Feature deleted", { description: feature?.title });
+
+        if (feature) {
+          showUndoToast({
+            description: `"${feature.title}" deleted`,
+            undo: async () => {
+              const newFeature = await createFeatureMutation.mutateAsync({
+                projectId: feature.projectId,
+                title: feature.title,
+                description: feature.description ?? undefined,
+                startDate: new Date(feature.startDate),
+                endDate: new Date(feature.endDate),
+                duration: feature.duration,
+                status: feature.status,
+                priority: feature.priority,
+                progress: feature.progress,
+                sortOrder: feature.sortOrder,
+              });
+              for (const dep of featureDeps) {
+                const predId = dep.predecessorId === id ? newFeature.id : dep.predecessorId;
+                const succId = dep.successorId === id ? newFeature.id : dep.successorId;
+                try {
+                  await createDependencyMutation.mutateAsync({ predecessorId: predId, successorId: succId });
+                } catch { /* target may not exist */ }
+              }
+              for (const td of featureTeamDurs) {
+                try {
+                  await upsertTeamDurationMutation.mutateAsync({
+                    milestoneId: newFeature.id,
+                    teamId: td.teamId,
+                    duration: td.duration,
+                  });
+                } catch { /* team may not exist */ }
+              }
+            },
+          });
+        }
       } catch {
         toast.error("Failed to delete feature");
       }
     },
-    [deleteFeatureMutation, closePanel, features]
+    [deleteFeatureMutation, closePanel, features, dependencies, teamDurations, showUndoToast, createFeatureMutation, createDependencyMutation, upsertTeamDurationMutation]
   );
 
   const queryClient = useQueryClient();
@@ -386,6 +454,10 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
 
   const handleMoveFeature = useCallback(
     async (featureId: string, targetProjectId: string) => {
+      const feature = features.find((f) => f.id === featureId);
+      const oldProjectId = feature?.projectId;
+      const newMilestoneName = projects.find((p) => p.id === targetProjectId)?.name;
+
       try {
         const response = await fetch("/api/features/move", {
           method: "POST",
@@ -401,25 +473,82 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
         queryClient.invalidateQueries({ queryKey: ["projects"] });
         queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
         closePanel();
-        toast.success("Feature moved");
+
+        if (oldProjectId) {
+          showUndoToast({
+            description: `"${feature?.title}" moved to ${newMilestoneName ?? "milestone"}`,
+            undo: async () => {
+              const res = await fetch("/api/features/move", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ featureId, targetProjectId: oldProjectId }),
+              });
+              if (!res.ok) throw new Error("Failed to undo move");
+              queryClient.invalidateQueries({ queryKey: ["milestones"] });
+              queryClient.invalidateQueries({ queryKey: ["dependencies"] });
+              queryClient.invalidateQueries({ queryKey: ["projects"] });
+              queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+            },
+          });
+        }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to move feature");
       }
     },
-    [queryClient, closePanel]
+    [queryClient, closePanel, features, projects, showUndoToast]
   );
 
   const handleDeleteFeatureFromTimeline = useCallback(
     async (id: string) => {
       const feature = features.find((f) => f.id === id);
+      const featureDeps = dependencies.filter(
+        (d) => d.predecessorId === id || d.successorId === id
+      );
+      const featureTeamDurs = teamDurations.filter((td) => td.milestoneId === id);
+
       try {
         await deleteFeatureMutation.mutateAsync(id);
-        toast.success("Feature deleted", { description: feature?.title });
+
+        if (feature) {
+          showUndoToast({
+            description: `"${feature.title}" deleted`,
+            undo: async () => {
+              const newFeature = await createFeatureMutation.mutateAsync({
+                projectId: feature.projectId,
+                title: feature.title,
+                description: feature.description ?? undefined,
+                startDate: new Date(feature.startDate),
+                endDate: new Date(feature.endDate),
+                duration: feature.duration,
+                status: feature.status,
+                priority: feature.priority,
+                progress: feature.progress,
+                sortOrder: feature.sortOrder,
+              });
+              for (const dep of featureDeps) {
+                const predId = dep.predecessorId === id ? newFeature.id : dep.predecessorId;
+                const succId = dep.successorId === id ? newFeature.id : dep.successorId;
+                try {
+                  await createDependencyMutation.mutateAsync({ predecessorId: predId, successorId: succId });
+                } catch { /* target may not exist */ }
+              }
+              for (const td of featureTeamDurs) {
+                try {
+                  await upsertTeamDurationMutation.mutateAsync({
+                    milestoneId: newFeature.id,
+                    teamId: td.teamId,
+                    duration: td.duration,
+                  });
+                } catch { /* team may not exist */ }
+              }
+            },
+          });
+        }
       } catch {
         toast.error("Failed to delete feature");
       }
     },
-    [deleteFeatureMutation, features]
+    [deleteFeatureMutation, features, dependencies, teamDurations, showUndoToast, createFeatureMutation, createDependencyMutation, upsertTeamDurationMutation]
   );
 
   const handleUpdateDates = useCallback(
@@ -429,43 +558,87 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
       endDate: Date,
       duration?: number
     ): Promise<CascadedUpdate[]> => {
+      const feature = features.find((f) => f.id === id);
+      const oldStartDate = feature ? new Date(feature.startDate) : null;
+      const oldEndDate = feature ? new Date(feature.endDate) : null;
+      const oldDuration = feature?.duration;
+
       try {
+        const computedDuration = duration ?? Math.max(0, differenceInDays(endDate, startDate) + 1);
         const result = await updateFeatureMutation.mutateAsync({
           id,
           startDate,
           endDate,
-          duration:
-            duration ?? Math.max(0, differenceInDays(endDate, startDate) + 1),
+          duration: computedDuration,
         });
+
+        showUndoToast({
+          description: `"${feature?.title ?? "Feature"}" dates updated`,
+          undo: async () => {
+            if (oldStartDate && oldEndDate && oldDuration !== undefined) {
+              await updateFeatureMutation.mutateAsync({
+                id,
+                startDate: oldStartDate,
+                endDate: oldEndDate,
+                duration: oldDuration,
+              });
+            }
+          },
+        });
+
         return result.cascadedUpdates || [];
       } catch {
         toast.error("Failed to update dates");
         return [];
       }
     },
-    [updateFeatureMutation]
+    [updateFeatureMutation, features, showUndoToast]
   );
 
   const handleStatusChange = useCallback(
     async (id: string, status: MilestoneStatus) => {
+      const feature = features.find((f) => f.id === id);
+      const oldStatus = feature?.status;
+
       try {
         await updateFeatureMutation.mutateAsync({ id, status });
+
+        showUndoToast({
+          description: describeUpdate({ status }, feature?.title),
+          undo: async () => {
+            if (oldStatus) {
+              await updateFeatureMutation.mutateAsync({ id, status: oldStatus });
+            }
+          },
+        });
       } catch {
         toast.error("Failed to update status");
       }
     },
-    [updateFeatureMutation]
+    [updateFeatureMutation, features, showUndoToast]
   );
 
   const handlePriorityChange = useCallback(
     async (id: string, priority: string) => {
+      const feature = features.find((f) => f.id === id);
+      const oldPriority = feature?.priority;
+
       try {
         await updateFeatureMutation.mutateAsync({ id, priority: priority as Milestone["priority"] });
+
+        showUndoToast({
+          description: describeUpdate({ priority }, feature?.title),
+          undo: async () => {
+            if (oldPriority) {
+              await updateFeatureMutation.mutateAsync({ id, priority: oldPriority });
+            }
+          },
+        });
       } catch {
         toast.error("Failed to update priority");
       }
     },
-    [updateFeatureMutation]
+    [updateFeatureMutation, features, showUndoToast]
   );
 
   const { open: openContextMenu, menu: contextMenuEl } = useFeatureContextMenu({
@@ -488,41 +661,84 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
   const handleCreateDependency = useCallback(
     async (predecessorId: string, successorId: string) => {
       try {
-        await createDependencyMutation.mutateAsync({
+        const result = await createDependencyMutation.mutateAsync({
           predecessorId,
           successorId,
+        });
+
+        const predFeature = features.find((f) => f.id === predecessorId);
+        const succFeature = features.find((f) => f.id === successorId);
+        showUndoToast({
+          description: `Dependency: "${predFeature?.title ?? "?"}" → "${succFeature?.title ?? "?"}"`,
+          undo: async () => {
+            await deleteDependencyMutation.mutateAsync(result.dependency.id);
+          },
         });
       } catch {
         toast.error("Failed to create dependency");
       }
     },
-    [createDependencyMutation]
+    [createDependencyMutation, deleteDependencyMutation, features, showUndoToast]
   );
 
   const handleDeleteDependency = useCallback(
     async (id: string) => {
+      // Snapshot the dependency before deleting
+      const dep = dependencies.find((d) => d.id === id);
+
       try {
         await deleteDependencyMutation.mutateAsync(id);
+
+        if (dep) {
+          const predFeature = features.find((f) => f.id === dep.predecessorId);
+          const succFeature = features.find((f) => f.id === dep.successorId);
+          showUndoToast({
+            description: `Dependency removed: "${predFeature?.title ?? "?"}" → "${succFeature?.title ?? "?"}"`,
+            undo: async () => {
+              await createDependencyMutation.mutateAsync({
+                predecessorId: dep.predecessorId,
+                successorId: dep.successorId,
+              });
+            },
+          });
+        }
       } catch {
         toast.error("Failed to delete dependency");
       }
     },
-    [deleteDependencyMutation]
+    [deleteDependencyMutation, createDependencyMutation, dependencies, features, showUndoToast]
   );
 
   const handleUpdateTeamDuration = useCallback(
     async (milestoneId: string, teamId: string, duration: number) => {
+      const oldTd = teamDurations.find(
+        (td) => td.milestoneId === milestoneId && td.teamId === teamId
+      );
+      const hadOld = !!oldTd;
+      const oldDuration = oldTd?.duration;
+
       try {
         await upsertTeamDurationMutation.mutateAsync({
           milestoneId,
           teamId,
           duration,
         });
+
+        showUndoToast({
+          description: hadOld ? "Team duration updated" : "Team track added",
+          undo: async () => {
+            if (hadOld && oldDuration !== undefined) {
+              await upsertTeamDurationMutation.mutateAsync({ milestoneId, teamId, duration: oldDuration });
+            } else {
+              await deleteTeamDurationMutation.mutateAsync({ milestoneId, teamId });
+            }
+          },
+        });
       } catch {
         toast.error("Failed to update team duration");
       }
     },
-    [upsertTeamDurationMutation]
+    [upsertTeamDurationMutation, deleteTeamDurationMutation, teamDurations, showUndoToast]
   );
 
   const handleQuickCreate = useCallback(
@@ -556,25 +772,53 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
 
   const handleDeleteTeamDuration = useCallback(
     async (milestoneId: string, teamId: string) => {
+      const oldTd = teamDurations.find(
+        (td) => td.milestoneId === milestoneId && td.teamId === teamId
+      );
+
       try {
         await deleteTeamDurationMutation.mutateAsync({ milestoneId, teamId });
-        toast.success("Team track removed");
+
+        showUndoToast({
+          description: "Team track removed",
+          undo: async () => {
+            if (oldTd) {
+              await upsertTeamDurationMutation.mutateAsync({
+                milestoneId,
+                teamId,
+                duration: oldTd.duration,
+              });
+            }
+          },
+        });
       } catch {
         toast.error("Failed to remove team track");
       }
     },
-    [deleteTeamDurationMutation]
+    [deleteTeamDurationMutation, upsertTeamDurationMutation, teamDurations, showUndoToast]
   );
 
   const handleReorderFeatures = useCallback(
     async (projectId: string, orderedFeatureIds: string[]) => {
+      const oldOrder = features
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((f) => f.id);
+
       try {
         await reorderMutation.mutateAsync({ projectId, orderedFeatureIds });
+
+        showUndoToast({
+          description: "Features reordered",
+          undo: async () => {
+            await reorderMutation.mutateAsync({ projectId, orderedFeatureIds: oldOrder });
+          },
+        });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to reorder features");
       }
     },
-    [reorderMutation]
+    [reorderMutation, features, showUndoToast]
   );
 
   // Loading state — show skeleton while projects are being fetched
@@ -690,7 +934,7 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
                     handleMoveFeature(panelContent.feature.id, targetId);
                   }
                 }}
-                onUpdate={handleUpdateFeature}
+                onUpdate={handleUpdateFeatureSilent}
                 onDelete={handleDeleteFeature}
                 onUpsertTeamDuration={handleUpdateTeamDuration}
                 onDeleteTeamDuration={handleDeleteTeamDuration}

@@ -22,6 +22,7 @@ import {
   Quote,
   Code,
   Heading2,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Toggle } from "@/components/ui/toggle";
@@ -31,6 +32,7 @@ interface RichTextEditorProps {
   onChange: (html: string) => void;
   placeholder?: string;
   className?: string;
+  saveStatus?: "idle" | "saved";
 }
 
 // Inline SVG helper — used in raw DOM strings
@@ -222,6 +224,7 @@ export function RichTextEditor({
   onChange,
   placeholder = "Write or type / for commands",
   className,
+  saveStatus = "idle",
 }: RichTextEditorProps) {
   const editorRef = useRef<Editor | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -415,7 +418,7 @@ export function RichTextEditor({
     const currentHtml = editor.getHTML();
     const normalized = currentHtml === "<p></p>" ? "" : currentHtml;
     if (content !== normalized) {
-      editor.commands.setContent(content || "");
+      editor.commands.setContent(content || "", { emitUpdate: false });
     }
   }, [content, editor]);
 
@@ -584,6 +587,14 @@ export function RichTextEditor({
           <line x1="1.5" y1="6" x2="10.5" y2="6" />
         </svg>
       </div>
+      {/* Save status indicator */}
+      {saveStatus === "saved" && (
+        <div className="absolute top-2 right-3 z-10 flex items-center gap-1 text-[11px] text-muted-foreground/60 animate-in fade-in duration-200 pointer-events-none">
+          <Check className="h-3 w-3" />
+          <span>Saved</span>
+        </div>
+      )}
+
       {/* Bubble menu — appears on text selection */}
       <BubbleMenu
         editor={editor}

@@ -245,7 +245,8 @@ export function FeaturesSectionList({
 
   const handleSelect = useCallback(
     (featureId: string, e: React.MouseEvent) => {
-      if (e.shiftKey && lastClickedRef.current) {
+      // Only range-select if the anchor is still selected (not stale from a cleared selection)
+      if (e.shiftKey && lastClickedRef.current && selectedIds.has(lastClickedRef.current)) {
         const startIdx = flatFeatureIds.indexOf(lastClickedRef.current);
         const endIdx = flatFeatureIds.indexOf(featureId);
         if (startIdx !== -1 && endIdx !== -1) {
@@ -261,7 +262,7 @@ export function FeaturesSectionList({
       toggleSelected(featureId);
       lastClickedRef.current = featureId;
     },
-    [flatFeatureIds, toggleSelected, rangeSelect]
+    [flatFeatureIds, selectedIds, toggleSelected, rangeSelect]
   );
 
   // --- Pointer-based drag handler ---

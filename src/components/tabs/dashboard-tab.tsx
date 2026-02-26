@@ -27,7 +27,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  Label,
 } from "recharts";
 import {
   ChartContainer,
@@ -384,60 +383,53 @@ function HealthBanner({
       <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] divide-y md:divide-y-0 md:divide-x divide-border/50">
         {/* Left — Radial progress with gradients */}
         <div className="flex items-center justify-center p-5">
-          <ChartContainer config={donutConfig} className="h-[120px] w-[120px] aspect-square">
-            <PieChart>
-              <defs>
-                <linearGradient id="grad-track" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="var(--muted)" stopOpacity={0.6} />
-                  <stop offset="100%" stopColor="var(--muted)" stopOpacity={0.2} />
-                </linearGradient>
-                {pieData.map((d) => (
-                  <linearGradient key={d.status} id={`grad-${d.status}`} x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor={d.color} stopOpacity={1} />
-                    <stop offset="100%" stopColor={d.color} stopOpacity={0.5} />
+          <div className="relative h-[120px] w-[120px]">
+            <ChartContainer config={donutConfig} className="h-full w-full">
+              <PieChart>
+                <defs>
+                  <linearGradient id="grad-track" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="var(--muted)" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="var(--muted)" stopOpacity={0.2} />
                   </linearGradient>
-                ))}
-              </defs>
-              <ChartTooltip content={<ChartTooltipContent hideLabel nameKey="status" />} />
-              {/* Background track ring */}
-              <Pie
-                data={[{ count: 1 }]}
-                dataKey="count"
-                innerRadius={38}
-                outerRadius={52}
-                strokeWidth={0}
-                isAnimationActive={false}
-              >
-                <Cell fill="url(#grad-track)" />
-              </Pie>
-              <Pie
-                data={pieData}
-                dataKey="count"
-                nameKey="status"
-                innerRadius={38}
-                outerRadius={52}
-                strokeWidth={2}
-                stroke="var(--card)"
-              >
-                {pieData.map((d) => (
-                  <Cell key={d.status} fill={`url(#grad-${d.status})`} />
-                ))}
-                <Label
-                  content={({ viewBox }) => {
-                    if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                      return (
-                        <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
-                          <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-2xl font-bold">
-                            {completionPct}%
-                          </tspan>
-                        </text>
-                      );
-                    }
-                  }}
-                />
-              </Pie>
-            </PieChart>
-          </ChartContainer>
+                  {pieData.map((d) => (
+                    <linearGradient key={d.status} id={`grad-${d.status}`} x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor={d.color} stopOpacity={1} />
+                      <stop offset="100%" stopColor={d.color} stopOpacity={0.5} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                <ChartTooltip content={<ChartTooltipContent hideLabel nameKey="status" />} />
+                {/* Background track ring */}
+                <Pie
+                  data={[{ count: 1 }]}
+                  dataKey="count"
+                  innerRadius={38}
+                  outerRadius={52}
+                  strokeWidth={0}
+                  isAnimationActive={false}
+                >
+                  <Cell fill="url(#grad-track)" />
+                </Pie>
+                <Pie
+                  data={pieData}
+                  dataKey="count"
+                  nameKey="status"
+                  innerRadius={38}
+                  outerRadius={52}
+                  strokeWidth={2}
+                  stroke="var(--card)"
+                >
+                  {pieData.map((d) => (
+                    <Cell key={d.status} fill={`url(#grad-${d.status})`} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+            {/* HTML overlay — perfectly centered with flexbox */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span className="text-2xl font-bold tabular-nums">{completionPct}%</span>
+            </div>
+          </div>
         </div>
 
         {/* Center — Health verdict */}

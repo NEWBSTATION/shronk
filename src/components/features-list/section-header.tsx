@@ -87,7 +87,7 @@ export function SectionHeader({
         >
           {/* Gradient overlay */}
           <div
-            className="absolute inset-0 pointer-events-none"
+            className="absolute inset-0 pointer-events-none transition-opacity duration-300 opacity-60 group-hover:opacity-100"
             style={{
               background: `linear-gradient(to right, transparent 40%, ${styles.gradient} 100%)`,
             }}
@@ -103,7 +103,7 @@ export function SectionHeader({
             </div>
 
             {/* Name */}
-            <span className="text-sm font-medium tracking-tight truncate text-foreground/80">
+            <span className="text-[13px] font-medium tracking-tight truncate text-foreground/80">
               {name}
             </span>
 

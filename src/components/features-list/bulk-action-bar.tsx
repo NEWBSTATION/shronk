@@ -25,15 +25,27 @@ import {
 import {
   useBulkUpdateMilestones,
   useBulkDeleteMilestones,
+  useUpdateMilestone,
 } from "@/hooks/use-milestones";
 import { useFeaturesListStore } from "@/store/features-list-store";
+import { useUndoToast } from "@/hooks/use-undo-toast";
 import { useQueryClient } from "@tanstack/react-query";
+
+interface AllFeaturesData {
+  features: Array<{
+    id: string;
+    status: string;
+    priority: string;
+  }>;
+}
 
 export function BulkActionBar() {
   const { selectedIds, clearSelection } = useFeaturesListStore();
   const queryClient = useQueryClient();
   const bulkUpdate = useBulkUpdateMilestones();
   const bulkDelete = useBulkDeleteMilestones();
+  const updateMutation = useUpdateMilestone();
+  const showUndoToast = useUndoToast();
 
   const count = selectedIds.size;
   if (count === 0) return null;
@@ -41,6 +53,15 @@ export function BulkActionBar() {
   const ids = Array.from(selectedIds);
 
   const handleStatusChange = (status: string) => {
+    // Snapshot each feature's old status for undo
+    const allFeatures = queryClient.getQueryData<AllFeaturesData>(["allFeatures"]);
+    const oldValues = new Map<string, string>();
+    if (allFeatures) {
+      for (const f of allFeatures.features) {
+        if (selectedIds.has(f.id)) oldValues.set(f.id, f.status);
+      }
+    }
+
     bulkUpdate.mutate(
       {
         ids,
@@ -53,6 +74,16 @@ export function BulkActionBar() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
           clearSelection();
+
+          showUndoToast({
+            description: `${count} feature(s) status changed`,
+            undo: async () => {
+              for (const [id, oldStatus] of oldValues) {
+                await updateMutation.mutateAsync({ id, status: oldStatus as "not_started" | "in_progress" | "on_hold" | "completed" | "cancelled" });
+              }
+              queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+            },
+          });
         },
         onError: () => toast.error("Failed to update features"),
       }
@@ -60,6 +91,15 @@ export function BulkActionBar() {
   };
 
   const handlePriorityChange = (priority: string) => {
+    // Snapshot each feature's old priority for undo
+    const allFeatures = queryClient.getQueryData<AllFeaturesData>(["allFeatures"]);
+    const oldValues = new Map<string, string>();
+    if (allFeatures) {
+      for (const f of allFeatures.features) {
+        if (selectedIds.has(f.id)) oldValues.set(f.id, f.priority);
+      }
+    }
+
     bulkUpdate.mutate(
       {
         ids,
@@ -71,6 +111,16 @@ export function BulkActionBar() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
           clearSelection();
+
+          showUndoToast({
+            description: `${count} feature(s) priority changed`,
+            undo: async () => {
+              for (const [id, oldPriority] of oldValues) {
+                await updateMutation.mutateAsync({ id, priority: oldPriority as "none" | "low" | "medium" | "high" | "critical" });
+              }
+              queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+            },
+          });
         },
         onError: () => toast.error("Failed to update features"),
       }

@@ -22,6 +22,7 @@ import { FeatureDialog } from "@/components/feature/feature-dialog";
 import { useProjects, useTeams } from "@/hooks/use-milestones";
 import { cn } from "@/lib/utils";
 import { WorkspaceDeletionBanner } from "@/components/workspace-deletion-banner";
+import { useUndoKeyboard } from "@/hooks/use-undo-keyboard";
 
 const VALID_TABS: TabId[] = ["dashboard", "features", "timeline", "calendar"];
 const VALID_SETTINGS_SECTIONS: SettingsSection[] = [
@@ -143,6 +144,7 @@ function DashboardMain({
 }
 
 function DashboardContentInner() {
+  useUndoKeyboard();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as TabId | null;
   const initialTab: TabId =

@@ -199,15 +199,15 @@ export function FeatureRow({
         "relative flex items-center gap-1.5 px-3 h-11 border-b border-border/40 last:border-b-0 transition-colors duration-100",
         !selectMode ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         !isAnyDragging && "group hover:bg-muted/40",
-        selected && "bg-muted/40",
+        selected && "bg-primary/[0.08] before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-primary",
         isDragging && "opacity-30",
         dimmed && !isDragging && "opacity-40",
       )}
     >
-      {/* Checkbox — select mode only */}
-      {selectMode && (
+      {/* Checkbox in select mode, circle-check otherwise */}
+      {selectMode ? (
         <div
-          className="shrink-0 flex items-center justify-center"
+          className="shrink-0 flex items-center justify-center h-6 w-6"
           onClick={(e) => {
             e.stopPropagation();
             onSelect(e);
@@ -215,51 +215,50 @@ export function FeatureRow({
         >
           <Checkbox checked={selected} className="h-4 w-4" />
         </div>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleComplete?.();
+              }}
+              className={cn(
+                "shrink-0 h-6 w-6 flex items-center justify-center rounded-full transition-colors",
+                completed
+                  ? "text-green-500 hover:text-green-600"
+                  : "text-muted-foreground/40 hover:text-muted-foreground/70"
+              )}
+            >
+              {completed ? (
+                <span className="relative h-[18px] w-[18px]">
+                  <span className="absolute inset-[3px] rounded-full bg-background" />
+                  <svg className="relative h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="currentColor">
+                    <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Z" />
+                  </svg>
+                </span>
+              ) : (
+                <span className="relative h-[18px] w-[18px]">
+                  <span className="absolute inset-[3px] rounded-full bg-background" />
+                  <svg className="relative h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="currentColor">
+                    <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Zm0-72q130 0 221-91t91-221q0-130-91-221t-221-91q-130 0-221 91t-91 221q0 130 91 221t221 91Zm0-312Z" />
+                  </svg>
+                </span>
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={4}>
+            {completed ? "Mark Incomplete" : "Mark Complete"}
+          </TooltipContent>
+        </Tooltip>
       )}
-
-      {/* Completion toggle */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleComplete?.();
-            }}
-            className={cn(
-              "shrink-0 h-6 w-6 flex items-center justify-center rounded-full transition-colors",
-              completed
-                ? "text-green-500 hover:text-green-600"
-                : "text-muted-foreground/40 hover:text-muted-foreground/70"
-            )}
-          >
-            {completed ? (
-              <span className="relative h-[18px] w-[18px]">
-                <span className="absolute inset-[3px] rounded-full bg-background" />
-                <svg className="relative h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="currentColor">
-                  <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Z" />
-                </svg>
-              </span>
-            ) : (
-              <span className="relative h-[18px] w-[18px]">
-                <span className="absolute inset-[3px] rounded-full bg-background" />
-                <svg className="relative h-[18px] w-[18px]" viewBox="0 -960 960 960" fill="currentColor">
-                  <path d="m429-336 238-237-51-51-187 186-85-84-51 51 136 135Zm51 240q-79 0-149-30t-122.5-82.5Q156-261 126-331T96-480q0-80 30-149.5t82.5-122Q261-804 331-834t149-30q80 0 149.5 30t122 82.5Q804-699 834-629.5T864-480q0 79-30 149t-82.5 122.5Q699-156 629.5-126T480-96Zm0-72q130 0 221-91t91-221q0-130-91-221t-221-91q-130 0-221 91t-91 221q0 130 91 221t221 91Zm0-312Z" />
-                </svg>
-              </span>
-            )}
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={4}>
-          {completed ? "Mark Incomplete" : "Mark Complete"}
-        </TooltipContent>
-      </Tooltip>
 
       {/* Title */}
       <div className="flex-1 min-w-0">
         <span
           className={cn(
-            "text-sm font-medium truncate block",
+            "text-[13px] font-medium truncate block",
             completed
               ? "text-muted-foreground/60 line-through"
               : "text-foreground"
@@ -282,7 +281,7 @@ export function FeatureRow({
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                     className={cn(
-                      "shrink-0 h-7 w-7 flex items-center justify-center rounded-full transition-colors",
+                      "shrink-0 h-7 flex items-center justify-center transition-colors",
                       priority === "high" || priority === "critical"
                         ? "text-orange-500 dark:text-orange-400"
                         : "text-muted-foreground/70 hover:text-muted-foreground"

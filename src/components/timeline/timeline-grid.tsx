@@ -236,7 +236,8 @@ export function TimelineGrid({
 
   const handleFeatureSelect = useCallback(
     (featureId: string, e: React.MouseEvent) => {
-      if (e.shiftKey && lastClickedRef.current) {
+      // Only range-select if the anchor is still selected (not stale from a cleared selection)
+      if (e.shiftKey && lastClickedRef.current && selectedIds.has(lastClickedRef.current)) {
         const startIdx = featureIds.indexOf(lastClickedRef.current);
         const endIdx = featureIds.indexOf(featureId);
         if (startIdx !== -1 && endIdx !== -1) {
@@ -249,7 +250,7 @@ export function TimelineGrid({
       toggleSelected(featureId);
       lastClickedRef.current = featureId;
     },
-    [featureIds, toggleSelected, rangeSelect]
+    [featureIds, selectedIds, toggleSelected, rangeSelect]
   );
 
   // --- Manual drag state ---
@@ -453,7 +454,7 @@ export function TimelineGrid({
               >
                 <MilestoneIcon name={project.icon} className="h-3 w-3" />
               </div>
-              <span className="text-sm font-medium truncate min-w-0">{project.name}</span>
+              <span className="text-[13px] font-medium truncate min-w-0">{project.name}</span>
               <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 ml-auto" />
             </button>
           </ResponsivePopoverTrigger>
@@ -527,7 +528,7 @@ export function TimelineGrid({
                   className={`flex items-center gap-1.5 px-3 cursor-pointer transition-colors border-b border-border ${
                     showChainHint
                       ? 'text-primary'
-                      : 'text-muted-foreground'
+                      : 'text-muted-foreground/50 hover:text-muted-foreground'
                   }`}
                   onClick={(e) => onAddFeature(e.shiftKey && hasFeatures ? { chain: true } : undefined)}
                 >
@@ -619,7 +620,7 @@ export function TimelineGrid({
                   className={`flex items-center gap-1.5 min-w-0 px-3 border-b border-border ${
                     onReorder && !selectMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
                   } ${
-                    isSelected ? 'bg-primary/[0.08]' : isSearchMatch ? 'bg-primary/[0.06]' : 'bg-background'
+                    isSelected ? 'bg-primary/[0.08] relative before:absolute before:inset-y-0 before:left-0 before:w-[2px] before:bg-primary' : isSearchMatch ? 'bg-primary/[0.06]' : 'bg-background'
                   } ${
                     isDragging ? '' : 'group/gridrow'
                   }`}
@@ -652,7 +653,7 @@ export function TimelineGrid({
                     />
                   )}
                   <span
-                    className={`truncate min-w-0 flex-1 text-sm ${
+                    className={`truncate min-w-0 flex-1 text-[13px] ${
                       custom?.status === 'completed'
                         ? 'line-through text-muted-foreground'
                         : ''
@@ -691,7 +692,7 @@ export function TimelineGrid({
                   onToggle={onStatusChange}
                 />
                 <span
-                  className={`truncate min-w-0 flex-1 text-sm ${
+                  className={`truncate min-w-0 flex-1 text-[13px] ${
                     custom?.status === 'completed'
                       ? 'line-through text-muted-foreground'
                       : ''

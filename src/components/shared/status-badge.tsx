@@ -217,4 +217,4 @@ export function getPriorityColor(priority: MilestonePriority): string {
   return colors[priority];
 }
 
-export { statusConfig, priorityConfig };
+export { statusConfig, priorityConfig, PriorityHighIcon };

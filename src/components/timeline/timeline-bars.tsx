@@ -340,7 +340,7 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
             {/* Label + duration/done badge — positioned past the right connect handle (hidden for team tracks) */}
             {task.text && !isTeam && (
               <div className="timeline-bar-label">
-                <span className="timeline-bar-label-text">{task.text}</span>
+                <span className="timeline-bar-label-text">{task.text.length > 50 ? task.text.slice(0, 50) + '…' : task.text}</span>
                 {custom?.status === 'completed' ? (
                   <span className="timeline-bar-done-badge">Done</span>
                 ) : (

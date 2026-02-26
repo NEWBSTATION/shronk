@@ -11,7 +11,9 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeatureDetailPanel } from "@/components/drilldown/panels/feature-detail-panel";
 import { MilestoneInfoPanel } from "@/components/drilldown/panels/milestone-info-panel";
-import { useTeams, useUpdateMilestone, useDeleteMilestone } from "@/hooks/use-milestones";
+import { useTeams, useUpdateMilestone, useDeleteMilestone, useCreateMilestone, useCreateDependency, useUpsertTeamDuration } from "@/hooks/use-milestones";
+import { useUndoToast } from "@/hooks/use-undo-toast";
+import { describeUpdate } from "@/lib/undo-descriptions";
 import {
   featuresToCalendarEvents,
   type CalendarTeamDuration,
@@ -133,6 +135,10 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
 
   const updateMutation = useUpdateMilestone();
   const deleteMutation = useDeleteMilestone();
+  const createMutation = useCreateMilestone();
+  const createDepMutation = useCreateDependency();
+  const upsertTeamDurationMutation = useUpsertTeamDuration();
+  const showUndoToast = useUndoToast();
 
   // --- Persisted calendar state from store ---
   const calendarViewType = useCalendarStore((s) => s.viewType);
@@ -245,34 +251,107 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
 
   // --- Mutations ---
   const handleUpdateFeature = useCallback(
-    async (data: Partial<Milestone> & { id: string; duration?: number }) => {
+    async (updateData: Partial<Milestone> & { id: string; duration?: number }, options?: { silent?: boolean }) => {
+      const feature = features.find((f) => f.id === updateData.id);
+      const oldValues: Record<string, unknown> = {};
+      if (feature) {
+        for (const key of Object.keys(updateData)) {
+          if (key !== "id" && key in feature) {
+            oldValues[key] = feature[key as keyof Feature];
+          }
+        }
+      }
+
       try {
-        await updateMutation.mutateAsync(data);
+        await updateMutation.mutateAsync(updateData);
         queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+
+        const desc = describeUpdate(updateData, feature?.title);
+        showUndoToast({
+          description: desc,
+          silent: options?.silent,
+          undo: async () => {
+            await updateMutation.mutateAsync({ id: updateData.id, ...oldValues } as Partial<Milestone> & { id: string });
+            queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+          },
+        });
       } catch {
         toast.error("Failed to update feature");
       }
     },
-    [updateMutation, queryClient]
+    [updateMutation, queryClient, features, showUndoToast]
+  );
+
+  const handleUpdateFeatureSilent = useCallback(
+    (data: Partial<Milestone> & { id: string; duration?: number }) =>
+      handleUpdateFeature(data, { silent: true }),
+    [handleUpdateFeature]
   );
 
   const handleDeleteFeature = useCallback(
     async (id: string) => {
       const feature = features.find((f) => f.id === id);
+      const featureDeps = (data?.dependencies ?? []).filter(
+        (d) => d.predecessorId === id || d.successorId === id
+      );
+      const featureTeamDurs = (data?.teamDurations ?? []).filter(
+        (td) => td.milestoneId === id
+      );
+
       try {
         await deleteMutation.mutateAsync(id);
         queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
         closePanel();
-        toast.success("Feature deleted", { description: feature?.title });
+
+        if (feature) {
+          showUndoToast({
+            description: `"${feature.title}" deleted`,
+            undo: async () => {
+              const newFeature = await createMutation.mutateAsync({
+                projectId: feature.projectId,
+                title: feature.title,
+                description: feature.description ?? undefined,
+                startDate: feature.startDate,
+                endDate: feature.endDate,
+                duration: feature.duration,
+                status: feature.status,
+                priority: feature.priority,
+                progress: feature.progress,
+                sortOrder: feature.sortOrder,
+              });
+              for (const dep of featureDeps) {
+                const predId = dep.predecessorId === id ? newFeature.id : dep.predecessorId;
+                const succId = dep.successorId === id ? newFeature.id : dep.successorId;
+                try {
+                  await createDepMutation.mutateAsync({ predecessorId: predId, successorId: succId });
+                } catch { /* target may not exist */ }
+              }
+              for (const td of featureTeamDurs) {
+                try {
+                  await upsertTeamDurationMutation.mutateAsync({
+                    milestoneId: newFeature.id,
+                    teamId: td.teamId,
+                    duration: td.duration,
+                  });
+                } catch { /* team may not exist */ }
+              }
+              queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+            },
+          });
+        }
       } catch {
         toast.error("Failed to delete feature");
       }
     },
-    [deleteMutation, queryClient, closePanel, features]
+    [deleteMutation, queryClient, closePanel, features, data?.dependencies, data?.teamDurations, showUndoToast, createMutation, createDepMutation, upsertTeamDurationMutation]
   );
 
   const handleMoveFeature = useCallback(
     async (featureId: string, targetProjectId: string) => {
+      const feature = features.find((f) => f.id === featureId);
+      const oldProjectId = feature?.projectId;
+      const newMilestoneName = milestoneOptions.find((m) => m.id === targetProjectId)?.name;
+
       try {
         const response = await fetch("/api/features/move", {
           method: "POST",
@@ -288,12 +367,29 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
         queryClient.invalidateQueries({ queryKey: ["dependencies"] });
         queryClient.invalidateQueries({ queryKey: ["projects"] });
         closePanel();
-        toast.success("Feature moved");
+
+        if (oldProjectId) {
+          showUndoToast({
+            description: `"${feature?.title}" moved to ${newMilestoneName ?? "milestone"}`,
+            undo: async () => {
+              const res = await fetch("/api/features/move", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ featureId, targetProjectId: oldProjectId }),
+              });
+              if (!res.ok) throw new Error("Failed to undo move");
+              queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+              queryClient.invalidateQueries({ queryKey: ["milestones"] });
+              queryClient.invalidateQueries({ queryKey: ["dependencies"] });
+              queryClient.invalidateQueries({ queryKey: ["projects"] });
+            },
+          });
+        }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed to move feature");
       }
     },
-    [queryClient, closePanel]
+    [queryClient, closePanel, features, milestoneOptions, showUndoToast]
   );
 
   // --- Event click handler ---
@@ -315,7 +411,7 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
               handleMoveFeature(feature.id, targetId);
             }
           }}
-          onUpdate={handleUpdateFeature}
+          onUpdate={handleUpdateFeatureSilent}
           onDelete={handleDeleteFeature}
           onBack={closePanel}
         />
