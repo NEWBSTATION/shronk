@@ -4,13 +4,14 @@ import { db } from "@/db";
 import {
   teamMilestoneDurations,
   milestones,
+  milestoneDependencies,
   projects,
   teams,
 } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { addDays } from "date-fns";
-import { unifiedReflow } from "@/lib/unified-reflow";
+import { addDays, differenceInDays } from "date-fns";
+import { getTransitiveSuccessors } from "@/lib/graph-utils";
 
 function toLocalMidnight(date: Date | string): Date {
   const d = typeof date === "string" ? new Date(date) : date;
@@ -151,36 +152,134 @@ export async function PUT(request: NextRequest) {
         .returning();
     }
 
-    // Run unified reflow (expands parent if needed + cascades + derives dates)
-    const { milestoneUpdates, durationExpansions, teamDateUpdates } =
-      await unifiedReflow(milestone.projectId);
+    // --- Targeted parent expansion (no full reflow — preserves overlaps) ---
+    const now = new Date();
+    const parentStart = toLocalMidnight(milestone.startDate);
+    const parentEnd = toLocalMidnight(milestone.endDate);
 
-    // Re-fetch the updated team duration (unified reflow may have updated dates)
-    const updated = await db.query.teamMilestoneDurations.findFirst({
-      where: eq(teamMilestoneDurations.id, teamDuration.id),
-    });
+    let newParentStart = parentStart;
+    let newParentEnd = parentEnd;
+
+    // Also check all sibling team tracks to compute full bounds
+    const siblingTracks = await db
+      .select()
+      .from(teamMilestoneDurations)
+      .where(eq(teamMilestoneDurations.milestoneId, data.milestoneId));
+
+    for (const sib of siblingTracks) {
+      const sibStart = toLocalMidnight(sib.startDate);
+      const sibEnd = toLocalMidnight(sib.endDate);
+      if (sibStart < newParentStart) newParentStart = sibStart;
+      if (sibEnd > newParentEnd) newParentEnd = sibEnd;
+    }
+
+    const parentNeedsExpand =
+      newParentStart.getTime() !== parentStart.getTime() ||
+      newParentEnd.getTime() !== parentEnd.getTime();
+
+    const cascadedUpdates: Array<{ id: string; startDate: string; endDate: string; duration: number }> = [];
+    const teamCascadedUpdates: Array<{ teamId: string; id: string; startDate: string; endDate: string; duration: number; offset: number }> = [];
+
+    if (parentNeedsExpand) {
+      const newParentDuration = Math.max(1, differenceInDays(newParentEnd, newParentStart) + 1);
+
+      await db
+        .update(milestones)
+        .set({ startDate: newParentStart, endDate: newParentEnd, duration: newParentDuration, updatedAt: now })
+        .where(eq(milestones.id, data.milestoneId));
+
+      cascadedUpdates.push({
+        id: data.milestoneId,
+        startDate: newParentStart.toISOString(),
+        endDate: newParentEnd.toISOString(),
+        duration: newParentDuration,
+      });
+
+      // If right edge grew, delta-shift transitive successors
+      const rightDelta = differenceInDays(newParentEnd, parentEnd);
+      if (rightDelta > 0) {
+        // Build successor map for this project
+        const projectMilestoneIds = (
+          await db.select({ id: milestones.id }).from(milestones).where(eq(milestones.projectId, milestone.projectId))
+        ).map((m) => m.id);
+
+        const projectDeps = projectMilestoneIds.length > 0
+          ? await db
+              .select()
+              .from(milestoneDependencies)
+              .where(inArray(milestoneDependencies.predecessorId, projectMilestoneIds))
+          : [];
+
+        const successorMap = new Map<string, string[]>();
+        for (const dep of projectDeps) {
+          const list = successorMap.get(dep.predecessorId) || [];
+          list.push(dep.successorId);
+          successorMap.set(dep.predecessorId, list);
+        }
+
+        const successorIds = getTransitiveSuccessors(data.milestoneId, successorMap);
+
+        if (successorIds.size > 0) {
+          const successorMilestones = await db
+            .select()
+            .from(milestones)
+            .where(inArray(milestones.id, [...successorIds]));
+
+          for (const succ of successorMilestones) {
+            const succStart = addDays(toLocalMidnight(succ.startDate), rightDelta);
+            const succEnd = addDays(toLocalMidnight(succ.endDate), rightDelta);
+
+            await db
+              .update(milestones)
+              .set({ startDate: succStart, endDate: succEnd, updatedAt: now })
+              .where(eq(milestones.id, succ.id));
+
+            cascadedUpdates.push({
+              id: succ.id,
+              startDate: succStart.toISOString(),
+              endDate: succEnd.toISOString(),
+              duration: succ.duration,
+            });
+          }
+
+          // Shift team tracks of affected successors
+          const affectedIds = [...successorIds];
+          const succTeamDurs = affectedIds.length > 0
+            ? await db
+                .select()
+                .from(teamMilestoneDurations)
+                .where(inArray(teamMilestoneDurations.milestoneId, affectedIds))
+            : [];
+
+          for (const td of succTeamDurs) {
+            const newTdStart = addDays(toLocalMidnight(td.startDate), rightDelta);
+            const newTdEnd = addDays(toLocalMidnight(td.endDate), rightDelta);
+            await db
+              .update(teamMilestoneDurations)
+              .set({ startDate: newTdStart, endDate: newTdEnd, offset: 0 })
+              .where(
+                and(
+                  eq(teamMilestoneDurations.milestoneId, td.milestoneId),
+                  eq(teamMilestoneDurations.teamId, td.teamId)
+                )
+              );
+            teamCascadedUpdates.push({
+              teamId: td.teamId,
+              id: td.milestoneId,
+              startDate: newTdStart.toISOString(),
+              endDate: newTdEnd.toISOString(),
+              duration: td.duration,
+              offset: 0,
+            });
+          }
+        }
+      }
+    }
 
     return NextResponse.json({
-      teamDuration: updated,
-      cascadedUpdates: milestoneUpdates.map((u) => ({
-        id: u.id,
-        startDate: u.startDate.toISOString(),
-        endDate: u.endDate.toISOString(),
-        duration: u.duration,
-      })),
-      durationExpansions: durationExpansions.map((e) => ({
-        id: e.id,
-        oldDuration: e.oldDuration,
-        newDuration: e.newDuration,
-      })),
-      teamCascadedUpdates: teamDateUpdates.map((td) => ({
-        teamId: td.teamId,
-        id: td.milestoneId,
-        startDate: td.startDate.toISOString(),
-        endDate: td.endDate.toISOString(),
-        duration: td.duration,
-        offset: td.offset,
-      })),
+      teamDuration: teamDuration,
+      cascadedUpdates,
+      teamCascadedUpdates,
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -234,27 +333,11 @@ export async function DELETE(request: NextRequest) {
         )
       );
 
-    // Run unified reflow (parent keeps its duration per design — no auto-shrink)
-    const { milestoneUpdates, teamDateUpdates } = await unifiedReflow(
-      milestone.projectId
-    );
-
+    // Parent keeps its duration per design — no auto-shrink, no full reflow
     return NextResponse.json({
       success: true,
-      cascadedUpdates: milestoneUpdates.map((u) => ({
-        id: u.id,
-        startDate: u.startDate.toISOString(),
-        endDate: u.endDate.toISOString(),
-        duration: u.duration,
-      })),
-      teamCascadedUpdates: teamDateUpdates.map((td) => ({
-        teamId: td.teamId,
-        id: td.milestoneId,
-        startDate: td.startDate.toISOString(),
-        endDate: td.endDate.toISOString(),
-        duration: td.duration,
-        offset: td.offset,
-      })),
+      cascadedUpdates: [],
+      teamCascadedUpdates: [],
     });
   } catch (error) {
     if (error instanceof AuthError) {
