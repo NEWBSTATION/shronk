@@ -12,6 +12,8 @@ import {
   useDependencies,
   useUpdateMilestone,
   useDeleteMilestone,
+  useCreateDependency,
+  useDeleteDependency,
   useUpsertTeamDuration,
   useDeleteTeamDuration,
   useProjects,
@@ -95,6 +97,8 @@ export function RestoredFeaturePanel({ featureId }: { featureId: string }) {
 
   const updateMutation = useUpdateMilestone();
   const deleteMutation = useDeleteMilestone();
+  const createDepMutation = useCreateDependency();
+  const deleteDepMutation = useDeleteDependency();
   const upsertTeamDurationMutation = useUpsertTeamDuration();
   const deleteTeamDurationMutation = useDeleteTeamDuration();
 
@@ -151,6 +155,30 @@ export function RestoredFeaturePanel({ featureId }: { featureId: string }) {
     [deleteTeamDurationMutation, queryClient],
   );
 
+  const handleCreateDep = useCallback(
+    async (predecessorId: string, successorId: string) => {
+      try {
+        await createDepMutation.mutateAsync({ predecessorId, successorId });
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      } catch {
+        toast.error("Failed to create dependency");
+      }
+    },
+    [createDepMutation, queryClient],
+  );
+
+  const handleDeleteDep = useCallback(
+    async (depId: string) => {
+      try {
+        await deleteDepMutation.mutateAsync(depId);
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      } catch {
+        toast.error("Failed to delete dependency");
+      }
+    },
+    [deleteDepMutation, queryClient],
+  );
+
   const handleMoveFeature = useCallback(
     async (fId: string, targetProjectId: string) => {
       try {
@@ -192,6 +220,8 @@ export function RestoredFeaturePanel({ featureId }: { featureId: string }) {
       onDelete={handleDelete}
       onUpsertTeamDuration={handleUpsertTeamDuration}
       onDeleteTeamDuration={handleDeleteTeamDuration}
+      onCreateDependency={handleCreateDep}
+      onDeleteDependency={handleDeleteDep}
       milestoneOptions={milestoneOptions}
       selectedMilestoneId={feature.projectId}
       onMilestoneChange={(targetId) => {

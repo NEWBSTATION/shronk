@@ -37,6 +37,7 @@ import {
   useDeleteMilestone,
   useCreateMilestone,
   useCreateDependency,
+  useDeleteDependency,
   useReorderFeatures,
   useUpsertTeamDuration,
   useDeleteTeamDuration,
@@ -189,6 +190,7 @@ export function FeaturesTab() {
   const deleteMutation = useDeleteMilestone();
   const createMutation = useCreateMilestone();
   const createDepMutation = useCreateDependency();
+  const deleteDepMutation = useDeleteDependency();
   const reorderMutation = useReorderFeatures();
   const upsertTeamDurationMutation = useUpsertTeamDuration();
   const deleteTeamDurationMutation = useDeleteTeamDuration();
@@ -582,6 +584,30 @@ export function FeaturesTab() {
     [queryClient]
   );
 
+  const handleCreateDep = useCallback(
+    async (predecessorId: string, successorId: string) => {
+      try {
+        await createDepMutation.mutateAsync({ predecessorId, successorId });
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      } catch {
+        toast.error("Failed to create dependency");
+      }
+    },
+    [createDepMutation, queryClient]
+  );
+
+  const handleDeleteDep = useCallback(
+    async (depId: string) => {
+      try {
+        await deleteDepMutation.mutateAsync(depId);
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      } catch {
+        toast.error("Failed to delete dependency");
+      }
+    },
+    [deleteDepMutation, queryClient]
+  );
+
   const handleFeatureClick = useCallback(
     (feature: Feature) => {
       setActiveProjectId(feature.projectId);
@@ -597,6 +623,8 @@ export function FeaturesTab() {
           onDelete={handleDeleteFeature}
           onUpsertTeamDuration={handleUpsertTeamDuration}
           onDeleteTeamDuration={handleDeleteTeamDuration}
+          onCreateDependency={handleCreateDep}
+          onDeleteDependency={handleDeleteDep}
           milestoneOptions={milestoneOptions}
           selectedMilestoneId={feature.projectId}
           onMilestoneChange={(targetId) => {
@@ -607,7 +635,7 @@ export function FeaturesTab() {
         />
       );
     },
-    [push, teams, dependencies, data?.teamDurations, handleUpdateFeatureSilent, handleDeleteFeature, handleUpsertTeamDuration, handleDeleteTeamDuration]
+    [push, teams, dependencies, data?.teamDurations, handleUpdateFeatureSilent, handleDeleteFeature, handleUpsertTeamDuration, handleDeleteTeamDuration, handleCreateDep, handleDeleteDep]
   );
 
   // Escape key exits select mode (only when drilldown is not open)

@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FeatureDetailPanel } from "@/components/drilldown/panels/feature-detail-panel";
 import { MilestoneInfoPanel } from "@/components/drilldown/panels/milestone-info-panel";
-import { useTeams, useUpdateMilestone, useDeleteMilestone, useCreateMilestone, useCreateDependency, useUpsertTeamDuration } from "@/hooks/use-milestones";
+import { useTeams, useUpdateMilestone, useDeleteMilestone, useCreateMilestone, useCreateDependency, useDeleteDependency, useUpsertTeamDuration } from "@/hooks/use-milestones";
 import { useUndoToast } from "@/hooks/use-undo-toast";
 import { describeUpdate } from "@/lib/undo-descriptions";
 import {
@@ -137,6 +137,7 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
   const deleteMutation = useDeleteMilestone();
   const createMutation = useCreateMilestone();
   const createDepMutation = useCreateDependency();
+  const deleteDepMutation = useDeleteDependency();
   const upsertTeamDurationMutation = useUpsertTeamDuration();
   const showUndoToast = useUndoToast();
 
@@ -392,6 +393,30 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
     [queryClient, closePanel, features, milestoneOptions, showUndoToast]
   );
 
+  const handleCreateDep = useCallback(
+    async (predecessorId: string, successorId: string) => {
+      try {
+        await createDepMutation.mutateAsync({ predecessorId, successorId });
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      } catch {
+        toast.error("Failed to create dependency");
+      }
+    },
+    [createDepMutation, queryClient]
+  );
+
+  const handleDeleteDep = useCallback(
+    async (depId: string) => {
+      try {
+        await deleteDepMutation.mutateAsync(depId);
+        queryClient.invalidateQueries({ queryKey: ["allFeatures"] });
+      } catch {
+        toast.error("Failed to delete dependency");
+      }
+    },
+    [deleteDepMutation, queryClient]
+  );
+
   // --- Event click handler ---
   const handleEventClick = useCallback(
     (featureId: string, _projectId: string) => {
@@ -413,11 +438,13 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
           }}
           onUpdate={handleUpdateFeatureSilent}
           onDelete={handleDeleteFeature}
+          onCreateDependency={handleCreateDep}
+          onDeleteDependency={handleDeleteDep}
           onBack={closePanel}
         />
       );
     },
-    [features, milestoneOptions, teams, data?.dependencies, handleUpdateFeature, handleDeleteFeature, handleMoveFeature, openPanel, closePanel]
+    [features, milestoneOptions, teams, data?.dependencies, handleUpdateFeatureSilent, handleDeleteFeature, handleMoveFeature, openPanel, closePanel, handleCreateDep, handleDeleteDep]
   );
 
   // --- Milestone badge click handler ---

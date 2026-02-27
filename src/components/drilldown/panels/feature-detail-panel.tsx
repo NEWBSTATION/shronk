@@ -16,6 +16,10 @@ import {
   ChevronUp,
   ChevronDown,
   AlignLeft,
+  Plus,
+  X,
+  Ban,
+  AlertTriangle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -40,6 +44,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -52,6 +57,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { priorityConfig, PriorityHighIcon } from "@/components/shared/status-badge";
 import { formatDuration } from "@/lib/format-duration";
@@ -109,7 +120,8 @@ interface FeatureDetailPanelProps {
   onDelete?: (id: string) => Promise<void>;
   onUpsertTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
   onDeleteTeamDuration?: (milestoneId: string, teamId: string) => Promise<void>;
-  onUpdateDependencyLag?: (depId: string, lag: number) => Promise<void>;
+  onCreateDependency?: (predecessorId: string, successorId: string) => Promise<void>;
+  onDeleteDependency?: (depId: string) => Promise<void>;
   isLoading?: boolean;
   milestoneOptions?: MilestoneOption[];
   selectedMilestoneId?: string | null;
@@ -170,7 +182,8 @@ export function FeatureDetailPanel({
   onDelete,
   onUpsertTeamDuration,
   onDeleteTeamDuration,
-  onUpdateDependencyLag,
+  onCreateDependency,
+  onDeleteDependency,
   isLoading,
   milestoneOptions,
   selectedMilestoneId,
@@ -714,6 +727,16 @@ export function FeatureDetailPanel({
         </button>
       </div>
 
+      {/* Dependencies Section — edit mode */}
+      {isEditMode && feature && (
+        <DependenciesSection
+          feature={feature}
+          dependencies={dependencies}
+          onCreateDependency={onCreateDependency}
+          onDeleteDependency={onDeleteDependency}
+        />
+      )}
+
       {/* Description */}
       <div className="mt-6 pt-6 border-t border-border">
         <div className="flex items-center gap-3 mb-3 px-2 -mx-2">
@@ -726,52 +749,6 @@ export function FeatureDetailPanel({
           saveStatus={isEditMode && descSaved ? "saved" : "idle"}
         />
       </div>
-
-      {/* Dependencies Section — edit mode */}
-      {isEditMode && feature && (() => {
-        const incomingDeps = dependencies.filter((d) => d.successorId === feature.id);
-        const outgoingDeps = dependencies.filter((d) => d.predecessorId === feature.id);
-        if (incomingDeps.length === 0 && outgoingDeps.length === 0) return null;
-
-        const allFeatures = liveData?.milestones ?? [];
-        const featureMap = new Map(allFeatures.map((f) => [f.id, f]));
-
-        return (
-          <div className="mt-6 pt-6 border-t border-border">
-            <div className="flex items-center gap-3 mb-3 px-2 -mx-2">
-              <Link className="size-4 text-muted-foreground shrink-0" />
-              <span className="text-sm text-muted-foreground">Dependencies</span>
-            </div>
-            <div className="space-y-0.5">
-              {incomingDeps.map((dep) => {
-                const pred = featureMap.get(dep.predecessorId);
-                const lag = (dep as unknown as { lag?: number }).lag ?? 0;
-                return (
-                  <DependencyRow
-                    key={dep.id}
-                    depId={dep.id}
-                    featureName={pred?.title ?? "Unknown"}
-                    direction="from"
-                    lag={lag}
-                    onLagChange={onUpdateDependencyLag}
-                  />
-                );
-              })}
-              {outgoingDeps.map((dep) => {
-                const succ = featureMap.get(dep.successorId);
-                return (
-                  <div key={dep.id} className="flex items-center gap-3 min-h-8 py-1 rounded-md px-2 -mx-2 hover:bg-accent/30">
-                    <div className="size-4 shrink-0 flex items-center justify-center">
-                      <span className="text-[10px] text-muted-foreground/60">to</span>
-                    </div>
-                    <span className="text-sm truncate min-w-0 flex-1">{succ?.title ?? "Unknown"}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Team Tracks Section — edit mode (API-backed) */}
       {isEditMode && teams.length > 0 && feature && (
@@ -1286,41 +1263,328 @@ function PendingTeamTrackRow({
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Dependency Row with Lag Editor                                             */
+/*  Dependencies Section (ClickUp-style)                                       */
 /* -------------------------------------------------------------------------- */
 
-function DependencyRow({
-  depId,
-  featureName,
-  direction,
-  lag,
-  onLagChange,
+function DependenciesSection({
+  feature,
+  dependencies,
+  onCreateDependency,
+  onDeleteDependency,
 }: {
-  depId: string;
-  featureName: string;
-  direction: "from" | "to";
-  lag: number;
-  onLagChange?: (depId: string, lag: number) => Promise<void>;
+  feature: Milestone;
+  dependencies: MilestoneDependency[];
+  onCreateDependency?: (predecessorId: string, successorId: string) => Promise<void>;
+  onDeleteDependency?: (depId: string) => Promise<void>;
 }) {
+  const { data: liveData } = useMilestones({ projectId: feature.projectId });
+  const liveDeps = useMemo(() => {
+    if (!liveData?.dependencies) return dependencies;
+    return liveData.dependencies;
+  }, [liveData?.dependencies, dependencies]);
+
+  const allFeatures = liveData?.milestones ?? [];
+  const featureMap = useMemo(() => new Map(allFeatures.map((f) => [f.id, f])), [allFeatures]);
+
+  const blocking = useMemo(
+    () => liveDeps.filter((d) => d.predecessorId === feature.id),
+    [liveDeps, feature.id]
+  );
+  const blockedBy = useMemo(
+    () => liveDeps.filter((d) => d.successorId === feature.id),
+    [liveDeps, feature.id]
+  );
+
+  const hasDeps = blocking.length > 0 || blockedBy.length > 0;
+
+  const [pickerDirection, setPickerDirection] = useState<"blocking" | "blocked_by" | null>(null);
+
+  const handleClearAll = useCallback(async () => {
+    if (!onDeleteDependency) return;
+    const featureDeps = liveDeps.filter(
+      (d) => d.predecessorId === feature.id || d.successorId === feature.id
+    );
+    for (const dep of featureDeps) {
+      await onDeleteDependency(dep.id);
+    }
+  }, [liveDeps, feature.id, onDeleteDependency]);
+
+  // Build rows: each row has { groupLabel (only for first in group), dep, linkedFeature }
+  const rows = useMemo(() => {
+    const result: Array<{
+      groupLabel: string | null;
+      groupType: "blocking" | "blocked_by";
+      dep: MilestoneDependency;
+      linkedFeature: Milestone | undefined;
+    }> = [];
+    blocking.forEach((dep, i) => {
+      result.push({
+        groupLabel: i === 0 ? "Blocking" : null,
+        groupType: "blocking",
+        dep,
+        linkedFeature: featureMap.get(dep.successorId),
+      });
+    });
+    blockedBy.forEach((dep, i) => {
+      result.push({
+        groupLabel: i === 0 ? "Blocked by" : null,
+        groupType: "blocked_by",
+        dep,
+        linkedFeature: featureMap.get(dep.predecessorId),
+      });
+    });
+    return result;
+  }, [blocking, blockedBy, featureMap]);
+
+  if (!hasDeps && !onCreateDependency) return null;
+
   return (
-    <div className="flex items-center gap-3 min-h-8 py-1 rounded-md px-2 -mx-2 hover:bg-accent/30 group">
-      <div className="size-4 shrink-0 flex items-center justify-center">
-        <span className="text-[10px] text-muted-foreground/60">{direction}</span>
-      </div>
-      <span className="text-sm truncate min-w-0 flex-1">{featureName}</span>
-      {direction === "from" && onLagChange && (
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10px] text-muted-foreground/50">gap</span>
-          <NumberStepper
-            value={lag}
-            onChange={(v) => onLagChange(depId, Math.max(0, v))}
-            min={0}
-            className="w-16"
-          />
-          <span className="text-[10px] text-muted-foreground/50">d</span>
+    <div className="mt-6 pt-6 border-t border-border">
+      {/* Two-column dependency grid */}
+      {rows.length > 0 && (
+        <div className="flex flex-col">
+          {rows.map((row) => (
+            <DependencyRow
+              key={row.dep.id}
+              groupLabel={row.groupLabel}
+              groupType={row.groupType}
+              depId={row.dep.id}
+              featureName={row.linkedFeature?.title ?? "Unknown"}
+              featureStatus={(row.linkedFeature?.status as MilestoneStatus) ?? "not_started"}
+              onDelete={onDeleteDependency}
+              onAdd={onCreateDependency ? setPickerDirection : undefined}
+            />
+          ))}
         </div>
       )}
+
+      {/* Empty state with add button */}
+      {!hasDeps && onCreateDependency && (
+        <DepAddDropdown
+          hasDeps={false}
+          onPickDirection={setPickerDirection}
+          onClearAll={handleClearAll}
+          onDeleteDependency={onDeleteDependency}
+        >
+          <button
+            type="button"
+            className="flex items-center gap-2 text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors py-1"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Add dependency</span>
+          </button>
+        </DepAddDropdown>
+      )}
+
+      {/* Feature picker popover */}
+      {pickerDirection && onCreateDependency && (
+        <FeaturePickerPopover
+          feature={feature}
+          direction={pickerDirection}
+          allFeatures={allFeatures}
+          liveDeps={liveDeps}
+          onCreateDependency={onCreateDependency}
+          onClose={() => setPickerDirection(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function DependencyRow({
+  groupLabel,
+  groupType,
+  depId,
+  featureName,
+  featureStatus,
+  onDelete,
+  onAdd,
+}: {
+  groupLabel: string | null;
+  groupType: "blocking" | "blocked_by";
+  depId: string;
+  featureName: string;
+  featureStatus: MilestoneStatus;
+  onDelete?: (depId: string) => Promise<void>;
+  onAdd?: (direction: "blocking" | "blocked_by") => void;
+}) {
+  const statusCfg = STATUS_CONFIG[featureStatus];
+
+  return (
+    <div className="flex items-center gap-3 min-h-8 py-1.5 px-2 -mx-2">
+      {/* Left: icon + group label (only on first row of each group) — matches PropertyRow */}
+      <div className="shrink-0">
+        {groupLabel ? (
+          groupType === "blocking" ? (
+            <Ban className="size-4 text-red-500" />
+          ) : (
+            <AlertTriangle className="size-4 text-amber-500" />
+          )
+        ) : (
+          <div className="size-4" />
+        )}
+      </div>
+      <span className="w-24 sm:w-32 shrink-0 text-sm text-muted-foreground">
+        {groupLabel ?? ""}
+      </span>
+
+      {/* Right: status dot + feature name + hover actions */}
+      <div className="flex items-center gap-2 min-w-0 flex-1 rounded-md px-2 -mx-2 py-1 hover:bg-accent/30 group/deprow">
+        <div className={cn("h-2 w-2 rounded-full shrink-0", statusCfg.dotClass)} />
+        <span className="text-sm truncate min-w-0 flex-1">{featureName}</span>
+
+        {/* Hover actions */}
+        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/deprow:opacity-100 transition-opacity">
+          {onDelete && (
+            <button
+              onClick={() => onDelete(depId)}
+              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground/60 hover:text-destructive transition-colors"
+              title="Remove dependency"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {onAdd && (
+            <DepAddDropdown
+              hasDeps
+              onPickDirection={onAdd}
+              onClearAll={() => {}}
+              onDeleteDependency={undefined}
+            >
+              <button
+                className="p-1 rounded hover:bg-accent text-muted-foreground/60 hover:text-foreground transition-colors"
+                title="Add dependency"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            </DepAddDropdown>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DepAddDropdown({
+  hasDeps,
+  onPickDirection,
+  onClearAll,
+  onDeleteDependency,
+  children,
+}: {
+  hasDeps: boolean;
+  onPickDirection: (direction: "blocking" | "blocked_by") => void;
+  onClearAll: () => void;
+  onDeleteDependency?: (depId: string) => Promise<void>;
+  children: React.ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuItem onClick={() => onPickDirection("blocking")}>
+          This feature blocks...
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onPickDirection("blocked_by")}>
+          This feature is blocked by...
+        </DropdownMenuItem>
+        {hasDeps && onDeleteDependency && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={onClearAll}
+            >
+              Clear all dependencies
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function FeaturePickerPopover({
+  feature,
+  direction,
+  allFeatures,
+  liveDeps,
+  onCreateDependency,
+  onClose,
+}: {
+  feature: Milestone;
+  direction: "blocking" | "blocked_by";
+  allFeatures: Milestone[];
+  liveDeps: MilestoneDependency[];
+  onCreateDependency: (predecessorId: string, successorId: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+
+  const linkedIds = useMemo(() => {
+    const ids = new Set<string>();
+    ids.add(feature.id);
+    for (const d of liveDeps) {
+      if (d.predecessorId === feature.id || d.successorId === feature.id) {
+        ids.add(d.predecessorId);
+        ids.add(d.successorId);
+      }
+    }
+    return ids;
+  }, [liveDeps, feature.id]);
+
+  const candidates = useMemo(() => {
+    return allFeatures.filter(
+      (f) => !linkedIds.has(f.id) && f.title.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [allFeatures, linkedIds, search]);
+
+  const handleSelect = async (targetId: string) => {
+    if (direction === "blocking") {
+      await onCreateDependency(feature.id, targetId);
+    } else {
+      await onCreateDependency(targetId, feature.id);
+    }
+    onClose();
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-xs p-0 gap-0">
+        <DialogHeader className="px-3 pt-3 pb-2">
+          <DialogTitle className="text-sm font-medium">
+            {direction === "blocking" ? "This blocks..." : "Blocked by..."}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="px-3 pb-2">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search features..."
+            autoFocus
+            className="w-full h-8 px-2.5 text-sm rounded-md bg-muted/50 border border-border/40 outline-none placeholder:text-muted-foreground/50 focus:border-ring"
+          />
+        </div>
+        <div className="flex flex-col px-1.5 pb-2 max-h-56 overflow-y-auto">
+          {candidates.length > 0 ? candidates.map((f) => {
+            const sCfg = STATUS_CONFIG[(f.status as MilestoneStatus) ?? "not_started"];
+            return (
+              <button
+                key={f.id}
+                onClick={() => handleSelect(f.id)}
+                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-sm hover:bg-accent transition-colors text-left"
+              >
+                <div className={cn("h-2 w-2 rounded-full shrink-0", sCfg.dotClass)} />
+                <span className="truncate">{f.title}</span>
+              </button>
+            );
+          }) : (
+            <p className="px-2 py-3 text-xs text-center text-muted-foreground">No features available</p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

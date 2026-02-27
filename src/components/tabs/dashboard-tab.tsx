@@ -54,6 +54,8 @@ import {
   useDependencies,
   useUpdateMilestone,
   useDeleteMilestone,
+  useCreateDependency,
+  useDeleteDependency,
 } from "@/hooks/use-milestones";
 import { useDrilldown } from "@/components/drilldown/drilldown-context";
 import { FeatureDetailPanel } from "@/components/drilldown/panels/feature-detail-panel";
@@ -905,6 +907,30 @@ export function DashboardTab({
   const dependencies = useMemo(() => depsData?.dependencies ?? [], [depsData?.dependencies]);
   const updateMutation = useUpdateMilestone();
   const deleteMutation = useDeleteMilestone();
+  const createDepMutation = useCreateDependency();
+  const deleteDepMutation = useDeleteDependency();
+
+  const handleCreateDep = useCallback(
+    async (predecessorId: string, successorId: string) => {
+      try {
+        await createDepMutation.mutateAsync({ predecessorId, successorId });
+      } catch {
+        toast.error("Failed to create dependency");
+      }
+    },
+    [createDepMutation]
+  );
+
+  const handleDeleteDep = useCallback(
+    async (depId: string) => {
+      try {
+        await deleteDepMutation.mutateAsync(depId);
+      } catch {
+        toast.error("Failed to delete dependency");
+      }
+    },
+    [deleteDepMutation]
+  );
 
   const handleFeatureClick = useCallback(
     (featureId: string) => {
@@ -928,10 +954,12 @@ export function DashboardTab({
             try { await deleteMutation.mutateAsync(id); toast.success("Feature deleted", { description: f?.title }); }
             catch { toast.error("Failed to delete feature"); }
           }}
+          onCreateDependency={handleCreateDep}
+          onDeleteDependency={handleDeleteDep}
         />
       );
     },
-    [milestones, projects, teams, dependencies, teamDurations, push, updateMutation, deleteMutation]
+    [milestones, projects, teams, dependencies, teamDurations, push, updateMutation, deleteMutation, handleCreateDep, handleDeleteDep]
   );
 
   if (isLoadingProjects) return <DashboardSkeleton />;

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import { startOfDay, addDays, addMonths, subMonths, differenceInDays } from 'date-fns';
-import { Plus, Minus, GitBranch, Search, X, Calendar1, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
+import { Plus, Minus, GitBranch, Search, X, Calendar1, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, MoreHorizontal, Link2Off, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -23,6 +23,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { TodayMarker } from './today-marker';
 import { TimelineNavIndicators } from './timeline-nav-indicators';
 import { CursorMarker } from './cursor-marker';
@@ -120,6 +126,8 @@ interface TimelineViewProps {
   onMilestoneClick?: (project: Project) => void;
   onAddMilestone?: () => void;
   onFeatureContextMenu?: (featureId: string, status: string, priority: string, e: MouseEvent) => void;
+  onTightenGaps?: () => Promise<void>;
+  isTighteningGaps?: boolean;
 }
 
 export function TimelineView({
@@ -143,6 +151,8 @@ export function TimelineView({
   onMilestoneClick,
   onAddMilestone,
   onFeatureContextMenu,
+  onTightenGaps,
+  isTighteningGaps,
 }: TimelineViewProps) {
   const timePeriod = useTimelineStore((s) => s.getMilestoneTimePeriod(project.id)) as TimePeriod;
   const setMilestoneTimePeriod = useTimelineStore((s) => s.setMilestoneTimePeriod);
@@ -178,6 +188,7 @@ export function TimelineView({
   const [showDependencies, setShowDependencies] = useState(true);
   const [isGridDragging, setIsGridDragging] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Compute set of feature IDs that match the search query (null = no search active)
@@ -899,7 +910,7 @@ export function TimelineView({
   return (
     <div className="flex flex-col flex-1 min-h-0 border border-border rounded-lg overflow-hidden isolate">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-y-1 px-3 py-2 border-b border-border">
+      <div className="flex items-center px-3 py-2 border-b border-border h-[40px]">
         <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1014,30 +1025,79 @@ export function TimelineView({
               )}
             </PopoverContent>
           </Popover>
+
         </div>
 
-        {/* Search */}
-        <div className="relative ml-auto">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-          <Input
-            ref={searchInputRef}
-            type="text"
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-6 w-28 sm:w-40 pl-8 pr-7 text-xs rounded-md"
-          />
-          {searchQuery && (
-            <button
+        {/* Right zone: search + more actions */}
+        <div className="flex items-center gap-2 ml-auto">
+          {searchOpen ? (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onBlur={() => {
+                  if (!searchQuery) setSearchOpen(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSearchQuery('');
+                    setSearchOpen(false);
+                  }
+                }}
+                className="!h-6 w-28 sm:w-40 pl-8 pr-7 py-0 text-xs rounded-md focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-6"
               onClick={() => {
-                setSearchQuery('');
-                searchInputRef.current?.focus();
+                setSearchOpen(true);
+                requestAnimationFrame(() => searchInputRef.current?.focus());
               }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <X className="h-3.5 w-3.5" />
-            </button>
+              <Search className="h-3.5 w-3.5" />
+            </Button>
           )}
+
+          <div className="h-4 w-px bg-border" />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="size-6">
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                disabled={isTighteningGaps || !onTightenGaps}
+                onClick={() => onTightenGaps?.()}
+              >
+                {isTighteningGaps ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                ) : (
+                  <Link2Off className="h-3.5 w-3.5 mr-2" />
+                )}
+                Clean up chain gaps
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

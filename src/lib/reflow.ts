@@ -252,3 +252,86 @@ export function reflowProject(
 
   return updates;
 }
+
+/**
+ * Close gaps between dependent milestones without disturbing overlaps.
+ *
+ * Like `reflowProject`, processes in topological order using Kahn's BFS.
+ * For each chained milestone it computes the tight start
+ * (`max(predecessors.endDate + 1 + lag)`), but only moves the milestone
+ * earlier if there is a positive gap (currentStart > tightStart).
+ * Overlapping or already-tight nodes are left as-is.
+ */
+export function tightenChainGaps(
+  milestones: ReflowMilestone[],
+  dependencies: ReflowDependency[]
+): ReflowUpdate[] {
+  const msMap = new Map<string, ReflowMilestone>();
+  for (const m of milestones) {
+    msMap.set(m.id, { ...m });
+  }
+
+  const predecessorMap = new Map<string, Array<{ predId: string; lag: number }>>();
+  const successorMap = new Map<string, string[]>();
+  const inDegree = new Map<string, number>();
+
+  for (const m of milestones) {
+    predecessorMap.set(m.id, []);
+    successorMap.set(m.id, []);
+    inDegree.set(m.id, 0);
+  }
+
+  for (const dep of dependencies) {
+    if (!msMap.has(dep.predecessorId) || !msMap.has(dep.successorId)) continue;
+    predecessorMap.get(dep.successorId)!.push({ predId: dep.predecessorId, lag: dep.lag ?? 0 });
+    successorMap.get(dep.predecessorId)!.push(dep.successorId);
+    inDegree.set(dep.successorId, (inDegree.get(dep.successorId) || 0) + 1);
+  }
+
+  const queue: string[] = [];
+  for (const [id, degree] of inDegree) {
+    if (degree === 0) queue.push(id);
+  }
+
+  const updates: ReflowUpdate[] = [];
+
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    const ms = msMap.get(id);
+    if (!ms) continue;
+
+    const preds = predecessorMap.get(id) || [];
+
+    if (preds.length > 0) {
+      // Compute the tight start (earliest valid position)
+      let tightStart = addDays(msMap.get(preds[0].predId)!.endDate, 1 + preds[0].lag);
+      for (let i = 1; i < preds.length; i++) {
+        const candidate = addDays(msMap.get(preds[i].predId)!.endDate, 1 + preds[i].lag);
+        if (candidate > tightStart) tightStart = candidate;
+      }
+
+      // Only close gaps (pull earlier), never push apart overlaps
+      if (ms.startDate > tightStart) {
+        const newEnd = ms.duration === 0 ? tightStart : addDays(tightStart, ms.duration - 1);
+
+        updates.push({
+          id,
+          startDate: tightStart,
+          endDate: newEnd,
+          duration: ms.duration,
+        });
+
+        ms.startDate = tightStart;
+        ms.endDate = newEnd;
+      }
+    }
+
+    for (const succId of successorMap.get(id) || []) {
+      const newDegree = (inDegree.get(succId) || 1) - 1;
+      inDegree.set(succId, newDegree);
+      if (newDegree === 0) queue.push(succId);
+    }
+  }
+
+  return updates;
+}

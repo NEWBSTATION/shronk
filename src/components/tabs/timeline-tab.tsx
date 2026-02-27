@@ -29,6 +29,7 @@ import {
   useDeleteTeamDuration,
   useReorderFeatures,
   useUpdateDependencyLag,
+  useTightenGaps,
 } from "@/hooks/use-milestones";
 import type { CascadedUpdate } from "@/hooks/use-milestones";
 import { useUndoToast } from "@/hooks/use-undo-toast";
@@ -329,6 +330,7 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
   const deleteTeamDurationMutation = useDeleteTeamDuration();
   const reorderMutation = useReorderFeatures();
   const updateDependencyLagMutation = useUpdateDependencyLag();
+  const tightenGapsMutation = useTightenGaps();
   const showUndoToast = useUndoToast();
 
   const handleEditFeature = useCallback(
@@ -853,6 +855,24 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
     [reorderMutation, features, showUndoToast]
   );
 
+  const handleTightenGaps = useCallback(async () => {
+    if (!selectedMilestoneId) return;
+    try {
+      const result = await tightenGapsMutation.mutateAsync(selectedMilestoneId);
+      if (result.count > 0) {
+        toast.success("Chain gaps cleaned up", {
+          description: `${result.count} feature${result.count === 1 ? "" : "s"} adjusted`,
+        });
+      } else {
+        toast("No gaps to clean up", {
+          description: "All chains are already tight",
+        });
+      }
+    } catch {
+      toast.error("Failed to clean up chain gaps");
+    }
+  }, [selectedMilestoneId, tightenGapsMutation]);
+
   // Loading state — show skeleton while projects are being fetched
   if (isLoadingProjects) {
     return (
@@ -918,6 +938,8 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
               onMilestoneClick={handleMilestoneClick}
               onAddMilestone={handleAddMilestone}
               onFeatureContextMenu={handleFeatureContextMenu}
+              onTightenGaps={handleTightenGaps}
+              isTighteningGaps={tightenGapsMutation.isPending}
             />
           </div>
         </div>
@@ -970,7 +992,8 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
                 onDelete={handleDeleteFeature}
                 onUpsertTeamDuration={handleUpdateTeamDuration}
                 onDeleteTeamDuration={handleDeleteTeamDuration}
-                onUpdateDependencyLag={handleUpdateDependencyLag}
+                onCreateDependency={handleCreateDependency}
+                onDeleteDependency={handleDeleteDependency}
                 onBack={closePanel}
               />
             ) : (

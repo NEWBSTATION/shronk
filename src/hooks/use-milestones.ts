@@ -1154,3 +1154,86 @@ export function useDeleteTeamDuration() {
     },
   });
 }
+
+interface TightenGapsResponse {
+  cascadedUpdates: CascadedUpdate[];
+  teamCascadedUpdates?: TeamCascadedUpdate[];
+  count: number;
+}
+
+export function useTightenGaps() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await fetch("/api/projects/tighten-gaps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to tighten gaps");
+      }
+      return response.json() as Promise<TightenGapsResponse>;
+    },
+    onSuccess: (data) => {
+      if (data.cascadedUpdates?.length || data.teamCascadedUpdates?.length) {
+        queryClient.setQueriesData(
+          { queryKey: ["milestones"] },
+          (old: MilestonesResponse | undefined) => {
+            if (!old) return old;
+            const updateMap = new Map(
+              (data.cascadedUpdates || []).map((u) => [u.id, u])
+            );
+            const newMilestones = old.milestones.map((m) => {
+              const update = updateMap.get(m.id);
+              if (update) {
+                return {
+                  ...m,
+                  startDate: update.startDate,
+                  endDate: update.endDate,
+                  ...(update.duration !== undefined
+                    ? { duration: update.duration }
+                    : {}),
+                };
+              }
+              return m;
+            });
+
+            let newTeamDurations = old.teamDurations || [];
+            if (data.teamCascadedUpdates?.length) {
+              const teamUpdateMap = new Map(
+                data.teamCascadedUpdates.map((u) => [`${u.id}__${u.teamId}`, u])
+              );
+              newTeamDurations = newTeamDurations.map((td) => {
+                const update = teamUpdateMap.get(
+                  `${td.milestoneId}__${td.teamId}`
+                );
+                if (update) {
+                  return {
+                    ...td,
+                    startDate: new Date(update.startDate),
+                    endDate: new Date(update.endDate),
+                    duration: update.duration,
+                    offset: update.offset,
+                  };
+                }
+                return td;
+              });
+            }
+
+            return {
+              ...old,
+              milestones: newMilestones,
+              teamDurations: newTeamDurations,
+            };
+          }
+        );
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    },
+  });
+}
