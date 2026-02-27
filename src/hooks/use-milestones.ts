@@ -249,7 +249,13 @@ export function useUpdateMilestone() {
 
       return { previousData };
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      // For move/resize-end drags, skip applying cascaded updates — onMutate already
+      // shifted successors optimistically, and stale server responses from earlier
+      // mutations would overwrite the correct optimistic positions of newer mutations.
+      // onSettled's refetch will reconcile the final state.
+      if (variables.dragType === "move" || variables.dragType === "resize-end") return;
+
       // Apply cascaded updates to the cache immediately (before invalidation refetch)
       if (data.cascadedUpdates?.length || data.teamCascadedUpdates?.length) {
         queryClient.setQueriesData(
