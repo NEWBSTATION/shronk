@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import { startOfDay, addDays, addMonths, subMonths, differenceInDays } from 'date-fns';
-import { Plus, Minus, GitBranch, Users, Search, X, Calendar1, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Plus, Minus, GitBranch, Search, X, Calendar1, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -42,7 +42,7 @@ import { getPixelsPerDay, dateToPixel, getTotalWidth } from './date-math';
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from './constants';
 import { useTimelineStore } from '@/store/timeline-store';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { reflowProject, type ReflowMilestone, type ReflowDependency } from '@/lib/reflow';
+import { getTransitiveSuccessors } from '@/lib/graph-utils';
 import { topoSortFeatures } from '@/lib/topo-sort';
 import { useBarDrag } from './use-bar-drag';
 import { useDragLink } from './use-drag-link';
@@ -108,8 +108,8 @@ interface TimelineViewProps {
   onBack: () => void;
   onEdit: (feature: Milestone) => void;
   onDelete: (id: string) => void;
-  onUpdateDates: (id: string, startDate: Date, endDate: Date, duration?: number) => Promise<CascadedUpdate[]>;
-  onUpdateTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
+  onUpdateDates: (id: string, startDate: Date, endDate: Date, duration?: number, dragType?: 'move' | 'resize-start' | 'resize-end') => Promise<CascadedUpdate[]>;
+  onUpdateTeamDuration?: (milestoneId: string, teamId: string, duration: number, startDate?: Date) => Promise<void>;
   onStatusChange: (id: string, status: MilestoneStatus) => Promise<void>;
   onPriorityChange?: (id: string, priority: MilestonePriority) => Promise<void>;
   onAddFeature: (opts?: { chain?: boolean }) => void;
@@ -236,6 +236,10 @@ export function TimelineView({
   const visibleTeamIds = useTimelineStore((s) => s.visibleTeamIds);
   const setVisibleTeamIds = useTimelineStore((s) => s.setVisibleTeamIds);
   const toggleTeamVisibility = useTimelineStore((s) => s.toggleTeamVisibility);
+  const displayOptionsActive = useMemo(() => {
+    const visibleCount = (visibleTeamIds ?? []).length;
+    return !showDependencies || visibleCount > 0;
+  }, [showDependencies, visibleTeamIds]);
 
   useEffect(() => {
     const currentTeamIds = teams.map((t) => t.id);
@@ -482,25 +486,17 @@ export function TimelineView({
   const predecessorMapRef = useRef(predecessorMap);
   predecessorMapRef.current = predecessorMap;
 
-  const reflowMilestones = useMemo((): ReflowMilestone[] => {
-    return features.map((f) => ({
-      id: f.id,
-      startDate: toLocalMidnight(f.startDate),
-      endDate: toLocalMidnight(f.endDate),
-      duration: f.duration,
-    }));
-  }, [features]);
-  const reflowMilestonesRef = useRef(reflowMilestones);
-  reflowMilestonesRef.current = reflowMilestones;
-
-  const reflowDeps = useMemo((): ReflowDependency[] => {
-    return dependencies.map((d) => ({
-      predecessorId: d.predecessorId,
-      successorId: d.successorId,
-    }));
+  const successorMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const dep of dependencies) {
+      const list = map.get(dep.predecessorId) || [];
+      list.push(dep.successorId);
+      map.set(dep.predecessorId, list);
+    }
+    return map;
   }, [dependencies]);
-  const reflowDepsRef = useRef(reflowDeps);
-  reflowDepsRef.current = reflowDeps;
+  const successorMapRef = useRef(successorMap);
+  successorMapRef.current = successorMap;
 
   // Cell width
   const cellWidth = useMemo(() => {
@@ -574,12 +570,13 @@ export function TimelineView({
     endDate: Date,
     duration: number,
     isTeamTrack: boolean,
-    teamTrack: { milestoneId: string; teamId: string } | null
+    teamTrack: { milestoneId: string; teamId: string } | null,
+    dragType?: 'move' | 'resize-start' | 'resize-end'
   ) => {
     if (isTeamTrack && teamTrack && onUpdateTeamDurationRef.current) {
-      onUpdateTeamDurationRef.current(teamTrack.milestoneId, teamTrack.teamId, duration);
+      onUpdateTeamDurationRef.current(teamTrack.milestoneId, teamTrack.teamId, duration, startDate);
     } else {
-      onUpdateDatesRef.current(taskId, startDate, endDate, duration);
+      onUpdateDatesRef.current(taskId, startDate, endDate, duration, dragType);
     }
   }, []);
 
@@ -614,8 +611,7 @@ export function TimelineView({
     timePeriodRef,
     featureMapRef,
     predecessorMapRef,
-    reflowMilestonesRef,
-    reflowDepsRef,
+    successorMapRef,
     tasksRef,
     onDragEnd: handleBarDragEnd,
     onTaskClick: handleBarTaskClick,
@@ -692,6 +688,7 @@ export function TimelineView({
   const handleGridDurationChange = useCallback((taskId: string, durationDays: number) => {
     const teamTrack = parseTeamTrackId(taskId);
     if (teamTrack && onUpdateTeamDurationRef.current) {
+      // Preserve existing offset when changing duration from grid
       onUpdateTeamDurationRef.current(teamTrack.milestoneId, teamTrack.teamId, durationDays);
     } else {
       const feature = featureMapRef.current.get(taskId);
@@ -940,42 +937,40 @@ export function TimelineView({
 
           <div className="h-4 w-px bg-border" />
 
-          <Tooltip>
-            <TooltipTrigger asChild>
+          <Popover>
+            <PopoverTrigger asChild>
               <Button
-                variant={showDependencies ? 'secondary' : 'outline'}
+                variant="outline"
                 size="icon"
-                className="size-6"
-                onClick={() => setShowDependencies(!showDependencies)}
+                className="size-6 relative"
               >
-                <GitBranch className="h-3.5 w-3.5" />
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                {displayOptionsActive && (
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-primary" />
+                )}
               </Button>
-            </TooltipTrigger>
-            <TooltipContent>Dependencies</TooltipContent>
-          </Tooltip>
+            </PopoverTrigger>
+            <PopoverContent className="w-60 p-0" align="start">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="text-xs font-medium text-muted-foreground">Display options</span>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2 text-xs">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <GitBranch className="h-3.5 w-3.5" />
+                  <span>Dependencies</span>
+                </div>
+                <Switch
+                  size="sm"
+                  checked={showDependencies}
+                  onCheckedChange={() => setShowDependencies(!showDependencies)}
+                />
+              </div>
 
-          {teams.length > 0 && hasTeamTracks && (
-            <>
-              <div className="h-4 w-px bg-border" />
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-6 px-2.5 text-xs gap-1.5"
-                  >
-                    <Users className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Tracks</span>
-                    {(visibleTeamIds ?? []).length > 0 && (
-                      <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                        {(visibleTeamIds ?? []).length}
-                      </span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-52 p-0" align="start">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                    <span className="text-xs font-medium text-muted-foreground">Team Tracks</span>
+              {teams.length > 0 && hasTeamTracks && (
+                <>
+                  <div className="border-t border-border" />
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-xs font-medium text-muted-foreground">Team tracks</span>
                     <button
                       className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                       onClick={() => {
@@ -1015,10 +1010,10 @@ export function TimelineView({
                       );
                     })}
                   </div>
-                </PopoverContent>
-              </Popover>
-            </>
-          )}
+                </>
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Search */}
@@ -1159,4 +1154,3 @@ export function TimelineView({
     </div>
   );
 }
-

@@ -138,8 +138,17 @@ export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart, hideT
       }
 
       const d = roundedPath(pts, R);
-      return { id: link.id, sourceId: link.sourceId, targetId: link.targetId, d, tx, ty };
-    }).filter(Boolean) as Array<{ id: string; sourceId: string; targetId: string; d: string; tx: number; ty: number }>;
+
+      // Compute lag badge position at vertical segment midpoint
+      let lagX = 0;
+      let lagY = 0;
+      if (link.lag > 0) {
+        lagX = clearX;
+        lagY = (sy + ty) / 2;
+      }
+
+      return { id: link.id, sourceId: link.sourceId, targetId: link.targetId, d, tx, ty, lag: link.lag, lagX, lagY };
+    }).filter(Boolean) as Array<{ id: string; sourceId: string; targetId: string; d: string; tx: number; ty: number; lag: number; lagX: number; lagY: number }>;
   }, [tasks, links, pixelsPerDay, timelineStart, deferredHide]);
 
   if (paths.length === 0) return null;
@@ -179,6 +188,33 @@ export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart, hideT
             strokeWidth={1.5}
             className="timeline-link-line"
           />
+          {/* Lag badge */}
+          {p.lag > 0 && (
+            <g transform={`translate(${p.lagX + 4}, ${p.lagY})`}>
+              <rect
+                x={0}
+                y={-8}
+                width={28}
+                height={16}
+                rx={4}
+                fill="var(--muted)"
+                stroke="var(--border)"
+                strokeWidth={0.5}
+              />
+              <text
+                x={14}
+                y={0}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fill="var(--muted-foreground)"
+                fontSize={9}
+                fontFamily="system-ui, sans-serif"
+                fontWeight={500}
+              >
+                +{p.lag}d
+              </text>
+            </g>
+          )}
         </g>
       ))}
     </svg>

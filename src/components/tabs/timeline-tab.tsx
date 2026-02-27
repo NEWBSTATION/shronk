@@ -28,6 +28,7 @@ import {
   useUpsertTeamDuration,
   useDeleteTeamDuration,
   useReorderFeatures,
+  useUpdateDependencyLag,
 } from "@/hooks/use-milestones";
 import type { CascadedUpdate } from "@/hooks/use-milestones";
 import { useUndoToast } from "@/hooks/use-undo-toast";
@@ -327,6 +328,7 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
   const upsertTeamDurationMutation = useUpsertTeamDuration();
   const deleteTeamDurationMutation = useDeleteTeamDuration();
   const reorderMutation = useReorderFeatures();
+  const updateDependencyLagMutation = useUpdateDependencyLag();
   const showUndoToast = useUndoToast();
 
   const handleEditFeature = useCallback(
@@ -556,7 +558,8 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
       id: string,
       startDate: Date,
       endDate: Date,
-      duration?: number
+      duration?: number,
+      dragType?: 'move' | 'resize-start' | 'resize-end'
     ): Promise<CascadedUpdate[]> => {
       const feature = features.find((f) => f.id === id);
       const oldStartDate = feature ? new Date(feature.startDate) : null;
@@ -570,10 +573,12 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
           startDate,
           endDate,
           duration: computedDuration,
+          dragType,
         });
 
         showUndoToast({
           description: `"${feature?.title ?? "Feature"}" dates updated`,
+          silent: !!dragType,
           undo: async () => {
             if (oldStartDate && oldEndDate && oldDuration !== undefined) {
               await updateFeatureMutation.mutateAsync({
@@ -581,6 +586,9 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
                 startDate: oldStartDate,
                 endDate: oldEndDate,
                 duration: oldDuration,
+                // Use same dragType so server does reverse delta-shift
+                // (not authoritative reflow which can close gaps / cascade unexpectedly)
+                ...(dragType ? { dragType } : {}),
               });
             }
           },
@@ -709,26 +717,50 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
     [deleteDependencyMutation, createDependencyMutation, dependencies, features, showUndoToast]
   );
 
+  const handleUpdateDependencyLag = useCallback(
+    async (depId: string, lag: number) => {
+      const dep = dependencies.find((d) => d.id === depId);
+      const oldLag = (dep as unknown as { lag?: number })?.lag ?? 0;
+
+      try {
+        await updateDependencyLagMutation.mutateAsync({ id: depId, lag });
+
+        showUndoToast({
+          description: `Gap updated to +${lag}d`,
+          undo: async () => {
+            await updateDependencyLagMutation.mutateAsync({ id: depId, lag: oldLag });
+          },
+        });
+      } catch {
+        toast.error("Failed to update dependency gap");
+      }
+    },
+    [updateDependencyLagMutation, dependencies, showUndoToast]
+  );
+
   const handleUpdateTeamDuration = useCallback(
-    async (milestoneId: string, teamId: string, duration: number) => {
+    async (milestoneId: string, teamId: string, duration: number, startDate?: Date) => {
       const oldTd = teamDurations.find(
         (td) => td.milestoneId === milestoneId && td.teamId === teamId
       );
       const hadOld = !!oldTd;
       const oldDuration = oldTd?.duration;
+      const oldStartDate = oldTd?.startDate ? new Date(oldTd.startDate).toISOString() : undefined;
 
       try {
         await upsertTeamDurationMutation.mutateAsync({
           milestoneId,
           teamId,
           duration,
+          startDate: startDate?.toISOString(),
         });
 
         showUndoToast({
           description: hadOld ? "Team duration updated" : "Team track added",
+          silent: !!startDate,
           undo: async () => {
             if (hadOld && oldDuration !== undefined) {
-              await upsertTeamDurationMutation.mutateAsync({ milestoneId, teamId, duration: oldDuration });
+              await upsertTeamDurationMutation.mutateAsync({ milestoneId, teamId, duration: oldDuration, startDate: oldStartDate });
             } else {
               await deleteTeamDurationMutation.mutateAsync({ milestoneId, teamId });
             }
@@ -938,6 +970,7 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
                 onDelete={handleDeleteFeature}
                 onUpsertTeamDuration={handleUpdateTeamDuration}
                 onDeleteTeamDuration={handleDeleteTeamDuration}
+                onUpdateDependencyLag={handleUpdateDependencyLag}
                 onBack={closePanel}
               />
             ) : (

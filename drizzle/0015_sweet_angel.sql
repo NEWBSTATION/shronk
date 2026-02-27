@@ -1,0 +1,1 @@
+ALTER TABLE "milestone_dependencies" ADD COLUMN "lag" integer DEFAULT 0 NOT NULL;

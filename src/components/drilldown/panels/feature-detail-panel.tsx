@@ -109,6 +109,7 @@ interface FeatureDetailPanelProps {
   onDelete?: (id: string) => Promise<void>;
   onUpsertTeamDuration?: (milestoneId: string, teamId: string, duration: number) => Promise<void>;
   onDeleteTeamDuration?: (milestoneId: string, teamId: string) => Promise<void>;
+  onUpdateDependencyLag?: (depId: string, lag: number) => Promise<void>;
   isLoading?: boolean;
   milestoneOptions?: MilestoneOption[];
   selectedMilestoneId?: string | null;
@@ -169,6 +170,7 @@ export function FeatureDetailPanel({
   onDelete,
   onUpsertTeamDuration,
   onDeleteTeamDuration,
+  onUpdateDependencyLag,
   isLoading,
   milestoneOptions,
   selectedMilestoneId,
@@ -725,6 +727,52 @@ export function FeatureDetailPanel({
         />
       </div>
 
+      {/* Dependencies Section — edit mode */}
+      {isEditMode && feature && (() => {
+        const incomingDeps = dependencies.filter((d) => d.successorId === feature.id);
+        const outgoingDeps = dependencies.filter((d) => d.predecessorId === feature.id);
+        if (incomingDeps.length === 0 && outgoingDeps.length === 0) return null;
+
+        const allFeatures = liveData?.milestones ?? [];
+        const featureMap = new Map(allFeatures.map((f) => [f.id, f]));
+
+        return (
+          <div className="mt-6 pt-6 border-t border-border">
+            <div className="flex items-center gap-3 mb-3 px-2 -mx-2">
+              <Link className="size-4 text-muted-foreground shrink-0" />
+              <span className="text-sm text-muted-foreground">Dependencies</span>
+            </div>
+            <div className="space-y-0.5">
+              {incomingDeps.map((dep) => {
+                const pred = featureMap.get(dep.predecessorId);
+                const lag = (dep as unknown as { lag?: number }).lag ?? 0;
+                return (
+                  <DependencyRow
+                    key={dep.id}
+                    depId={dep.id}
+                    featureName={pred?.title ?? "Unknown"}
+                    direction="from"
+                    lag={lag}
+                    onLagChange={onUpdateDependencyLag}
+                  />
+                );
+              })}
+              {outgoingDeps.map((dep) => {
+                const succ = featureMap.get(dep.successorId);
+                return (
+                  <div key={dep.id} className="flex items-center gap-3 min-h-8 py-1 rounded-md px-2 -mx-2 hover:bg-accent/30">
+                    <div className="size-4 shrink-0 flex items-center justify-center">
+                      <span className="text-[10px] text-muted-foreground/60">to</span>
+                    </div>
+                    <span className="text-sm truncate min-w-0 flex-1">{succ?.title ?? "Unknown"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Team Tracks Section — edit mode (API-backed) */}
       {isEditMode && teams.length > 0 && feature && (
         <TeamTracksSection
@@ -975,7 +1023,6 @@ function TeamTrackRow({
   const bestFit = useMemo(() => bestFitDurationUnit(td.duration), [td.duration]);
   const [localValue, setLocalValue] = useState(bestFit.value);
   const [localUnit, setLocalUnit] = useState<DurationUnit>(bestFit.unit);
-
   useEffect(() => {
     if (open) {
       const fit = bestFitDurationUnit(td.duration);
@@ -1014,7 +1061,9 @@ function TeamTrackRow({
       </div>
 
       {/* Team name */}
-      <span className="text-sm font-medium truncate min-w-0 flex-1">{team.name}</span>
+      <span className="text-sm font-medium truncate min-w-0 flex-1">
+        {team.name}
+      </span>
 
       {/* Duration + date range — right side */}
       <div className="flex items-center gap-1.5 shrink-0">
@@ -1028,27 +1077,29 @@ function TeamTrackRow({
             </button>
           </ResponsivePopoverTrigger>
           <ResponsivePopoverContent className="w-auto p-3" align="end" title="Duration">
-            <div className="flex items-center gap-2">
-              <NumberStepper
-                value={localValue}
-                onChange={(v) => setLocalValue(Math.max(0, v))}
-                min={0}
-                className="w-20"
-              />
-              <Select
-                value={localUnit}
-                onValueChange={(v) => setLocalUnit(v as DurationUnit)}
-              >
-                <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="days">days</SelectItem>
-                  <SelectItem value="weeks">weeks</SelectItem>
-                  <SelectItem value="months">months</SelectItem>
-                  <SelectItem value="years">years</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <NumberStepper
+                  value={localValue}
+                  onChange={(v) => setLocalValue(Math.max(0, v))}
+                  min={0}
+                  className="w-20"
+                />
+                <Select
+                  value={localUnit}
+                  onValueChange={(v) => setLocalUnit(v as DurationUnit)}
+                >
+                  <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="days">days</SelectItem>
+                    <SelectItem value="weeks">weeks</SelectItem>
+                    <SelectItem value="months">months</SelectItem>
+                    <SelectItem value="years">years</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </ResponsivePopoverContent>
         </ResponsivePopover>
@@ -1230,6 +1281,45 @@ function PendingTeamTrackRow({
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Dependency Row with Lag Editor                                             */
+/* -------------------------------------------------------------------------- */
+
+function DependencyRow({
+  depId,
+  featureName,
+  direction,
+  lag,
+  onLagChange,
+}: {
+  depId: string;
+  featureName: string;
+  direction: "from" | "to";
+  lag: number;
+  onLagChange?: (depId: string, lag: number) => Promise<void>;
+}) {
+  return (
+    <div className="flex items-center gap-3 min-h-8 py-1 rounded-md px-2 -mx-2 hover:bg-accent/30 group">
+      <div className="size-4 shrink-0 flex items-center justify-center">
+        <span className="text-[10px] text-muted-foreground/60">{direction}</span>
+      </div>
+      <span className="text-sm truncate min-w-0 flex-1">{featureName}</span>
+      {direction === "from" && onLagChange && (
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] text-muted-foreground/50">gap</span>
+          <NumberStepper
+            value={lag}
+            onChange={(v) => onLagChange(depId, Math.max(0, v))}
+            min={0}
+            className="w-16"
+          />
+          <span className="text-[10px] text-muted-foreground/50">d</span>
+        </div>
+      )}
     </div>
   );
 }

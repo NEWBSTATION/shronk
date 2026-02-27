@@ -8,7 +8,7 @@ import { eq, or, inArray, and } from "drizzle-orm";
 import {
   reflowProject,
   expandDurationsFromTeamTracks,
-  deriveTeamTrackDates,
+  shiftTeamTrackDates,
   type ReflowMilestone,
   type ReflowDependency,
   type ReflowUpdate,
@@ -40,8 +40,7 @@ export interface UnifiedReflowResult {
  */
 export async function unifiedReflow(
   projectId: string,
-  overrides?: Map<string, Partial<ReflowMilestone>>,
-  skipIds?: Set<string>
+  overrides?: Map<string, Partial<ReflowMilestone>>
 ): Promise<UnifiedReflowResult> {
   // 1. Fetch all data in parallel
   const allMilestones = await db
@@ -91,21 +90,17 @@ export async function unifiedReflow(
   const reflowDeps: ReflowDependency[] = allDeps.map((d) => ({
     predecessorId: d.predecessorId,
     successorId: d.successorId,
+    lag: d.lag,
   }));
 
-  // 2. Compute max team duration per milestone
-  const maxTeamDurationMap = new Map<string, number>();
-  for (const td of allTeamDurations) {
-    const current = maxTeamDurationMap.get(td.milestoneId) ?? 0;
-    if (td.duration > current) {
-      maxTeamDurationMap.set(td.milestoneId, td.duration);
-    }
-  }
-
-  // 3. Expand parent durations (mutates reflowMilestones in-place)
+  // 2-3. Expand parent dates bidirectionally to contain children (mutates reflowMilestones in-place)
   const durationExpansions = expandDurationsFromTeamTracks(
     reflowMilestones,
-    maxTeamDurationMap
+    allTeamDurations.map((td) => ({
+      milestoneId: td.milestoneId,
+      startDate: toLocalMidnight(td.startDate),
+      endDate: toLocalMidnight(td.endDate),
+    }))
   );
 
   // 4. Run single-pass reflow (creates internal copies, doesn't mutate reflowMilestones)
@@ -160,12 +155,23 @@ export async function unifiedReflow(
     }
   }
 
-  // Derive team track dates
-  const teamDateUpdates = deriveTeamTrackDates(
-    milestoneDateMap,
+  // Shift team track dates when their parent moved during expansion/reflow
+  const parentMoves = new Map<string, { oldStart: Date; newStart: Date }>();
+  for (const m of reflowMilestones) {
+    const orig = originalMap.get(m.id)!;
+    const final = milestoneDateMap.get(m.id)!;
+    if (orig.startDate.getTime() !== final.startDate.getTime()) {
+      parentMoves.set(m.id, { oldStart: orig.startDate, newStart: final.startDate });
+    }
+  }
+
+  const teamDateUpdates = shiftTeamTrackDates(
+    parentMoves,
     allTeamDurations.map((td) => ({
       milestoneId: td.milestoneId,
       teamId: td.teamId,
+      startDate: toLocalMidnight(td.startDate),
+      endDate: toLocalMidnight(td.endDate),
       duration: td.duration,
     }))
   );
@@ -173,7 +179,6 @@ export async function unifiedReflow(
   // 6. Persist all changes in parallel
   const now = new Date();
   const milestoneWrites = allMilestoneUpdates
-    .filter((u) => !skipIds?.has(u.id))
     .map((update) =>
       db
         .update(milestones)
@@ -192,6 +197,7 @@ export async function unifiedReflow(
       .set({
         startDate: td.startDate,
         endDate: td.endDate,
+        offset: 0,
       })
       .where(
         and(
@@ -211,14 +217,25 @@ export async function unifiedReflow(
 }
 
 /**
- * Compute the max team duration for a given milestone across all its team tracks.
+ * Compute the date bounds of all team tracks for a given milestone.
+ * Returns null if no team tracks exist.
  */
-export async function getMaxTeamDuration(milestoneId: string): Promise<number> {
-  const durations = await db
-    .select({ duration: teamMilestoneDurations.duration })
+export async function getTeamTrackBounds(milestoneId: string): Promise<{ minStart: Date; maxEnd: Date } | null> {
+  const rows = await db
+    .select({ startDate: teamMilestoneDurations.startDate, endDate: teamMilestoneDurations.endDate })
     .from(teamMilestoneDurations)
     .where(eq(teamMilestoneDurations.milestoneId, milestoneId));
 
-  if (durations.length === 0) return 0;
-  return Math.max(...durations.map((d) => d.duration));
+  if (rows.length === 0) return null;
+
+  let minStart = toLocalMidnight(rows[0].startDate);
+  let maxEnd = toLocalMidnight(rows[0].endDate);
+  for (let i = 1; i < rows.length; i++) {
+    const s = toLocalMidnight(rows[i].startDate);
+    const e = toLocalMidnight(rows[i].endDate);
+    if (s < minStart) minStart = s;
+    if (e > maxEnd) maxEnd = e;
+  }
+
+  return { minStart, maxEnd };
 }

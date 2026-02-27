@@ -173,11 +173,9 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(milestones.id, newRootId));
 
-    // Run reflow to cascade all dates
+    // Run reflow to cascade all dates (authoritative — no skipIds)
     const { milestoneUpdates, teamDateUpdates } = await unifiedReflow(
-      data.projectId,
-      undefined,
-      new Set([newRootId]) // skip the root we just updated
+      data.projectId
     );
 
     return NextResponse.json({
@@ -194,6 +192,7 @@ export async function POST(request: NextRequest) {
         startDate: td.startDate.toISOString(),
         endDate: td.endDate.toISOString(),
         duration: td.duration,
+        offset: td.offset,
       })),
       // Return the new root's dates for cache update
       newRootUpdate: {

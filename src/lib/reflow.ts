@@ -1,4 +1,4 @@
-import { addDays } from "date-fns";
+import { addDays, differenceInDays } from "date-fns";
 
 /* ========================================================================= */
 /*  Types                                                                     */
@@ -18,6 +18,7 @@ export interface ReflowMilestone {
 export interface ReflowDependency {
   predecessorId: string;
   successorId: string;
+  lag?: number;
 }
 
 export interface ReflowUpdate {
@@ -38,30 +39,62 @@ export interface DurationExpansion {
 }
 
 /**
- * Expand parent milestone durations to be >= the max team track duration.
+ * Expand parent milestone dates bidirectionally to contain all team track children.
  *
  * Mutates the `milestones` array in place so the subsequent `reflowProject()`
- * sees the expanded durations. Returns a list of expansions for persistence.
+ * sees the expanded dates. Returns a list of expansions for persistence.
  *
  * @param milestones - mutable array of milestones (will be mutated)
- * @param maxTeamDurationMap - Map<milestoneId, maxTeamDuration>
+ * @param teamDurations - team tracks with their independent start/end dates
  */
 export function expandDurationsFromTeamTracks(
   milestones: ReflowMilestone[],
-  maxTeamDurationMap: Map<string, number>
+  teamDurations: { milestoneId: string; startDate: Date; endDate: Date }[]
 ): DurationExpansion[] {
+  // Compute min start and max end per parent from children
+  const childRanges = new Map<string, { minStart: Date; maxEnd: Date }>();
+  for (const td of teamDurations) {
+    const existing = childRanges.get(td.milestoneId);
+    if (existing) {
+      if (td.startDate < existing.minStart) existing.minStart = td.startDate;
+      if (td.endDate > existing.maxEnd) existing.maxEnd = td.endDate;
+    } else {
+      childRanges.set(td.milestoneId, {
+        minStart: new Date(td.startDate.getTime()),
+        maxEnd: new Date(td.endDate.getTime()),
+      });
+    }
+  }
+
   const expansions: DurationExpansion[] = [];
 
   for (const m of milestones) {
-    const maxTeam = maxTeamDurationMap.get(m.id);
-    if (maxTeam !== undefined && maxTeam !== m.duration) {
+    const range = childRanges.get(m.id);
+    if (!range) continue;
+
+    let newStart = m.startDate;
+    let newEnd = m.endDate;
+    let changed = false;
+
+    if (range.minStart < m.startDate) {
+      newStart = range.minStart;
+      changed = true;
+    }
+    if (range.maxEnd > m.endDate) {
+      newEnd = range.maxEnd;
+      changed = true;
+    }
+
+    if (changed) {
+      const newDuration = Math.max(1, differenceInDays(newEnd, newStart) + 1);
       expansions.push({
         id: m.id,
         oldDuration: m.duration,
-        newDuration: maxTeam,
+        newDuration,
       });
-      m.duration = maxTeam;
-      m.endDate = maxTeam === 0 ? m.startDate : addDays(m.startDate, maxTeam - 1);
+      m.startDate = newStart;
+      m.endDate = newEnd;
+      m.duration = newDuration;
     }
   }
 
@@ -74,36 +107,37 @@ export interface DerivedTeamDate {
   startDate: Date;
   endDate: Date;
   duration: number;
+  offset: number;
 }
 
 /**
- * Derive team track dates from parent milestone start + team duration.
+ * Shift team track dates when their parent milestone moves.
  *
- * All team tracks share the parent's start date.
- * endDate = parentStart + teamDuration - 1 (inclusive).
+ * For each parent that moved, shift all its children by the same delta.
+ * Children that don't have a moved parent are unchanged.
  *
- * @param milestoneDateMap - Map<milestoneId, { startDate }>  (post-reflow dates)
- * @param teamDurations - array of { milestoneId, teamId, duration }
+ * @param parentMoves - Map<milestoneId, { oldStart, newStart }>
+ * @param teamDurations - team tracks with their current dates
  */
-export function deriveTeamTrackDates(
-  milestoneDateMap: Map<string, { startDate: Date }>,
-  teamDurations: { milestoneId: string; teamId: string; duration: number }[]
+export function shiftTeamTrackDates(
+  parentMoves: Map<string, { oldStart: Date; newStart: Date }>,
+  teamDurations: { milestoneId: string; teamId: string; startDate: Date; endDate: Date; duration: number }[]
 ): DerivedTeamDate[] {
   const results: DerivedTeamDate[] = [];
 
   for (const td of teamDurations) {
-    const parent = milestoneDateMap.get(td.milestoneId);
-    if (!parent) continue;
-
-    const startDate = parent.startDate;
-    const endDate = td.duration === 0 ? startDate : addDays(startDate, td.duration - 1);
+    const move = parentMoves.get(td.milestoneId);
+    if (!move) continue;
+    const delta = differenceInDays(move.newStart, move.oldStart);
+    if (delta === 0) continue;
 
     results.push({
       milestoneId: td.milestoneId,
       teamId: td.teamId,
-      startDate,
-      endDate,
+      startDate: addDays(td.startDate, delta),
+      endDate: addDays(td.endDate, delta),
       duration: td.duration,
+      offset: 0,
     });
   }
 
@@ -138,9 +172,9 @@ export function reflowProject(
     msMap.set(m.id, override ? { ...m, ...override } : { ...m });
   }
 
-  // Build predecessor map (successorId → predecessorIds[])
+  // Build predecessor map (successorId → Array<{ predId, lag }>)
   // and successor map (predecessorId → successorIds[])
-  const predecessorMap = new Map<string, string[]>();
+  const predecessorMap = new Map<string, Array<{ predId: string; lag: number }>>();
   const successorMap = new Map<string, string[]>();
   const inDegree = new Map<string, number>();
 
@@ -154,7 +188,7 @@ export function reflowProject(
     // Skip deps referencing milestones not in our set
     if (!msMap.has(dep.predecessorId) || !msMap.has(dep.successorId)) continue;
 
-    predecessorMap.get(dep.successorId)!.push(dep.predecessorId);
+    predecessorMap.get(dep.successorId)!.push({ predId: dep.predecessorId, lag: dep.lag ?? 0 });
     successorMap.get(dep.predecessorId)!.push(dep.successorId);
     inDegree.set(dep.successorId, (inDegree.get(dep.successorId) || 0) + 1);
   }
@@ -179,13 +213,13 @@ export function reflowProject(
       // Root: keep existing start date
       newStart = ms.startDate;
     } else {
-      // Chained: start = max(all predecessors' end dates) + 1
-      let maxPredEnd = msMap.get(preds[0])!.endDate;
+      // Chained: start = max(each pred's endDate + 1 + lag)
+      let maxStart = addDays(msMap.get(preds[0].predId)!.endDate, 1 + preds[0].lag);
       for (let i = 1; i < preds.length; i++) {
-        const predEnd = msMap.get(preds[i])!.endDate;
-        if (predEnd > maxPredEnd) maxPredEnd = predEnd;
+        const candidateStart = addDays(msMap.get(preds[i].predId)!.endDate, 1 + preds[i].lag);
+        if (candidateStart > maxStart) maxStart = candidateStart;
       }
-      newStart = addDays(maxPredEnd, 1);
+      newStart = maxStart;
     }
 
     // Compute end from duration (inclusive end date; 0-duration → endDate = startDate)

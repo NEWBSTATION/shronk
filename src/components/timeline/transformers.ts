@@ -146,6 +146,7 @@ export function dependencyToTimelineLink(dep: MilestoneDependency): TimelineLink
     id: dep.id,
     sourceId: dep.predecessorId,
     targetId: dep.successorId,
+    lag: (dep as MilestoneDependency & { lag?: number }).lag ?? 0,
   };
 }
 

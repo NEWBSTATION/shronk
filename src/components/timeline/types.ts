@@ -40,6 +40,7 @@ export interface TimelineLink {
   id: string;
   sourceId: string;
   targetId: string;
+  lag: number;
 }
 
 export type ZoomLevel = number; // 1-10

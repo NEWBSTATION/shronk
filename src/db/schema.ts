@@ -171,6 +171,7 @@ export const milestoneDependencies = pgTable("milestone_dependencies", {
   successorId: uuid("successor_id")
     .references(() => milestones.id, { onDelete: "cascade" })
     .notNull(),
+  lag: integer("lag").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -186,6 +187,7 @@ export const teamMilestoneDurations = pgTable(
       .references(() => teams.id, { onDelete: "cascade" })
       .notNull(),
     duration: integer("duration").default(1).notNull(),
+    offset: integer("offset").default(0).notNull(),
     startDate: timestamp("start_date").notNull(),
     endDate: timestamp("end_date").notNull(),
   },

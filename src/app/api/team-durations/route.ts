@@ -21,6 +21,8 @@ const upsertSchema = z.object({
   milestoneId: z.string().uuid(),
   teamId: z.string().uuid(),
   duration: z.number().int().min(0),
+  startDate: z.string().datetime().optional(),
+  offset: z.number().int().min(0).optional().default(0),
 });
 
 const deleteSchema = z.object({
@@ -113,10 +115,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    // Upsert the team duration (start/end will be derived by unified reflow)
-    const startDate = toLocalMidnight(milestone.startDate);
-    const endDate = data.duration === 0 ? startDate : addDays(startDate, data.duration - 1);
-
+    // Use provided startDate or fall back to existing/parent start
     const existing = await db.query.teamMilestoneDurations.findFirst({
       where: and(
         eq(teamMilestoneDurations.milestoneId, data.milestoneId),
@@ -124,11 +123,18 @@ export async function PUT(request: NextRequest) {
       ),
     });
 
+    const startDate = data.startDate
+      ? toLocalMidnight(data.startDate)
+      : existing
+        ? toLocalMidnight(existing.startDate)
+        : toLocalMidnight(milestone.startDate);
+    const endDate = data.duration === 0 ? startDate : addDays(startDate, data.duration - 1);
+
     let teamDuration;
     if (existing) {
       [teamDuration] = await db
         .update(teamMilestoneDurations)
-        .set({ duration: data.duration, startDate, endDate })
+        .set({ duration: data.duration, offset: 0, startDate, endDate })
         .where(eq(teamMilestoneDurations.id, existing.id))
         .returning();
     } else {
@@ -138,6 +144,7 @@ export async function PUT(request: NextRequest) {
           milestoneId: data.milestoneId,
           teamId: data.teamId,
           duration: data.duration,
+          offset: 0,
           startDate,
           endDate,
         })
@@ -172,6 +179,7 @@ export async function PUT(request: NextRequest) {
         startDate: td.startDate.toISOString(),
         endDate: td.endDate.toISOString(),
         duration: td.duration,
+        offset: td.offset,
       })),
     });
   } catch (error) {
@@ -245,6 +253,7 @@ export async function DELETE(request: NextRequest) {
         startDate: td.startDate.toISOString(),
         endDate: td.endDate.toISOString(),
         duration: td.duration,
+        offset: td.offset,
       })),
     });
   } catch (error) {

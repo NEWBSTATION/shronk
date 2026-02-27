@@ -35,7 +35,9 @@ export function useUndoKeyboard() {
       }
 
       const entry = await useUndoStore.getState().undo();
-      if (!entry) {
+      if (entry) {
+        toast(`Undone: ${entry.description}`, { duration: 2000 });
+      } else {
         toast.info("Nothing to undo");
       }
     };

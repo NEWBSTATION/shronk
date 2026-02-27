@@ -315,11 +315,11 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
               />
             )}
 
-            {/* Left resize handle */}
-            <div className="timeline-bar-handle timeline-bar-handle-left" />
+            {/* Left resize handle — hidden for summary bars */}
+            {!isSummary && <div className="timeline-bar-handle timeline-bar-handle-left" />}
 
-            {/* Right resize handle */}
-            <div className="timeline-bar-handle timeline-bar-handle-right" />
+            {/* Right resize handle — hidden for summary bars */}
+            {!isSummary && <div className="timeline-bar-handle timeline-bar-handle-right" />}
 
             {/* Left drag handle + connection — only on parent/milestone bars */}
             {!isTeam && (

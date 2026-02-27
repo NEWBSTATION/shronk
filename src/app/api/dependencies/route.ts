@@ -9,10 +9,16 @@ import { unifiedReflow } from "@/lib/unified-reflow";
 const createDependencySchema = z.object({
   predecessorId: z.string().uuid(),
   successorId: z.string().uuid(),
+  lag: z.number().int().min(0).optional(),
 });
 
 const deleteDependencySchema = z.object({
   id: z.string().uuid(),
+});
+
+const updateDependencySchema = z.object({
+  id: z.string().uuid(),
+  lag: z.number().int().min(0),
 });
 
 /**
@@ -202,7 +208,11 @@ export async function POST(request: NextRequest) {
 
     const [dependency] = await db
       .insert(milestoneDependencies)
-      .values(data)
+      .values({
+        predecessorId: data.predecessorId,
+        successorId: data.successorId,
+        lag: data.lag ?? 0,
+      })
       .returning();
 
     // Run unified reflow
@@ -225,6 +235,7 @@ export async function POST(request: NextRequest) {
           startDate: td.startDate.toISOString(),
           endDate: td.endDate.toISOString(),
           duration: td.duration,
+          offset: td.offset,
         })),
       },
       { status: 201 }
@@ -240,6 +251,80 @@ export async function POST(request: NextRequest) {
       );
     }
     console.error("Error creating dependency:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const ctx = await requireWorkspaceMember();
+
+    const body = await request.json();
+    const data = updateDependencySchema.parse(body);
+
+    // Get dependency and verify ownership
+    const existingDependency = await db.query.milestoneDependencies.findFirst({
+      where: eq(milestoneDependencies.id, data.id),
+      with: {
+        predecessor: {
+          with: { project: true },
+        },
+      },
+    });
+
+    if (!existingDependency) {
+      return NextResponse.json(
+        { error: "Dependency not found" },
+        { status: 404 }
+      );
+    }
+
+    if (existingDependency.predecessor.project.workspaceId !== ctx.workspaceId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    // Update lag
+    const [updated] = await db
+      .update(milestoneDependencies)
+      .set({ lag: data.lag })
+      .where(eq(milestoneDependencies.id, data.id))
+      .returning();
+
+    // Run reflow
+    const { milestoneUpdates, teamDateUpdates } =
+      await unifiedReflow(existingDependency.predecessor.projectId);
+
+    return NextResponse.json({
+      dependency: updated,
+      cascadedUpdates: milestoneUpdates.map((u) => ({
+        id: u.id,
+        startDate: u.startDate.toISOString(),
+        endDate: u.endDate.toISOString(),
+        duration: u.duration,
+      })),
+      teamCascadedUpdates: teamDateUpdates.map((td) => ({
+        teamId: td.teamId,
+        id: td.milestoneId,
+        startDate: td.startDate.toISOString(),
+        endDate: td.endDate.toISOString(),
+        duration: td.duration,
+        offset: td.offset,
+      })),
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Validation error", details: error.issues },
+        { status: 400 }
+      );
+    }
+    console.error("Error updating dependency:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

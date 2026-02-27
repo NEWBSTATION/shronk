@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { addDays, differenceInDays } from "date-fns";
+import { getTransitiveSuccessors } from "@/lib/graph-utils";
 import type {
   Milestone,
   NewMilestone,
@@ -28,6 +30,7 @@ export interface TeamCascadedUpdate {
   startDate: string;
   endDate: string;
   duration: number;
+  offset: number;
 }
 
 interface MilestoneUpdateResponse {
@@ -120,9 +123,11 @@ export function useUpdateMilestone() {
   return useMutation({
     mutationFn: async ({
       id,
+      dragType,
       ...data
-    }: Partial<Milestone> & { id: string; duration?: number }) => {
+    }: Partial<Milestone> & { id: string; duration?: number; dragType?: 'move' | 'resize-start' | 'resize-end' }) => {
       const body: Record<string, unknown> = { ...data };
+      if (dragType) body.dragType = dragType;
       if (data.startDate) {
         body.startDate =
           data.startDate instanceof Date
@@ -147,7 +152,7 @@ export function useUpdateMilestone() {
       }
       return response.json() as Promise<MilestoneUpdateResponse>;
     },
-    onMutate: async ({ id, ...data }) => {
+    onMutate: async ({ id, dragType, ...data }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["milestones"] });
 
@@ -159,12 +164,67 @@ export function useUpdateMilestone() {
         { queryKey: ["milestones"] },
         (old: MilestonesResponse | undefined) => {
           if (!old) return old;
-          return {
-            ...old,
-            milestones: old.milestones.map((m) =>
-              m.id === id ? { ...m, ...data } : m
-            ),
-          };
+
+          let newMilestones = old.milestones.map((m) =>
+            m.id === id ? { ...m, ...data } : m
+          );
+          let newTeamDurations = old.teamDurations || [];
+
+          // For move/resize-end drags, optimistically shift transitive successors
+          // so there's no visual flash between cleanup and server response
+          if ((dragType === "move" || dragType === "resize-end") && data.startDate && data.endDate) {
+            const existing = old.milestones.find((m) => m.id === id);
+            if (existing) {
+              const oldStart = new Date(existing.startDate);
+              const oldEnd = new Date(existing.endDate);
+              const newStart = new Date(data.startDate as string | Date);
+              const newEnd = new Date(data.endDate as string | Date);
+
+              const delta =
+                dragType === "move"
+                  ? differenceInDays(newStart, oldStart)
+                  : differenceInDays(newEnd, oldEnd);
+
+              if (delta !== 0) {
+                const successorMap = new Map<string, string[]>();
+                for (const dep of old.dependencies) {
+                  const list = successorMap.get(dep.predecessorId) || [];
+                  list.push(dep.successorId);
+                  successorMap.set(dep.predecessorId, list);
+                }
+
+                const successorIds = getTransitiveSuccessors(id, successorMap);
+
+                if (successorIds.size > 0) {
+                  newMilestones = newMilestones.map((m) => {
+                    if (!successorIds.has(m.id)) return m;
+                    return {
+                      ...m,
+                      startDate: addDays(new Date(m.startDate), delta),
+                      endDate: addDays(new Date(m.endDate), delta),
+                    };
+                  });
+
+                  // Shift team durations for successors (and dragged node on move)
+                  const teamShiftIds = new Set(successorIds);
+                  if (dragType === "move") teamShiftIds.add(id);
+
+                  if (newTeamDurations.length > 0) {
+                    newTeamDurations = newTeamDurations.map((td) => {
+                      if (!teamShiftIds.has(td.milestoneId)) return td;
+                      return {
+                        ...td,
+                        startDate: addDays(new Date(td.startDate), delta),
+                        endDate: addDays(new Date(td.endDate), delta),
+                      };
+                    });
+                  }
+                }
+              }
+            }
+          }
+
+          return { ...old, milestones: newMilestones, teamDurations: newTeamDurations };
         }
       );
 
@@ -207,6 +267,7 @@ export function useUpdateMilestone() {
                     startDate: new Date(update.startDate),
                     endDate: new Date(update.endDate),
                     duration: update.duration,
+                    offset: update.offset,
                   };
                 }
                 return td;
@@ -306,7 +367,7 @@ export function useDeleteMilestone() {
               newTeamDurations = newTeamDurations.map((td) => {
                 const update = teamUpdateMap.get(`${td.milestoneId}__${td.teamId}`);
                 if (update) {
-                  return { ...td, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration };
+                  return { ...td, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration, offset: update.offset };
                 }
                 return td;
               });
@@ -620,7 +681,7 @@ export function useCreateDependency() {
               newTeamDurations = newTeamDurations.map((td) => {
                 const update = teamUpdateMap.get(`${td.milestoneId}__${td.teamId}`);
                 if (update) {
-                  return { ...td, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration };
+                  return { ...td, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration, offset: update.offset };
                 }
                 return td;
               });
@@ -706,7 +767,7 @@ export function useDeleteDependency() {
               newTeamDurations = newTeamDurations.map((td) => {
                 const update = teamUpdateMap.get(`${td.milestoneId}__${td.teamId}`);
                 if (update) {
-                  return { ...td, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration };
+                  return { ...td, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration, offset: update.offset };
                 }
                 return td;
               });
@@ -725,6 +786,81 @@ export function useDeleteDependency() {
       }
     },
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+      queryClient.invalidateQueries({ queryKey: ["dependencies"] });
+    },
+  });
+}
+
+// Update dependency lag
+interface DependencyUpdateResponse {
+  dependency: MilestoneDependency;
+  cascadedUpdates: CascadedUpdate[];
+  teamCascadedUpdates?: TeamCascadedUpdate[];
+}
+
+export function useUpdateDependencyLag() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { id: string; lag: number }) => {
+      const response = await fetch("/api/dependencies", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update dependency lag");
+      }
+      return response.json() as Promise<DependencyUpdateResponse>;
+    },
+    onSuccess: (data) => {
+      // Update dependency lag in cache
+      queryClient.setQueriesData(
+        { queryKey: ["milestones"] },
+        (old: MilestonesResponse | undefined) => {
+          if (!old) return old;
+          const newDeps = old.dependencies.map((d) =>
+            d.id === data.dependency.id
+              ? { ...d, lag: data.dependency.lag }
+              : d
+          );
+
+          // Apply cascaded updates
+          const updateMap = new Map(
+            (data.cascadedUpdates || []).map((u) => [u.id, u])
+          );
+          const newMilestones = old.milestones.map((m) => {
+            const update = updateMap.get(m.id);
+            if (update) {
+              return {
+                ...m,
+                startDate: update.startDate,
+                endDate: update.endDate,
+                ...(update.duration !== undefined ? { duration: update.duration } : {}),
+              };
+            }
+            return m;
+          });
+
+          let newTeamDurations = old.teamDurations || [];
+          if (data.teamCascadedUpdates?.length) {
+            const teamUpdateMap = new Map(
+              data.teamCascadedUpdates.map((u) => [`${u.id}__${u.teamId}`, u])
+            );
+            newTeamDurations = newTeamDurations.map((td) => {
+              const update = teamUpdateMap.get(`${td.milestoneId}__${td.teamId}`);
+              if (update) {
+                return { ...td, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration, offset: update.offset };
+              }
+              return td;
+            });
+          }
+
+          return { ...old, dependencies: newDeps, milestones: newMilestones, teamDurations: newTeamDurations };
+        }
+      );
       queryClient.invalidateQueries({ queryKey: ["milestones"] });
       queryClient.invalidateQueries({ queryKey: ["dependencies"] });
     },
@@ -861,6 +997,7 @@ export function useUpsertTeamDuration() {
       milestoneId: string;
       teamId: string;
       duration: number;
+      startDate?: string;
     }) => {
       const response = await fetch("/api/team-durations", {
         method: "PUT",
@@ -907,6 +1044,7 @@ export function useUpsertTeamDuration() {
                   startDate: new Date(update.startDate),
                   endDate: new Date(update.endDate),
                   duration: update.duration,
+                  offset: update.offset,
                 };
               }
               return d;
@@ -983,7 +1121,7 @@ export function useDeleteTeamDuration() {
             teamDurations = teamDurations.map((d) => {
               const update = updateMap.get(`${d.milestoneId}__${d.teamId}`);
               if (update) {
-                return { ...d, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration };
+                return { ...d, startDate: new Date(update.startDate), endDate: new Date(update.endDate), duration: update.duration, offset: update.offset };
               }
               return d;
             });

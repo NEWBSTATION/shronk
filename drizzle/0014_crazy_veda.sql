@@ -1,0 +1,1 @@
+ALTER TABLE "team_milestone_durations" ADD COLUMN "offset" integer DEFAULT 0 NOT NULL;

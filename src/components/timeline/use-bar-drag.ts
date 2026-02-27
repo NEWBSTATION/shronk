@@ -5,7 +5,7 @@ import type { TimePeriod } from './types';
 import { parseTeamTrackId } from './transformers';
 import { roundedPath } from './timeline-links';
 import { ROW_HEIGHT } from './scales-config';
-import { reflowProject, type ReflowMilestone, type ReflowDependency } from '@/lib/reflow';
+import { getTransitiveSuccessors } from '@/lib/graph-utils';
 import type { Milestone } from '@/db/schema';
 import type { TimelineTask } from './types';
 
@@ -18,8 +18,7 @@ interface UseBarDragOptions {
   timePeriodRef: MutableRefObject<TimePeriod>;
   featureMapRef: MutableRefObject<Map<string, Milestone>>;
   predecessorMapRef: MutableRefObject<Map<string, string[]>>;
-  reflowMilestonesRef: MutableRefObject<ReflowMilestone[]>;
-  reflowDepsRef: MutableRefObject<ReflowDependency[]>;
+  successorMapRef: MutableRefObject<Map<string, string[]>>;
   tasksRef: MutableRefObject<TimelineTask[]>;
   onDragEnd: (
     taskId: string,
@@ -27,7 +26,8 @@ interface UseBarDragOptions {
     endDate: Date,
     duration: number,
     isTeamTrack: boolean,
-    teamTrack: { milestoneId: string; teamId: string } | null
+    teamTrack: { milestoneId: string; teamId: string } | null,
+    dragType?: DragType
   ) => void;
   onTaskClick: (taskId: string) => void;
   sentinelId: string;
@@ -40,8 +40,7 @@ export function useBarDrag({
   timePeriodRef,
   featureMapRef,
   predecessorMapRef,
-  reflowMilestonesRef,
-  reflowDepsRef,
+  successorMapRef,
   tasksRef,
   onDragEnd,
   onTaskClick,
@@ -59,6 +58,10 @@ export function useBarDrag({
   // Cascade tracking
   const cascadeOriginalsRef = useRef<Map<string, { left: number; width: number }>>(new Map());
   const lastCascadeKeyRef = useRef('');
+  // Summary bar child tracking
+  const summaryChildOriginalsRef = useRef<Map<string, { left: number; width: number }>>(new Map());
+  // Parent bar tracking for team track drags (to detect growth → cascade)
+  const parentOriginalRef = useRef<{ el: HTMLElement; left: number; width: number; milestoneId: string } | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -104,11 +107,15 @@ export function useBarDrag({
       if (!dragType) return;
 
       // Check constraints
-      const isChained = (predecessorMapRef.current.get(taskId) || []).length > 0;
       const teamTrack = parseTeamTrackId(taskId);
 
-      // Chained features can only resize-end
-      if (isChained && !teamTrack && dragType !== 'resize-end') return;
+      // Find if this task is a summary bar (parent with visible team tracks)
+      const currentTasks = tasksRef.current;
+      const taskData = currentTasks.find(t => t.id === taskId);
+      const isSummary = taskData?.type === 'summary';
+
+      // Summary bars can only move (no resize handles)
+      if (isSummary && dragType !== 'move') return;
 
       e.preventDefault();
 
@@ -121,9 +128,40 @@ export function useBarDrag({
       hasMovedRef.current = false;
       cascadeOriginalsRef.current.clear();
       lastCascadeKeyRef.current = '';
+      summaryChildOriginalsRef.current.clear();
+
+      // Capture child bar positions for summary drag
+      if (isSummary) {
+        const children = currentTasks.filter(t => t.parent === taskId);
+        for (const child of children) {
+          const childEl = container!.querySelector(`[data-task-id="${child.id}"]`) as HTMLElement | null;
+          if (childEl) {
+            summaryChildOriginalsRef.current.set(child.id, {
+              left: parseFloat(childEl.style.left) || 0,
+              width: parseFloat(childEl.style.width) || 0,
+            });
+          }
+        }
+      }
+
+      // Capture parent bar original dimensions for team track drags
+      if (teamTrack) {
+        const parentEl = container!.querySelector(`[data-task-id="${teamTrack.milestoneId}"]`) as HTMLElement | null;
+        if (parentEl) {
+          parentOriginalRef.current = {
+            el: parentEl,
+            left: parseFloat(parentEl.style.left) || 0,
+            width: parseFloat(parentEl.style.width) || 0,
+            milestoneId: teamTrack.milestoneId,
+          };
+        }
+      } else {
+        parentOriginalRef.current = null;
+      }
 
       document.addEventListener('pointermove', onPointerMove);
       document.addEventListener('pointerup', onPointerUp);
+      document.addEventListener('keydown', onKeyDown);
     }
 
     function onPointerMove(e: PointerEvent) {
@@ -195,6 +233,78 @@ export function useBarDrag({
         }
       }
 
+      // No left-clamp for moves — allow free overlap with predecessors (ClickUp-style)
+      const taskId = dragTaskIdRef.current;
+      const teamTrack = parseTeamTrackId(taskId);
+
+      // Team track: grow parent bidirectionally if child exceeds bounds → cascade chain
+      if (teamTrack && parentOriginalRef.current) {
+        const { el: parentEl, left: parentLeft, width: parentWidth, milestoneId: parentId } = parentOriginalRef.current;
+        const origParentRight = parentLeft + parentWidth;
+        const teamRight = newLeft + newWidth;
+
+        let newParentLeft = parentLeft;
+        let newParentRight = origParentRight;
+        let needsGrowth = false;
+
+        // Grow left if child starts before parent
+        if (newLeft < parentLeft) {
+          newParentLeft = newLeft;
+          needsGrowth = true;
+        }
+        // Grow right if child ends past parent
+        if (teamRight > origParentRight) {
+          newParentRight = teamRight;
+          needsGrowth = true;
+        }
+
+        if (needsGrowth) {
+          parentEl.style.left = `${newParentLeft}px`;
+          parentEl.style.width = `${newParentRight - newParentLeft}px`;
+
+          // Delta-shift parent's transitive successors by right-edge growth
+          const rightGrowthPx = newParentRight - origParentRight;
+          if (rightGrowthPx > 0) {
+            const successors = getTransitiveSuccessors(parentId, successorMapRef.current);
+            for (const succId of successors) {
+              const el = container!.querySelector(`[data-task-id="${succId}"]`) as HTMLElement;
+              if (!el) continue;
+              if (!cascadeOriginalsRef.current.has(succId)) {
+                cascadeOriginalsRef.current.set(succId, {
+                  left: parseFloat(el.style.left) || 0,
+                  width: parseFloat(el.style.width) || 0,
+                });
+              }
+              const orig = cascadeOriginalsRef.current.get(succId)!;
+              el.style.left = `${orig.left + rightGrowthPx}px`;
+            }
+          }
+        } else {
+          // Parent back to original — revert growth + successor shifts
+          parentEl.style.left = `${parentLeft}px`;
+          parentEl.style.width = `${parentWidth}px`;
+          for (const [succId, orig] of cascadeOriginalsRef.current) {
+            const el = container!.querySelector(`[data-task-id="${succId}"]`) as HTMLElement;
+            if (el) {
+              el.style.left = `${orig.left}px`;
+              el.style.width = `${orig.width}px`;
+            }
+          }
+          cascadeOriginalsRef.current.clear();
+        }
+      }
+
+      // Summary bar: shift all children rigidly
+      if (summaryChildOriginalsRef.current.size > 0 && dragTypeRef.current === 'move') {
+        const moveDelta = newLeft - origLeftRef.current;
+        for (const [childId, orig] of summaryChildOriginalsRef.current) {
+          const childEl = container!.querySelector(`[data-task-id="${childId}"]`) as HTMLElement | null;
+          if (childEl) {
+            childEl.style.left = `${orig.left + moveDelta}px`;
+          }
+        }
+      }
+
       barEl.style.left = `${newLeft}px`;
       barEl.style.width = `${newWidth}px`;
 
@@ -204,9 +314,7 @@ export function useBarDrag({
         highlightEl.style.width = `${newWidth}px`;
       }
 
-      // Live cascade preview for non-team-track tasks
-      const taskId = dragTaskIdRef.current;
-      const teamTrack = parseTeamTrackId(taskId);
+      // Live delta-shift cascade preview for non-team-track tasks
       if (!teamTrack) {
         runCascadePreview(taskId, newLeft, newWidth);
       }
@@ -215,40 +323,49 @@ export function useBarDrag({
       updateLinksPreview();
     }
 
+    /**
+     * Delta-shift cascade preview (ClickUp-style):
+     * - resize-start: no cascade (return early)
+     * - move: shift all transitive successors by the same px delta
+     * - resize-end: shift all transitive successors by end-date delta
+     */
     function runCascadePreview(taskId: string, newLeft: number, newWidth: number) {
-      const ppd = pixelsPerDayRef.current;
-      const timelineStart = timelineStartRef.current;
-      const original = featureMapRef.current.get(taskId);
-      if (!original) return;
+      const dragType = dragTypeRef.current;
 
-      const newStartDate = pixelToDate(newLeft, timelineStart, ppd);
-      const newDuration = Math.max(1, Math.round(newWidth / ppd));
-
-      const override: Partial<ReflowMilestone> = {};
-      if (dragTypeRef.current === 'move') {
-        override.startDate = newStartDate;
-      } else if (dragTypeRef.current === 'resize-start') {
-        override.startDate = newStartDate;
-        override.duration = newDuration;
-      } else if (dragTypeRef.current === 'resize-end') {
-        override.duration = newDuration;
+      // resize-start: no cascade at all
+      if (dragType === 'resize-start') {
+        // Revert any previously cascaded bars
+        for (const [id, orig] of cascadeOriginalsRef.current) {
+          const el = container!.querySelector(`[data-task-id="${id}"]`) as HTMLElement;
+          if (el) {
+            el.style.left = `${orig.left}px`;
+            el.style.width = `${orig.width}px`;
+          }
+        }
+        cascadeOriginalsRef.current.clear();
+        lastCascadeKeyRef.current = '';
+        return;
       }
 
-      const cascade = reflowProject(
-        reflowMilestonesRef.current,
-        reflowDepsRef.current,
-        new Map([[taskId, override]])
-      );
+      // Compute delta in pixels
+      let deltaPx: number;
+      if (dragType === 'move') {
+        deltaPx = newLeft - origLeftRef.current;
+      } else {
+        // resize-end: delta of end position
+        deltaPx = (newLeft + newWidth) - (origLeftRef.current + origWidthRef.current);
+      }
 
-      const cascadeKey = cascade.map((u) => `${u.id}:${u.startDate.getTime()}:${u.endDate.getTime()}`).join(',');
+      // BFS all transitive successors
+      const successors = getTransitiveSuccessors(taskId, successorMapRef.current);
+
+      const cascadeKey = `${deltaPx}:${[...successors].join(',')}`;
       if (cascadeKey === lastCascadeKeyRef.current) return;
       lastCascadeKeyRef.current = cascadeKey;
 
-      const newCascadedIds = new Set(cascade.map((u) => u.id));
-
-      // Revert bars that no longer need cascading
+      // Revert bars that are no longer successors
       for (const [prevId, orig] of cascadeOriginalsRef.current) {
-        if (!newCascadedIds.has(prevId)) {
+        if (!successors.has(prevId)) {
           const el = container!.querySelector(`[data-task-id="${prevId}"]`) as HTMLElement;
           if (el) {
             el.style.left = `${orig.left}px`;
@@ -258,27 +375,21 @@ export function useBarDrag({
         }
       }
 
-      for (const update of cascade) {
-        if (update.id === taskId) continue;
-
-        const el = container!.querySelector(`[data-task-id="${update.id}"]`) as HTMLElement;
+      for (const succId of successors) {
+        const el = container!.querySelector(`[data-task-id="${succId}"]`) as HTMLElement;
         if (!el) continue;
 
-        // Save originals
-        if (!cascadeOriginalsRef.current.has(update.id)) {
-          cascadeOriginalsRef.current.set(update.id, {
+        // Save originals on first touch
+        if (!cascadeOriginalsRef.current.has(succId)) {
+          cascadeOriginalsRef.current.set(succId, {
             left: parseFloat(el.style.left) || 0,
             width: parseFloat(el.style.width) || 0,
           });
         }
 
-        const cascadeLeft = dateToPixel(update.startDate, timelineStart, ppd);
-        const cascadeWidth = durationToPixels(
-          Math.max(1, Math.round((update.endDate.getTime() - update.startDate.getTime()) / 86400000) + 1),
-          ppd
-        );
-        el.style.left = `${cascadeLeft}px`;
-        el.style.width = `${cascadeWidth}px`;
+        const orig = cascadeOriginalsRef.current.get(succId)!;
+        // Shift left by delta, keep width unchanged (gaps preserved)
+        el.style.left = `${orig.left + deltaPx}px`;
       }
     }
 
@@ -356,13 +467,12 @@ export function useBarDrag({
       }
     }
 
-    function onPointerUp(e: PointerEvent) {
+    function cleanupDrag(preservePositions = false) {
       document.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('keydown', onKeyDown);
 
       const barEl = barElRef.current;
-      const taskId = dragTaskIdRef.current;
-
       if (barEl) barEl.classList.remove('timeline-bar-dragging');
 
       // Remove drag link highlights
@@ -378,22 +488,79 @@ export function useBarDrag({
         highlightEl = null;
       }
 
-      // Revert cascaded bars
-      for (const [id, orig] of cascadeOriginalsRef.current) {
-        const el = container!.querySelector(`[data-task-id="${id}"]`) as HTMLElement;
-        if (el) {
-          el.style.left = `${orig.left}px`;
-          el.style.width = `${orig.width}px`;
+      // Revert parent expansion from team track drags
+      if (parentOriginalRef.current) {
+        if (!preservePositions) {
+          parentOriginalRef.current.el.style.left = `${parentOriginalRef.current.left}px`;
+          parentOriginalRef.current.el.style.width = `${parentOriginalRef.current.width}px`;
+        }
+        parentOriginalRef.current = null;
+      }
+
+      // Revert cascaded bars (skip on commit — React re-render handles it)
+      if (!preservePositions) {
+        for (const [id, orig] of cascadeOriginalsRef.current) {
+          const el = container!.querySelector(`[data-task-id="${id}"]`) as HTMLElement;
+          if (el) {
+            el.style.left = `${orig.left}px`;
+            el.style.width = `${orig.width}px`;
+          }
         }
       }
       cascadeOriginalsRef.current.clear();
       lastCascadeKeyRef.current = '';
 
+      // Revert summary children (skip on commit — React re-render handles it)
+      if (!preservePositions) {
+        for (const [childId, orig] of summaryChildOriginalsRef.current) {
+          const childEl = container!.querySelector(`[data-task-id="${childId}"]`) as HTMLElement;
+          if (childEl) {
+            childEl.style.left = `${orig.left}px`;
+            childEl.style.width = `${orig.width}px`;
+          }
+        }
+      }
+      summaryChildOriginalsRef.current.clear();
+
+      // Revert dependency lines to original positions
+      updateLinksPreview();
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      if (!hasMovedRef.current) return;
+
+      // Revert bar to original position
+      const barEl = barElRef.current;
+      if (barEl) {
+        barEl.style.left = `${origLeftRef.current}px`;
+        barEl.style.width = `${origWidthRef.current}px`;
+      }
+
+      cleanupDrag();
+
+      isDraggingRef.current = false;
+      dragTypeRef.current = null;
+      dragTaskIdRef.current = null;
+      barElRef.current = null;
+      hasMovedRef.current = false;
+
+      // Suppress click
+      justDraggedRef.current = true;
+      requestAnimationFrame(() => { justDraggedRef.current = false; });
+    }
+
+    function onPointerUp(e: PointerEvent) {
+      const barEl = barElRef.current;
+      const taskId = dragTaskIdRef.current;
+      const dragType = dragTypeRef.current;
+
       if (!hasMovedRef.current && taskId) {
         // Click — not a drag
+        cleanupDrag();
         onTaskClick(taskId);
       } else if (hasMovedRef.current && taskId && barEl) {
-        // Commit drag
+        // Commit drag — read final position before cleanup
         const ppd = pixelsPerDayRef.current;
         const timelineStart = timelineStartRef.current;
         const finalLeft = parseFloat(barEl.style.left) || 0;
@@ -404,11 +571,16 @@ export function useBarDrag({
         const endDate = addDays(startDate, duration - 1);
 
         const teamTrack = parseTeamTrackId(taskId);
-        onDragEnd(taskId, startDate, endDate, duration, !!teamTrack, teamTrack);
+
+        // Preserve cascade/summary positions — React re-render from
+        // the optimistic update will take over seamlessly (no flash)
+        cleanupDrag(true);
+        onDragEnd(taskId, startDate, endDate, duration, !!teamTrack, teamTrack, dragType ?? undefined);
+      } else {
+        cleanupDrag();
       }
 
       if (hasMovedRef.current) {
-        // Suppress the click event that fires after pointerup from a drag
         justDraggedRef.current = true;
         requestAnimationFrame(() => { justDraggedRef.current = false; });
       }
@@ -434,6 +606,7 @@ export function useBarDrag({
       container.removeEventListener('click', onClickCapture, true);
       document.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('keydown', onKeyDown);
     };
-  }, [containerRef, pixelsPerDayRef, timelineStartRef, timePeriodRef, featureMapRef, predecessorMapRef, reflowMilestonesRef, reflowDepsRef, tasksRef, onDragEnd, onTaskClick, sentinelId]);
+  }, [containerRef, pixelsPerDayRef, timelineStartRef, timePeriodRef, featureMapRef, predecessorMapRef, successorMapRef, tasksRef, onDragEnd, onTaskClick, sentinelId]);
 }
