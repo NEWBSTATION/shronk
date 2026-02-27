@@ -630,22 +630,22 @@ pre {
   opacity: 0.65;
 }
 
-/* Resize handles (left/right edges) — extends over the visible drag indicator */
+/* Resize handles (left/right edges) — covers bar edge + drag indicator zone */
 .timeline-bar-handle {
   position: absolute;
   top: -4px;
   bottom: -4px;
-  width: 12px;
+  width: 28px;
   cursor: ew-resize;
   z-index: 5;
 }
 
 .timeline-bar-handle-left {
-  left: -4px;
+  left: -20px;
 }
 
 .timeline-bar-handle-right {
-  right: -4px;
+  right: -20px;
 }
 
 /* Side containers for connection handle + drag indicator */
@@ -679,23 +679,24 @@ pre {
 .timeline-bar-hover-left .timeline-bar-side-left,
 .timeline-bar-hover-right .timeline-bar-side-right {
   opacity: 1;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
-/* Drag indicator — vertical bar between node and connection circle */
+/* Drag indicator — visual only, no pointer events */
 .timeline-drag-indicator {
   width: 3px;
   height: 16px;
   border-radius: 1.5px;
   background-color: color-mix(in srgb, var(--foreground) 20%, var(--background));
   transition: background-color 0.15s ease;
+  pointer-events: none;
 }
 
 .timeline-bar:hover .timeline-drag-indicator {
   background-color: color-mix(in srgb, var(--foreground) 30%, var(--background));
 }
 
-/* Connection handles (radio-button style) */
+/* Connection handles (radio-button style) — need pointer-events for dep dragging */
 .timeline-connect-handle {
   width: 14px;
   height: 14px;
@@ -705,6 +706,7 @@ pre {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 10%, var(--background));
   cursor: crosshair;
   flex-shrink: 0;
+  pointer-events: auto;
   transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
 }
 
