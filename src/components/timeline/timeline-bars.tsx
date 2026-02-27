@@ -315,25 +315,33 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
               />
             )}
 
-            {/* Left resize handle — hidden for summary bars */}
-            {!isSummary && <div className="timeline-bar-handle timeline-bar-handle-left" />}
+            {/* Left resize handle */}
+            <div className="timeline-bar-handle timeline-bar-handle-left" />
 
-            {/* Right resize handle — hidden for summary bars */}
-            {!isSummary && <div className="timeline-bar-handle timeline-bar-handle-right" />}
+            {/* Right resize handle */}
+            <div className="timeline-bar-handle timeline-bar-handle-right" />
 
-            {/* Left drag handle + connection — only on parent/milestone bars */}
-            {!isTeam && (
+            {/* Left drag handle + connection — parent/milestone bars get connection handles */}
+            {!isTeam ? (
               <div className="timeline-bar-side timeline-bar-side-left">
                 <div className="timeline-connect-handle timeline-connect-handle-left" />
+                <div className="timeline-drag-indicator timeline-drag-indicator-left" />
+              </div>
+            ) : (
+              <div className="timeline-bar-side timeline-bar-side-left">
                 <div className="timeline-drag-indicator timeline-drag-indicator-left" />
               </div>
             )}
 
             {/* Right drag handle + connection */}
-            {!isTeam && (
+            {!isTeam ? (
               <div className="timeline-bar-side timeline-bar-side-right">
                 <div className="timeline-drag-indicator timeline-drag-indicator-right" />
                 <div className="timeline-connect-handle timeline-connect-handle-right" />
+              </div>
+            ) : (
+              <div className="timeline-bar-side timeline-bar-side-right">
+                <div className="timeline-drag-indicator timeline-drag-indicator-right" />
               </div>
             )}
 

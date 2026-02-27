@@ -635,17 +635,17 @@ pre {
   position: absolute;
   top: -4px;
   bottom: -4px;
-  width: 20px;
+  width: 12px;
   cursor: ew-resize;
   z-index: 5;
 }
 
 .timeline-bar-handle-left {
-  right: calc(100% - 4px);
+  left: -4px;
 }
 
 .timeline-bar-handle-right {
-  left: calc(100% - 4px);
+  right: -4px;
 }
 
 /* Side containers for connection handle + drag indicator */

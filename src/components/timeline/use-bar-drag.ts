@@ -114,8 +114,7 @@ export function useBarDrag({
       const taskData = currentTasks.find(t => t.id === taskId);
       const isSummary = taskData?.type === 'summary';
 
-      // Summary bars can only move (no resize handles)
-      if (isSummary && dragType !== 'move') return;
+      // Summary bars support move and resize
 
       e.preventDefault();
 
@@ -206,7 +205,10 @@ export function useBarDrag({
           const weekStart = startOfWeek(date, { weekStartsOn: 0 });
           return dateToPixel(weekStart, timelineStart, ppd);
         }
-        return Math.round(px / ppd) * ppd;
+        // Snap to nearest whole-day boundary. Use integer day count * ppd
+        // to avoid floating-point drift from round(x/ppd)*ppd.
+        const days = Math.round(px / ppd);
+        return days * ppd;
       };
 
       let newLeft = origLeftRef.current;
@@ -294,13 +296,16 @@ export function useBarDrag({
         }
       }
 
-      // Summary bar: shift all children rigidly
-      if (summaryChildOriginalsRef.current.size > 0 && dragTypeRef.current === 'move') {
-        const moveDelta = newLeft - origLeftRef.current;
-        for (const [childId, orig] of summaryChildOriginalsRef.current) {
-          const childEl = container!.querySelector(`[data-task-id="${childId}"]`) as HTMLElement | null;
-          if (childEl) {
-            childEl.style.left = `${orig.left + moveDelta}px`;
+      // Summary bar: shift all children rigidly on move/resize-start
+      if (summaryChildOriginalsRef.current.size > 0) {
+        const dt = dragTypeRef.current;
+        if (dt === 'move' || dt === 'resize-start') {
+          const moveDelta = newLeft - origLeftRef.current;
+          for (const [childId, orig] of summaryChildOriginalsRef.current) {
+            const childEl = container!.querySelector(`[data-task-id="${childId}"]`) as HTMLElement | null;
+            if (childEl) {
+              childEl.style.left = `${orig.left + moveDelta}px`;
+            }
           }
         }
       }
@@ -560,14 +565,21 @@ export function useBarDrag({
         cleanupDrag();
         onTaskClick(taskId);
       } else if (hasMovedRef.current && taskId && barEl) {
-        // Commit drag — read final position before cleanup
+        // Commit drag — derive integer day offsets from snapped pixel positions.
+        // snapPx produces positions intended to be exact ppd multiples, but
+        // floating-point arithmetic can drift (e.g. 9*33.33=299.97 instead
+        // of 300). Converting back via Math.round(299.97/33.33) can flip to
+        // the wrong day. Fix: round with a small epsilon bias so values very
+        // close to an integer (like 8.99997) always resolve correctly.
         const ppd = pixelsPerDayRef.current;
         const timelineStart = timelineStartRef.current;
         const finalLeft = parseFloat(barEl.style.left) || 0;
         const finalWidth = parseFloat(barEl.style.width) || 0;
 
-        const startDate = pixelToDate(finalLeft, timelineStart, ppd);
-        const duration = Math.max(1, Math.round(finalWidth / ppd));
+        const EPS = 1e-6;
+        const startDays = Math.floor(finalLeft / ppd + 0.5 + EPS);
+        const startDate = addDays(timelineStart, startDays);
+        const duration = Math.max(1, Math.floor(finalWidth / ppd + 0.5 + EPS));
         const endDate = addDays(startDate, duration - 1);
 
         const teamTrack = parseTeamTrackId(taskId);
