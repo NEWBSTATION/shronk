@@ -114,7 +114,7 @@ interface TimelineViewProps {
   onBack: () => void;
   onEdit: (feature: Milestone) => void;
   onDelete: (id: string) => void;
-  onUpdateDates: (id: string, startDate: Date, endDate: Date, duration?: number, dragType?: 'move' | 'resize-start' | 'resize-end') => Promise<CascadedUpdate[]>;
+  onUpdateDates: (id: string, startDate: Date, endDate: Date, duration?: number, dragType?: 'move' | 'resize-start' | 'resize-end', originalStartDate?: Date, originalEndDate?: Date) => Promise<CascadedUpdate[]>;
   onUpdateTeamDuration?: (milestoneId: string, teamId: string, duration: number, startDate?: Date) => Promise<void>;
   onStatusChange: (id: string, status: MilestoneStatus) => Promise<void>;
   onPriorityChange?: (id: string, priority: MilestonePriority) => Promise<void>;
@@ -582,12 +582,14 @@ export function TimelineView({
     duration: number,
     isTeamTrack: boolean,
     teamTrack: { milestoneId: string; teamId: string } | null,
-    dragType?: 'move' | 'resize-start' | 'resize-end'
+    dragType?: 'move' | 'resize-start' | 'resize-end',
+    originalStartDate?: Date,
+    originalEndDate?: Date
   ) => {
     if (isTeamTrack && teamTrack && onUpdateTeamDurationRef.current) {
       onUpdateTeamDurationRef.current(teamTrack.milestoneId, teamTrack.teamId, duration, startDate);
     } else {
-      onUpdateDatesRef.current(taskId, startDate, endDate, duration, dragType);
+      onUpdateDatesRef.current(taskId, startDate, endDate, duration, dragType, originalStartDate, originalEndDate);
     }
   }, []);
 

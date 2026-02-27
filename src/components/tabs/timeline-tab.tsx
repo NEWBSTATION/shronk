@@ -561,7 +561,9 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
       startDate: Date,
       endDate: Date,
       duration?: number,
-      dragType?: 'move' | 'resize-start' | 'resize-end'
+      dragType?: 'move' | 'resize-start' | 'resize-end',
+      originalStartDate?: Date,
+      originalEndDate?: Date
     ): Promise<CascadedUpdate[]> => {
       const feature = features.find((f) => f.id === id);
       const oldStartDate = feature ? new Date(feature.startDate) : null;
@@ -576,6 +578,8 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
           endDate,
           duration: computedDuration,
           dragType,
+          originalStartDate,
+          originalEndDate,
         });
 
         showUndoToast({
@@ -591,6 +595,9 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
                 // Use same dragType so server does reverse delta-shift
                 // (not authoritative reflow which can close gaps / cascade unexpectedly)
                 ...(dragType ? { dragType } : {}),
+                // The undo reverses from the dragged-to position back to the original,
+                // so the "original" for the undo is the new position we just set
+                ...(dragType ? { originalStartDate: startDate, originalEndDate: endDate } : {}),
               });
             }
           },

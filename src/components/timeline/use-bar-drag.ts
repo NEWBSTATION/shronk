@@ -27,7 +27,9 @@ interface UseBarDragOptions {
     duration: number,
     isTeamTrack: boolean,
     teamTrack: { milestoneId: string; teamId: string } | null,
-    dragType?: DragType
+    dragType?: DragType,
+    originalStartDate?: Date,
+    originalEndDate?: Date
   ) => void;
   onTaskClick: (taskId: string) => void;
   sentinelId: string;
@@ -582,12 +584,19 @@ export function useBarDrag({
         const duration = Math.max(1, Math.floor(finalWidth / ppd + 0.5 + EPS));
         const endDate = addDays(startDate, duration - 1);
 
+        // Compute original dates from pre-drag pixel positions to prevent
+        // race conditions when overlapping PATCH requests read stale DB state.
+        const origStartDays = Math.floor(origLeftRef.current / ppd + 0.5 + EPS);
+        const originalStartDate = addDays(timelineStart, origStartDays);
+        const origDuration = Math.max(1, Math.floor(origWidthRef.current / ppd + 0.5 + EPS));
+        const originalEndDate = addDays(originalStartDate, origDuration - 1);
+
         const teamTrack = parseTeamTrackId(taskId);
 
         // Preserve cascade/summary positions — React re-render from
         // the optimistic update will take over seamlessly (no flash)
         cleanupDrag(true);
-        onDragEnd(taskId, startDate, endDate, duration, !!teamTrack, teamTrack, dragType ?? undefined);
+        onDragEnd(taskId, startDate, endDate, duration, !!teamTrack, teamTrack, dragType ?? undefined, originalStartDate, originalEndDate);
       } else {
         cleanupDrag();
       }

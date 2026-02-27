@@ -21,6 +21,9 @@ const updateMilestoneSchema = z.object({
   progress: z.number().min(0).max(100).optional(),
   sortOrder: z.number().optional(),
   dragType: z.enum(["move", "resize-start", "resize-end"]).optional(),
+  // Client-provided pre-drag dates to prevent race conditions with overlapping requests
+  originalStartDate: z.string().datetime().optional(),
+  originalEndDate: z.string().datetime().optional(),
 });
 
 export async function PATCH(
@@ -90,8 +93,13 @@ export async function PATCH(
           .set({ startDate: start, endDate: end, duration, updatedAt: now })
           .where(eq(milestones.id, id));
 
+        // Use client-provided original dates when available (prevents race conditions)
+        const baseStart = data.originalStartDate
+          ? toLocalMidnight(new Date(data.originalStartDate))
+          : toLocalMidnight(existingMilestone.startDate);
+
         // Shift this node's team tracks by the start-date delta
-        const startDelta = differenceInDays(start, toLocalMidnight(existingMilestone.startDate));
+        const startDelta = differenceInDays(start, baseStart);
         const teamCascadedUpdates: Array<{ teamId: string; id: string; startDate: string; endDate: string; duration: number; offset: number }> = [];
 
         if (startDelta !== 0) {
@@ -142,8 +150,14 @@ export async function PATCH(
       const newEnd = data.endDate ? new Date(data.endDate!) : existingMilestone.endDate;
       const duration = data.duration ?? Math.max(0, differenceInDays(newEnd, newStart) + 1);
 
-      const oldStart = toLocalMidnight(existingMilestone.startDate);
-      const oldEnd = toLocalMidnight(existingMilestone.endDate);
+      // Use client-provided original dates when available (prevents race conditions
+      // when overlapping PATCH requests read stale DB state)
+      const oldStart = data.originalStartDate
+        ? toLocalMidnight(new Date(data.originalStartDate))
+        : toLocalMidnight(existingMilestone.startDate);
+      const oldEnd = data.originalEndDate
+        ? toLocalMidnight(new Date(data.originalEndDate))
+        : toLocalMidnight(existingMilestone.endDate);
 
       const delta =
         data.dragType === "move"

@@ -124,8 +124,16 @@ export function useUpdateMilestone() {
     mutationFn: async ({
       id,
       dragType,
+      originalStartDate,
+      originalEndDate,
       ...data
-    }: Partial<Milestone> & { id: string; duration?: number; dragType?: 'move' | 'resize-start' | 'resize-end' }) => {
+    }: Partial<Milestone> & {
+      id: string;
+      duration?: number;
+      dragType?: 'move' | 'resize-start' | 'resize-end';
+      originalStartDate?: Date;
+      originalEndDate?: Date;
+    }) => {
       const body: Record<string, unknown> = { ...data };
       if (dragType) body.dragType = dragType;
       if (data.startDate) {
@@ -140,6 +148,14 @@ export function useUpdateMilestone() {
             ? data.endDate.toISOString()
             : data.endDate;
       }
+      // Send pre-drag original dates so server computes delta from correct base
+      // (prevents race conditions with overlapping requests)
+      if (originalStartDate) {
+        body.originalStartDate = originalStartDate.toISOString();
+      }
+      if (originalEndDate) {
+        body.originalEndDate = originalEndDate.toISOString();
+      }
 
       const response = await fetch(`/api/milestones/${id}`, {
         method: "PATCH",
@@ -152,7 +168,7 @@ export function useUpdateMilestone() {
       }
       return response.json() as Promise<MilestoneUpdateResponse>;
     },
-    onMutate: async ({ id, dragType, ...data }) => {
+    onMutate: async ({ id, dragType, originalStartDate, originalEndDate, ...data }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["milestones"] });
 
@@ -173,10 +189,12 @@ export function useUpdateMilestone() {
           // For move/resize-end drags, optimistically shift transitive successors
           // so there's no visual flash between cleanup and server response
           if ((dragType === "move" || dragType === "resize-end") && data.startDate && data.endDate) {
+            // Use client-provided original dates when available (prevents race
+            // conditions with overlapping mutations reading stale cache)
             const existing = old.milestones.find((m) => m.id === id);
             if (existing) {
-              const oldStart = new Date(existing.startDate);
-              const oldEnd = new Date(existing.endDate);
+              const oldStart = originalStartDate ?? new Date(existing.startDate);
+              const oldEnd = originalEndDate ?? new Date(existing.endDate);
               const newStart = new Date(data.startDate as string | Date);
               const newEnd = new Date(data.endDate as string | Date);
 
