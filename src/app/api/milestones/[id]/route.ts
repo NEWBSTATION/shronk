@@ -224,9 +224,10 @@ export async function PATCH(
         }
       }
 
-      // Shift team track dates for successors only — the dragged node's
-      // team tracks have their own absolute dates and stay put.
-      const teamShiftIds = [...successorIds];
+      // Shift team track dates for successors + dragged node on move
+      const teamShiftIds = data.dragType === "move"
+        ? [id, ...successorIds]
+        : [...successorIds];
       const teamDurs = teamShiftIds.length > 0
         ? await db
             .select()

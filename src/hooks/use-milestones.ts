@@ -230,9 +230,9 @@ export function useUpdateMilestone() {
                     };
                   });
 
-                  // Shift team durations for successors only — dragged node's
-                  // team tracks have their own absolute dates and stay put.
+                  // Shift team durations for successors + dragged node on move
                   const teamShiftIds = new Set(successorIds);
+                  if (dragType === "move") teamShiftIds.add(id);
 
                   if (newTeamDurations.length > 0) {
                     newTeamDurations = newTeamDurations.map((td) => {
