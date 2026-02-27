@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { addDays, differenceInDays } from "date-fns";
 import { getTransitiveSuccessors } from "@/lib/graph-utils";
@@ -119,6 +120,7 @@ export function useCreateMilestone() {
 
 export function useUpdateMilestone() {
   const queryClient = useQueryClient();
+  const pendingDragCount = useRef(0);
 
   return useMutation({
     mutationFn: async ({
@@ -169,6 +171,10 @@ export function useUpdateMilestone() {
       return response.json() as Promise<MilestoneUpdateResponse>;
     },
     onMutate: async ({ id, dragType, originalStartDate, originalEndDate, ...data }) => {
+      if (dragType === "move" || dragType === "resize-end") {
+        pendingDragCount.current++;
+      }
+
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["milestones"] });
 
@@ -189,12 +195,13 @@ export function useUpdateMilestone() {
           // For move/resize-end drags, optimistically shift transitive successors
           // so there's no visual flash between cleanup and server response
           if ((dragType === "move" || dragType === "resize-end") && data.startDate && data.endDate) {
-            // Use client-provided original dates when available (prevents race
-            // conditions with overlapping mutations reading stale cache)
             const existing = old.milestones.find((m) => m.id === id);
             if (existing) {
-              const oldStart = originalStartDate ?? new Date(existing.startDate);
-              const oldEnd = originalEndDate ?? new Date(existing.endDate);
+              // Always use cache position for optimistic delta — not originalStartDate
+              // (which is for the server). Cache position reflects prior optimistic
+              // shifts, so the delta is incremental and accumulates correctly.
+              const oldStart = new Date(existing.startDate);
+              const oldEnd = new Date(existing.endDate);
               const newStart = new Date(data.startDate as string | Date);
               const newEnd = new Date(data.endDate as string | Date);
 
@@ -312,8 +319,16 @@ export function useUpdateMilestone() {
         });
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["milestones"] });
+    onSettled: (_data, _error, variables) => {
+      if (variables.dragType === "move" || variables.dragType === "resize-end") {
+        pendingDragCount.current--;
+      }
+      // Only refetch when no drag mutations have in-flight optimistic state —
+      // earlier refetches would clobber newer optimistic positions
+      if (pendingDragCount.current <= 0) {
+        pendingDragCount.current = 0;
+        queryClient.invalidateQueries({ queryKey: ["milestones"] });
+      }
     },
   });
 }
