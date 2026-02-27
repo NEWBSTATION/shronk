@@ -14,8 +14,13 @@ import { addDays, differenceInDays } from "date-fns";
 import { getTransitiveSuccessors } from "@/lib/graph-utils";
 
 function toLocalMidnight(date: Date | string): Date {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  if (typeof date === "string") {
+    // ISO string from client — date component is in UTC
+    const d = new Date(date);
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+  // Date object from DB (timestamp without tz) — pg returns local time
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 const upsertSchema = z.object({
@@ -124,18 +129,33 @@ export async function PUT(request: NextRequest) {
       ),
     });
 
-    const startDate = data.startDate
-      ? toLocalMidnight(data.startDate)
-      : existing
-        ? toLocalMidnight(existing.startDate)
-        : toLocalMidnight(milestone.startDate);
-    const endDate = data.duration === 0 ? startDate : addDays(startDate, data.duration - 1);
+    let startDate: Date;
+    let endDate: Date;
+    let actualDuration: number;
+
+    if (!existing && !data.startDate) {
+      // New team track with no custom start: copy parent's raw dates directly
+      // (bypasses toLocalMidnight to avoid timestamp-without-tz shift)
+      startDate = milestone.startDate;
+      endDate = milestone.endDate;
+      actualDuration = milestone.duration;
+    } else {
+      startDate = data.startDate
+        ? toLocalMidnight(data.startDate)
+        : existing
+          ? toLocalMidnight(existing.startDate)
+          : toLocalMidnight(milestone.startDate);
+      endDate = data.duration === 0
+        ? startDate
+        : addDays(startDate, data.duration - 1);
+      actualDuration = data.duration;
+    }
 
     let teamDuration;
     if (existing) {
       [teamDuration] = await db
         .update(teamMilestoneDurations)
-        .set({ duration: data.duration, offset: 0, startDate, endDate })
+        .set({ duration: actualDuration, offset: 0, startDate, endDate })
         .where(eq(teamMilestoneDurations.id, existing.id))
         .returning();
     } else {
@@ -144,7 +164,7 @@ export async function PUT(request: NextRequest) {
         .values({
           milestoneId: data.milestoneId,
           teamId: data.teamId,
-          duration: data.duration,
+          duration: actualDuration,
           offset: 0,
           startDate,
           endDate,

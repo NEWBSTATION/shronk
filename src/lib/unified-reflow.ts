@@ -17,8 +17,11 @@ import {
 } from "@/lib/reflow";
 
 function toLocalMidnight(date: Date | string): Date {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  if (typeof date === "string") {
+    const d = new Date(date);
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 export interface UnifiedReflowResult {

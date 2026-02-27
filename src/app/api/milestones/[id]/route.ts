@@ -78,8 +78,11 @@ export async function PATCH(
       const now = new Date();
 
       function toLocalMidnight(d: Date | string): Date {
-        const dt = typeof d === "string" ? new Date(d) : d;
-        return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+        if (typeof d === "string") {
+          const dt = new Date(d);
+          return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+        }
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
       }
 
       if (data.dragType === "resize-start") {
