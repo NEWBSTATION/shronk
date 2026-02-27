@@ -205,7 +205,8 @@ export function useUpdateMilestone() {
                     };
                   });
 
-                  // Shift team durations for successors (and dragged node on move)
+                  // Shift team durations for successors (and dragged node on move only).
+                  // resize-end: dragged node's team tracks stay put.
                   const teamShiftIds = new Set(successorIds);
                   if (dragType === "move") teamShiftIds.add(id);
 

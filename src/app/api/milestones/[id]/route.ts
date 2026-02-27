@@ -80,7 +80,7 @@ export async function PATCH(
       }
 
       if (data.dragType === "resize-start") {
-        // Save startDate + endDate + duration on dragged node. No cascade.
+        // Save startDate + endDate + duration on dragged node.
         const start = new Date(data.startDate!);
         const end = data.endDate ? new Date(data.endDate!) : existingMilestone.endDate;
         const duration = data.duration ?? Math.max(0, differenceInDays(end, start) + 1);
@@ -90,7 +90,41 @@ export async function PATCH(
           .set({ startDate: start, endDate: end, duration, updatedAt: now })
           .where(eq(milestones.id, id));
 
-        // Children are independent — no team date changes on resize-start
+        // Shift this node's team tracks by the start-date delta
+        const startDelta = differenceInDays(start, toLocalMidnight(existingMilestone.startDate));
+        const teamCascadedUpdates: Array<{ teamId: string; id: string; startDate: string; endDate: string; duration: number; offset: number }> = [];
+
+        if (startDelta !== 0) {
+          const nodeTDs = await db
+            .select()
+            .from(teamMilestoneDurations)
+            .where(eq(teamMilestoneDurations.milestoneId, id));
+
+          for (const td of nodeTDs) {
+            const newTdStart = addDays(toLocalMidnight(td.startDate), startDelta);
+            const newTdEnd = addDays(toLocalMidnight(td.endDate), startDelta);
+
+            await db
+              .update(teamMilestoneDurations)
+              .set({ startDate: newTdStart, endDate: newTdEnd, offset: 0 })
+              .where(
+                and(
+                  eq(teamMilestoneDurations.milestoneId, td.milestoneId),
+                  eq(teamMilestoneDurations.teamId, td.teamId)
+                )
+              );
+
+            teamCascadedUpdates.push({
+              teamId: td.teamId,
+              id: td.milestoneId,
+              startDate: newTdStart.toISOString(),
+              endDate: newTdEnd.toISOString(),
+              duration: td.duration,
+              offset: 0,
+            });
+          }
+        }
+
         const [updatedMilestone] = await db
           .select()
           .from(milestones)
@@ -99,7 +133,7 @@ export async function PATCH(
         return NextResponse.json({
           milestone: updatedMilestone,
           cascadedUpdates: [],
-          teamCascadedUpdates: [],
+          teamCascadedUpdates,
         });
       }
 
@@ -176,12 +210,18 @@ export async function PATCH(
         }
       }
 
-      // Shift team track dates by the same delta as their parent
-      const affectedIds = [id, ...successorIds];
-      const teamDurs = await db
-        .select()
-        .from(teamMilestoneDurations)
-        .where(inArray(teamMilestoneDurations.milestoneId, affectedIds));
+      // Shift team track dates by the same delta.
+      // For move: shift the dragged node's own team tracks + all successors' tracks.
+      // For resize-end: only shift successors' tracks (dragged node's tracks stay put).
+      const teamShiftIds = data.dragType === "move"
+        ? [id, ...successorIds]
+        : [...successorIds];
+      const teamDurs = teamShiftIds.length > 0
+        ? await db
+            .select()
+            .from(teamMilestoneDurations)
+            .where(inArray(teamMilestoneDurations.milestoneId, teamShiftIds))
+        : [];
 
       const teamDateUpdates: Array<{ milestoneId: string; teamId: string; startDate: Date; endDate: Date; duration: number; offset: number }> = [];
       if (delta !== 0) {
