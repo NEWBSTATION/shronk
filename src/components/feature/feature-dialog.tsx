@@ -191,7 +191,7 @@ export function FeatureDialog({
         await Promise.all(
           Array.from(pendingTeamTracks).map(([teamId, duration]) =>
             fetch("/api/team-durations", {
-              method: "POST",
+              method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 milestoneId: newMilestone.id,
