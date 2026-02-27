@@ -224,12 +224,9 @@ export async function PATCH(
         }
       }
 
-      // Shift team track dates by the same delta.
-      // For move: shift the dragged node's own team tracks + all successors' tracks.
-      // For resize-end: only shift successors' tracks (dragged node's tracks stay put).
-      const teamShiftIds = data.dragType === "move"
-        ? [id, ...successorIds]
-        : [...successorIds];
+      // Shift team track dates for successors only — the dragged node's
+      // team tracks have their own absolute dates and stay put.
+      const teamShiftIds = [...successorIds];
       const teamDurs = teamShiftIds.length > 0
         ? await db
             .select()
