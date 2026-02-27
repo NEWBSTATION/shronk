@@ -10,7 +10,7 @@ import { isTeamTrackId } from './transformers';
  */
 export function useDragLink(
   containerRef: RefObject<HTMLDivElement | null>,
-  onCreateDependencyRef: MutableRefObject<(predecessorId: string, successorId: string) => Promise<void>>,
+  onCreateDependencyRef: MutableRefObject<(predecessorId: string, successorId: string, skipReflow: boolean) => Promise<void>>,
   sentinelId: string,
 ) {
   useEffect(() => {
@@ -125,6 +125,20 @@ export function useDragLink(
       panRAF = requestAnimationFrame(panLoop);
     }
 
+    function updateAlignClass(shiftHeld: boolean) {
+      if (svgOverlay) {
+        svgOverlay.classList.toggle('drag-link-align', shiftHeld);
+      }
+    }
+
+    function onShiftKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Shift' && isDragging) updateAlignClass(true);
+    }
+
+    function onShiftKeyUp(e: KeyboardEvent) {
+      if (e.key === 'Shift' && isDragging) updateAlignClass(false);
+    }
+
     let hoveredTarget: HTMLElement | null = null;
 
     function setHoveredTarget(target: HTMLElement | null) {
@@ -180,9 +194,15 @@ export function useDragLink(
         container.classList.add('drag-link-active');
         sourceHandle.classList.add('drag-link-source');
         svgOverlay = createOverlay();
+        updateAlignClass(e.shiftKey);
+        // Listen for Shift toggles mid-drag
+        document.addEventListener('keydown', onShiftKeyDown);
+        document.addEventListener('keyup', onShiftKeyUp);
         // Start the auto-pan loop
         panRAF = requestAnimationFrame(panLoop);
       }
+
+      updateAlignClass(e.shiftKey);
 
       const containerRect = container.getBoundingClientRect();
       const cursorX = e.clientX - containerRect.left;
@@ -205,13 +225,16 @@ export function useDragLink(
     function onMouseUp(e: MouseEvent) {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('keydown', onShiftKeyDown);
+      document.removeEventListener('keyup', onShiftKeyUp);
 
       if (isDragging) {
         const target = getTargetHandle(e.clientX, e.clientY);
         if (target && target !== sourceHandle) {
           const targetTaskId = getTaskIdFromHandle(target);
           if (targetTaskId && targetTaskId !== sourceTaskId && targetTaskId !== sentinelId && !isTeamTrackId(targetTaskId) && sourceTaskId) {
-            onCreateDependencyRef.current(sourceTaskId, targetTaskId);
+            const skipReflow = !e.shiftKey;
+            onCreateDependencyRef.current(sourceTaskId, targetTaskId, skipReflow);
           }
         }
 
@@ -232,6 +255,9 @@ export function useDragLink(
       isDragging = false;
       hasMoved = false;
       sourceTaskId = null;
+
+      document.removeEventListener('keydown', onShiftKeyDown);
+      document.removeEventListener('keyup', onShiftKeyUp);
 
       if (sourceHandle) {
         sourceHandle.classList.remove('drag-link-source');

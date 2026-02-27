@@ -120,7 +120,7 @@ interface TimelineViewProps {
   onPriorityChange?: (id: string, priority: MilestonePriority) => Promise<void>;
   onAddFeature: (opts?: { chain?: boolean }) => void;
   onQuickCreate?: (name: string, startDate: Date, endDate: Date, duration: number, chainToId?: string) => Promise<void>;
-  onCreateDependency: (predecessorId: string, successorId: string) => Promise<void>;
+  onCreateDependency: (predecessorId: string, successorId: string, skipReflow: boolean) => Promise<void>;
   onDeleteDependency: (id: string) => Promise<void>;
   onReorderFeatures?: (projectId: string, orderedFeatureIds: string[]) => Promise<void>;
   onMilestoneClick?: (project: Project) => void;

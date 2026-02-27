@@ -677,7 +677,7 @@ export function useCreateDependency() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { predecessorId: string; successorId: string }) => {
+    mutationFn: async (data: { predecessorId: string; successorId: string; skipReflow?: boolean }) => {
       const response = await fetch("/api/dependencies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

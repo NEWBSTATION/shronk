@@ -10,6 +10,7 @@ const createDependencySchema = z.object({
   predecessorId: z.string().uuid(),
   successorId: z.string().uuid(),
   lag: z.number().int().min(0).optional(),
+  skipReflow: z.boolean().optional(),
 });
 
 const deleteDependencySchema = z.object({
@@ -214,6 +215,18 @@ export async function POST(request: NextRequest) {
         lag: data.lag ?? 0,
       })
       .returning();
+
+    // Skip reflow when creating a "link only" dependency (no Shift held)
+    if (data.skipReflow) {
+      return NextResponse.json(
+        {
+          dependency,
+          cascadedUpdates: [],
+          teamCascadedUpdates: [],
+        },
+        { status: 201 }
+      );
+    }
 
     // Run unified reflow
     const { milestoneUpdates, teamDateUpdates } = await unifiedReflow(

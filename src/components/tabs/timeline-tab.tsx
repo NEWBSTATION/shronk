@@ -676,11 +676,12 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
   );
 
   const handleCreateDependency = useCallback(
-    async (predecessorId: string, successorId: string) => {
+    async (predecessorId: string, successorId: string, skipReflow = false) => {
       try {
         const result = await createDependencyMutation.mutateAsync({
           predecessorId,
           successorId,
+          skipReflow,
         });
 
         const predFeature = features.find((f) => f.id === predecessorId);

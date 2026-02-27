@@ -975,6 +975,14 @@ pre {
   stroke-width: 2;
   stroke-dasharray: 4 3;
   fill: none;
+  transition: stroke-width 0.15s ease, stroke 0.15s ease, stroke-dasharray 0.15s ease;
+}
+
+/* Shift-held: solid, thicker, brighter — indicates alignment/reflow will happen */
+.drag-link-overlay.drag-link-align path {
+  stroke: var(--chart-3);
+  stroke-width: 3;
+  stroke-dasharray: none;
 }
 
 /* During drag-link: show all side containers */
