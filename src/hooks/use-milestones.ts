@@ -121,6 +121,7 @@ export function useCreateMilestone() {
 export function useUpdateMilestone() {
   const queryClient = useQueryClient();
   const pendingDragCount = useRef(0);
+  const dragMutex = useRef<Promise<unknown>>(Promise.resolve());
 
   return useMutation({
     mutationFn: async ({
@@ -159,16 +160,27 @@ export function useUpdateMilestone() {
         body.originalEndDate = originalEndDate.toISOString();
       }
 
-      const response = await fetch(`/api/milestones/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to update milestone");
+      const execute = async () => {
+        const response = await fetch(`/api/milestones/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to update milestone");
+        }
+        return response.json() as Promise<MilestoneUpdateResponse>;
+      };
+
+      // Serialize drag mutations to prevent concurrent requests reading stale DB state
+      if (dragType) {
+        const chained = dragMutex.current.then(execute, execute);
+        dragMutex.current = chained.catch(() => {});
+        return chained;
       }
-      return response.json() as Promise<MilestoneUpdateResponse>;
+
+      return execute();
     },
     onMutate: async ({ id, dragType, originalStartDate, originalEndDate, ...data }) => {
       if (dragType === "move" || dragType === "resize-end") {

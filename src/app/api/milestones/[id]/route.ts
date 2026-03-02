@@ -79,13 +79,13 @@ export async function PATCH(
 
       function toLocalMidnight(d: Date | string): Date {
         const dt = typeof d === "string" ? new Date(d) : d;
-        return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+        return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()));
       }
 
       if (data.dragType === "resize-start") {
         // Save startDate + endDate + duration on dragged node.
-        const start = new Date(data.startDate!);
-        const end = data.endDate ? new Date(data.endDate!) : existingMilestone.endDate;
+        const start = toLocalMidnight(data.startDate!);
+        const end = data.endDate ? toLocalMidnight(data.endDate!) : existingMilestone.endDate;
         const duration = data.duration ?? Math.max(0, differenceInDays(end, start) + 1);
 
         await db
@@ -146,8 +146,8 @@ export async function PATCH(
       }
 
       // move or resize-end: save dates + BFS shift successors
-      let newStart = new Date(data.startDate!);
-      let newEnd = data.endDate ? new Date(data.endDate!) : existingMilestone.endDate;
+      let newStart = toLocalMidnight(data.startDate!);
+      let newEnd = data.endDate ? toLocalMidnight(data.endDate!) : existingMilestone.endDate;
       let duration = data.duration ?? Math.max(0, differenceInDays(newEnd, newStart) + 1);
 
       // Enforce parent contains all team tracks on resize-end
