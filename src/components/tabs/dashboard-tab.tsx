@@ -295,6 +295,9 @@ function useComputedDashboard(
       overdueFeatures: overdueFeatures
         .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
         .map((f) => ({ id: f.id, title: f.title, priority: f.priority, daysOverdue: Math.abs(f.daysUntilDue) })),
+      dueSoonFeatures: dueSoonFeatures
+        .sort((a, b) => a.daysUntilDue - b.daysUntilDue)
+        .map((f) => ({ id: f.id, title: f.title, priority: f.priority, daysUntilDue: f.daysUntilDue })),
     };
 
     // Upcoming features — active features due from today onward, sorted nearest first
@@ -612,6 +615,7 @@ function RiskSummaryCard({
     overdueByPriority: Array<{ priority: string; count: number }>;
     worstOverdueDays: number;
     overdueFeatures: Array<{ id: string; title: string; priority: string; daysOverdue: number }>;
+    dueSoonFeatures: Array<{ id: string; title: string; priority: string; daysUntilDue: number }>;
   };
   onFeatureClick?: (featureId: string) => void;
 }) {
@@ -698,6 +702,36 @@ function RiskSummaryCard({
                       <span className="flex-1 truncate text-xs">{f.title}</span>
                       <span className="text-[11px] text-red-500/80 tabular-nums font-medium shrink-0">
                         {f.daysOverdue}d
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Due soon features list */}
+          {riskSummary.dueSoonFeatures.length > 0 && (
+            <div className="pt-1 border-t border-border/40">
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider mb-1.5">
+                Due soon
+              </p>
+              <div className="space-y-0.5">
+                {riskSummary.dueSoonFeatures.map((f) => {
+                  const colors = priorityColors[f.priority] ?? priorityColors.none;
+                  return (
+                    <div
+                      key={f.id}
+                      className={cn(
+                        "flex items-center gap-2 text-sm rounded-md px-2 py-1.5 -mx-2",
+                        onFeatureClick && "cursor-pointer hover:bg-accent/40 transition-colors"
+                      )}
+                      onClick={() => onFeatureClick?.(f.id)}
+                    >
+                      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", colors.dot)} />
+                      <span className="flex-1 truncate text-xs">{f.title}</span>
+                      <span className="text-[11px] text-amber-500/80 tabular-nums font-medium shrink-0">
+                        {f.daysUntilDue === 0 ? "today" : `${f.daysUntilDue}d`}
                       </span>
                     </div>
                   );
