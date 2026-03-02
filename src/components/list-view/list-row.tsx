@@ -2,6 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { toLocalMidnight } from "@/components/timeline/transformers";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -146,8 +147,8 @@ export function ListRow({
         {/* Date Range */}
         <TableCell>
           <span className="text-sm">
-            {format(new Date(milestone.startDate), "MMM d")} -{" "}
-            {format(new Date(milestone.endDate), "MMM d, yyyy")}
+            {format(toLocalMidnight(milestone.startDate), "MMM d")} -{" "}
+            {format(toLocalMidnight(milestone.endDate), "MMM d, yyyy")}
           </span>
         </TableCell>
 

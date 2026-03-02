@@ -71,6 +71,7 @@ import {
   computeDurationDays,
   computeEndDateFromDuration,
   bestFitDurationUnit,
+  toLocalMidnight,
   DURATION_UNIT_MULTIPLIERS,
   type DurationUnit,
 } from "@/components/timeline/transformers";
@@ -241,8 +242,8 @@ export function FeatureDetailPanel({
     setTitle((prev) => prev !== liveFeature.title ? liveFeature.title : prev);
     setStatus((prev) => prev !== liveFeature.status ? liveFeature.status : prev);
     setPriority((prev) => prev !== liveFeature.priority ? liveFeature.priority : prev);
-    const s = new Date(liveFeature.startDate);
-    const e = new Date(liveFeature.endDate);
+    const s = toLocalMidnight(liveFeature.startDate);
+    const e = toLocalMidnight(liveFeature.endDate);
     setStartDate(s);
     setEndDate(e);
     const days = computeDurationDays(s, e);
@@ -267,8 +268,8 @@ export function FeatureDetailPanel({
       prevStatusRef.current = feature.status === "completed"
         ? "in_progress"
         : feature.status;
-      const s = new Date(feature.startDate);
-      const e = new Date(feature.endDate);
+      const s = toLocalMidnight(feature.startDate);
+      const e = toLocalMidnight(feature.endDate);
       setStartDate(s);
       setEndDate(e);
       const days = computeDurationDays(s, e);
@@ -1024,7 +1025,7 @@ function TeamTrackRow({
   const durationLabel = formatDuration(td.duration);
   const dateRange =
     td.startDate && td.endDate
-      ? `${format(new Date(td.startDate), "MMM d")} – ${format(new Date(td.endDate), "MMM d")}`
+      ? `${format(toLocalMidnight(td.startDate), "MMM d")} – ${format(toLocalMidnight(td.endDate), "MMM d")}`
       : null;
 
   return (

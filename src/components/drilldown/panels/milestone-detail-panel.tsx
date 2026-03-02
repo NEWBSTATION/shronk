@@ -2,6 +2,7 @@
 
 import { useMemo, useCallback } from "react";
 import { format } from "date-fns";
+import { toLocalMidnight } from "@/components/timeline/transformers";
 import { Plus, Calendar, Box, ArrowLeft, Ellipsis } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -263,8 +264,8 @@ export function MilestoneDetailPanel({
             <Calendar className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
             <span className="w-32 shrink-0 text-muted-foreground text-sm">Date range</span>
             <span className="flex-1 text-sm">
-              {format(new Date(milestone.startDate), "MMM d, yyyy")} –{" "}
-              {format(new Date(milestone.endDate), "MMM d, yyyy")}
+              {format(toLocalMidnight(milestone.startDate), "MMM d, yyyy")} –{" "}
+              {format(toLocalMidnight(milestone.endDate), "MMM d, yyyy")}
             </span>
           </div>
         )}

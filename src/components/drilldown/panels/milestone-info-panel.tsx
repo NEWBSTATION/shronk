@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
+import { toLocalMidnight } from "@/components/timeline/transformers";
 import { ArrowLeft, Ellipsis, Trash2, CalendarIcon, Clock, ChevronUp, ChevronDown, AlignLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -206,7 +207,7 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
             <div className="flex items-center h-8 px-2">
               <span className="text-sm text-muted-foreground">
                 {milestone.startDate
-                  ? format(new Date(milestone.startDate), "MMM d, yyyy")
+                  ? format(toLocalMidnight(milestone.startDate), "MMM d, yyyy")
                   : "—"}
               </span>
             </div>
@@ -217,7 +218,7 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
             <div className="flex items-center h-8 px-2">
               <span className="text-sm text-muted-foreground">
                 {milestone.endDate
-                  ? format(new Date(milestone.endDate), "MMM d, yyyy")
+                  ? format(toLocalMidnight(milestone.endDate), "MMM d, yyyy")
                   : "—"}
               </span>
             </div>

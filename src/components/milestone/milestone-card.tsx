@@ -1,6 +1,7 @@
 "use client";
 
 import { format, differenceInDays } from "date-fns";
+import { toLocalMidnight } from "@/components/timeline/transformers";
 import { cn } from "@/lib/utils";
 import { MilestoneIcon } from "@/lib/milestone-icon";
 import type { Project } from "@/db/schema";
@@ -24,9 +25,9 @@ export function MilestoneCard({
       : 0;
 
   const startDate = milestone.startDate
-    ? new Date(milestone.startDate)
+    ? toLocalMidnight(milestone.startDate)
     : null;
-  const endDate = milestone.endDate ? new Date(milestone.endDate) : null;
+  const endDate = milestone.endDate ? toLocalMidnight(milestone.endDate) : null;
 
   const daysRemaining =
     endDate && endDate > new Date()
