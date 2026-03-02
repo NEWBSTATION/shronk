@@ -125,6 +125,7 @@ export const teams = pgTable("teams", {
   name: varchar("name", { length: 255 }).notNull(),
   color: varchar("color", { length: 7 }).default("#6366f1").notNull(),
   autoAdd: boolean("auto_add").default(false).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

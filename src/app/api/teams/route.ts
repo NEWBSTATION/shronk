@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { teams } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc, max } from "drizzle-orm";
 import { z } from "zod";
 import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 
@@ -29,7 +29,8 @@ export async function GET() {
     const result = await db
       .select()
       .from(teams)
-      .where(eq(teams.workspaceId, ctx.workspaceId));
+      .where(eq(teams.workspaceId, ctx.workspaceId))
+      .orderBy(asc(teams.sortOrder), asc(teams.createdAt));
 
     return NextResponse.json({ teams: result });
   } catch (error) {
@@ -51,11 +52,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = createTeamSchema.parse(body);
 
+    // Auto-assign next sortOrder
+    const [{ maxOrder }] = await db
+      .select({ maxOrder: max(teams.sortOrder) })
+      .from(teams)
+      .where(eq(teams.workspaceId, ctx.workspaceId));
+
     const [team] = await db
       .insert(teams)
       .values({
         workspaceId: ctx.workspaceId,
         ...data,
+        sortOrder: (maxOrder ?? -1) + 1,
       })
       .returning();
 

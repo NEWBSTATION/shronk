@@ -1,8 +1,24 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { toast } from "sonner";
-import { Plus, X, Loader2, Pencil, Check, ChevronRight, Trash2, Users, Zap, Search } from "lucide-react";
+import { Plus, X, Loader2, Pencil, Check, ChevronRight, Trash2, Users, Zap, Search, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
+import { CSS } from "@dnd-kit/utilities";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -25,6 +41,7 @@ import {
   useCreateTeam,
   useUpdateTeam,
   useDeleteTeam,
+  useReorderTeams,
 } from "@/hooks/use-milestones";
 import { Switch } from "@/components/ui/switch";
 import { MILESTONE_COLORS, getColorStyles } from "@/lib/milestone-theme";
@@ -88,6 +105,7 @@ function TeamRow({
   onDelete,
   onToggleAutoAdd,
   isSaving,
+  canReorder,
 }: {
   team: { id: string; name: string; color: string; autoAdd: boolean };
   isEditing: boolean;
@@ -101,10 +119,28 @@ function TeamRow({
   onDelete: () => void;
   onToggleAutoAdd: () => void;
   isSaving: boolean;
+  canReorder: boolean;
 }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: team.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition: isDragging ? undefined : "none",
+    opacity: isDragging ? 0.5 : undefined,
+    position: "relative",
+    zIndex: isDragging ? 10 : undefined,
+  };
+
   if (isEditing) {
     return (
-      <div className="flex items-center px-4 py-3.5 bg-background border-b last:border-b-0 gap-3">
+      <div ref={setNodeRef} style={style} className="flex items-center px-4 py-3.5 bg-background border-b last:border-b-0 gap-3">
         <ColorPicker value={editColor} onChange={onEditColorChange} />
         <Input
           value={editName}
@@ -135,9 +171,23 @@ function TeamRow({
 
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       onClick={onStartEdit}
       className="flex items-center px-4 py-3.5 transition-colors cursor-pointer group bg-background hover:bg-accent/50 border-b last:border-b-0"
     >
+      {/* Drag handle */}
+      {canReorder && (
+        <button
+          className="shrink-0 h-6 w-6 flex items-center justify-center rounded text-muted-foreground/30 hover:text-muted-foreground cursor-grab active:cursor-grabbing mr-1"
+          onClick={(e) => e.stopPropagation()}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+      )}
+
       {/* Color dot */}
       <div
         className="h-8 w-8 shrink-0 rounded-full flex items-center justify-center"
@@ -206,6 +256,24 @@ export function TeamsTab() {
   const createTeam = useCreateTeam();
   const updateTeam = useUpdateTeam();
   const deleteTeam = useDeleteTeam();
+  const reorderTeams = useReorderTeams();
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const ids = teams.map((t) => t.id);
+      const oldIndex = ids.indexOf(active.id as string);
+      const newIndex = ids.indexOf(over.id as string);
+      if (oldIndex === -1 || newIndex === -1) return;
+      reorderTeams.mutate(arrayMove(ids, oldIndex, newIndex));
+    },
+    [teams, reorderTeams]
+  );
 
   // Search
   const [searchQuery, setSearchQuery] = useState("");
@@ -424,23 +492,33 @@ export function TeamsTab() {
         </div>
 
         {/* Team rows */}
-        {filteredTeams.map((team) => (
-          <TeamRow
-            key={team.id}
-            team={team}
-            isEditing={editingId === team.id}
-            editName={editName}
-            editColor={editColor}
-            onEditNameChange={setEditName}
-            onEditColorChange={setEditColor}
-            onStartEdit={() => startEdit(team)}
-            onSaveEdit={saveEdit}
-            onCancelEdit={() => setEditingId(null)}
-            onDelete={() => setDeleteTarget({ id: team.id, name: team.name })}
-            onToggleAutoAdd={() => updateTeam.mutate({ id: team.id, autoAdd: !team.autoAdd })}
-            isSaving={updateTeam.isPending}
-          />
-        ))}
+        <DndContext
+          sensors={dndSensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={filteredTeams.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+            {filteredTeams.map((team) => (
+              <TeamRow
+                key={team.id}
+                team={team}
+                isEditing={editingId === team.id}
+                editName={editName}
+                editColor={editColor}
+                onEditNameChange={setEditName}
+                onEditColorChange={setEditColor}
+                onStartEdit={() => startEdit(team)}
+                onSaveEdit={saveEdit}
+                onCancelEdit={() => setEditingId(null)}
+                onDelete={() => setDeleteTarget({ id: team.id, name: team.name })}
+                onToggleAutoAdd={() => updateTeam.mutate({ id: team.id, autoAdd: !team.autoAdd })}
+                isSaving={updateTeam.isPending}
+                canReorder={!searchQuery && teams.length >= 2}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
 
         {/* Add team row — inline in the card */}
         {showAddForm ? (

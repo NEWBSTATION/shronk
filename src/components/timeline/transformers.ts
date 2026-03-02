@@ -202,18 +202,22 @@ export function milestonesToTimelineTasksWithTeamTracks(
   }
 
   const teamMap = new Map(teams.map((t) => [t.id, t]));
+  // Build order index: per-user teamOrder overrides DB order (teams array position)
+  const orderIndex = new Map<string, number>();
+  if (teamOrder && teamOrder.length > 0) {
+    teamOrder.forEach((id, i) => orderIndex.set(id, i));
+  } else {
+    teams.forEach((t, i) => orderIndex.set(t.id, i));
+  }
 
   for (const milestone of milestones) {
     const milestoneTDs = durationsByMilestone.get(milestone.id) || [];
     const visibleTDs = milestoneTDs
       .filter((td) => visibleTeamIds.includes(td.teamId))
       .sort((a, b) => {
-        if (teamOrder && teamOrder.length > 0) {
-          const ai = teamOrder.indexOf(a.teamId);
-          const bi = teamOrder.indexOf(b.teamId);
-          return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
-        }
-        return a.teamId.localeCompare(b.teamId);
+        const ai = orderIndex.get(a.teamId) ?? Infinity;
+        const bi = orderIndex.get(b.teamId) ?? Infinity;
+        return ai - bi;
       });
 
     if (visibleTDs.length === 0) {

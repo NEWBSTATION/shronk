@@ -1033,6 +1033,53 @@ export function useDeleteTeam() {
   });
 }
 
+export function useReorderTeams() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (orderedTeamIds: string[]) => {
+      const response = await fetch("/api/teams/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedTeamIds }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to reorder teams");
+      }
+      return response.json();
+    },
+    onMutate: async (orderedTeamIds) => {
+      await queryClient.cancelQueries({ queryKey: ["teams"] });
+      const prev = queryClient.getQueryData<{ teams: Team[] }>(["teams"]);
+
+      if (prev) {
+        const teamMap = new Map(prev.teams.map((t) => [t.id, t]));
+        const reordered = orderedTeamIds
+          .map((id, i) => {
+            const team = teamMap.get(id);
+            return team ? { ...team, sortOrder: i } : null;
+          })
+          .filter(Boolean) as Team[];
+        // Append any teams not in the ordered list
+        const orderedSet = new Set(orderedTeamIds);
+        const rest = prev.teams.filter((t) => !orderedSet.has(t.id));
+        queryClient.setQueryData(["teams"], { teams: [...reordered, ...rest] });
+      }
+
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(["teams"], context.prev);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+    },
+  });
+}
+
 // Team duration hooks
 interface TeamDurationUpsertResponse {
   teamDuration: TeamMilestoneDuration;
