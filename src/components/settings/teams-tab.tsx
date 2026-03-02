@@ -219,7 +219,7 @@ export function TeamsTab() {
 
   // New team form
   const [newName, setNewName] = useState("");
-  const [newColor, setNewColor] = useState(MILESTONE_COLORS.blue);
+  const [newColor, setNewColor] = useState(() => COLOR_ENTRIES[Math.floor(Math.random() * COLOR_ENTRIES.length)][1]);
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Inline editing

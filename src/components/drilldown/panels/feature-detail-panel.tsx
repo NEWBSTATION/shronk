@@ -711,6 +711,39 @@ export function FeatureDetailPanel({
           </div>
         </PropertyRow>
 
+        {/* Team Tracks — edit mode (API-backed) */}
+        {isEditMode && teams.length > 0 && feature && (
+          <TeamTracksProperty
+            feature={feature}
+            teams={teams}
+            teamDurations={teamDurations.filter((td) => td.milestoneId === feature.id)}
+            onUpsertTeamDuration={onUpsertTeamDuration}
+            onDeleteTeamDuration={onDeleteTeamDuration}
+          />
+        )}
+
+        {/* Team Tracks — create mode (local state) */}
+        {!isEditMode && teams.length > 0 && (
+          <PendingTeamTracksProperty
+            teams={teams}
+            pendingTracks={pendingTeamTracks}
+            defaultDuration={durationValue * DURATION_UNIT_MULTIPLIERS[durationUnit]}
+            onAdd={(teamId, duration) => {
+              setPendingTeamTracks((prev) => new Map(prev).set(teamId, duration));
+            }}
+            onUpdateDuration={(teamId, duration) => {
+              setPendingTeamTracks((prev) => new Map(prev).set(teamId, duration));
+            }}
+            onRemove={(teamId) => {
+              setPendingTeamTracks((prev) => {
+                const next = new Map(prev);
+                next.delete(teamId);
+                return next;
+              });
+            }}
+          />
+        )}
+
         {/* Hide empty properties toggle */}
         <button
           type="button"
@@ -750,39 +783,6 @@ export function FeatureDetailPanel({
           saveStatus={isEditMode && descSaved ? "saved" : "idle"}
         />
       </div>
-
-      {/* Team Tracks Section — edit mode (API-backed) */}
-      {isEditMode && teams.length > 0 && feature && (
-        <TeamTracksSection
-          feature={feature}
-          teams={teams}
-          teamDurations={teamDurations.filter((td) => td.milestoneId === feature.id)}
-          onUpsertTeamDuration={onUpsertTeamDuration}
-          onDeleteTeamDuration={onDeleteTeamDuration}
-        />
-      )}
-
-      {/* Team Tracks Section — create mode (local state) */}
-      {!isEditMode && teams.length > 0 && (
-        <PendingTeamTracksSection
-          teams={teams}
-          pendingTracks={pendingTeamTracks}
-          defaultDuration={durationValue * DURATION_UNIT_MULTIPLIERS[durationUnit]}
-          onAdd={(teamId, duration) => {
-            setPendingTeamTracks((prev) => new Map(prev).set(teamId, duration));
-          }}
-          onUpdateDuration={(teamId, duration) => {
-            setPendingTeamTracks((prev) => new Map(prev).set(teamId, duration));
-          }}
-          onRemove={(teamId) => {
-            setPendingTeamTracks((prev) => {
-              const next = new Map(prev);
-              next.delete(teamId);
-              return next;
-            });
-          }}
-        />
-      )}
 
       {/* Create mode footer */}
       {!isEditMode && (
@@ -852,7 +852,7 @@ export function FeatureDetailPanel({
 /*  Team Tracks Section                                                        */
 /* -------------------------------------------------------------------------- */
 
-function TeamTracksSection({
+function TeamTracksProperty({
   feature,
   teams,
   teamDurations: teamDurationsProp,
@@ -876,20 +876,7 @@ function TeamTracksSection({
   const unassignedTeams = teams.filter((t) => !assignedTeamIds.has(t.id));
 
   return (
-    <div className="mt-6 pt-6 border-t border-border">
-      <div className="flex items-center justify-between mb-3 px-2 -mx-2">
-        <div className="flex items-center gap-3">
-          <Users className="size-4 text-muted-foreground shrink-0" />
-          <span className="text-sm text-muted-foreground">Team Tracks</span>
-        </div>
-      </div>
-
-      {teamDurations.length === 0 && (
-        <p className="text-xs text-muted-foreground/60 mb-3">
-          No team tracks assigned. Add a team to set per-team durations.
-        </p>
-      )}
-
+    <PropertyRow icon={Users} label="Teams" type="custom">
       <div className="space-y-0.5">
         {teamDurations.map((td) => {
           const team = teams.find((t) => t.id === td.teamId);
@@ -906,17 +893,16 @@ function TeamTracksSection({
             />
           );
         })}
-      </div>
 
-      {/* Add team track */}
-      {unassignedTeams.length > 0 && onUpsertTeamDuration && (
-        <AddTeamPopover
-          teams={unassignedTeams}
-          placeholder="Set team tracks..."
-          onSelect={(teamId) => onUpsertTeamDuration(feature.id, teamId, feature.duration)}
-        />
-      )}
-    </div>
+        {unassignedTeams.length > 0 && onUpsertTeamDuration && (
+          <AddTeamPopover
+            teams={unassignedTeams}
+            placeholder="Search teams..."
+            onSelect={(teamId) => onUpsertTeamDuration(feature.id, teamId, feature.duration)}
+          />
+        )}
+      </div>
+    </PropertyRow>
   );
 }
 
@@ -939,9 +925,13 @@ function AddTeamPopover({
   return (
     <ResponsivePopover onOpenChange={(open) => { if (!open) setSearch(""); }}>
       <ResponsivePopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="mt-2 text-xs">
-          + Add team track
-        </Button>
+        <button
+          type="button"
+          className="flex items-center gap-2 min-h-7 py-0.5 text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+        >
+          <Plus className="h-2 w-2 shrink-0" />
+          <span>Add team</span>
+        </button>
       </ResponsivePopoverTrigger>
       <ResponsivePopoverContent
         className="w-48 p-0"
@@ -1029,55 +1019,45 @@ function TeamTrackRow({
       : null;
 
   return (
-    <div className="flex items-center gap-3 min-h-8 py-1 rounded-md px-2 -mx-2 hover:bg-accent/30 group">
-      {/* Dot — centered in a size-4 box to align with PropertyRow icons */}
-      <div className="size-4 shrink-0 flex items-center justify-center">
-        <div
-          className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: team.color }}
-        />
-      </div>
+    <div className="flex items-center gap-2 min-h-7 py-0.5 rounded-md hover:bg-accent/30 group">
+      <div
+        className="h-2 w-2 rounded-full shrink-0"
+        style={{ backgroundColor: team.color }}
+      />
+      <span className="text-sm truncate min-w-0 flex-1">{team.name}</span>
 
-      {/* Team name */}
-      <span className="text-sm font-medium truncate min-w-0 flex-1">
-        {team.name}
-      </span>
-
-      {/* Duration + date range — right side */}
       <div className="flex items-center gap-1.5 shrink-0">
         <ResponsivePopover open={open} onOpenChange={handleClose}>
           <ResponsivePopoverTrigger asChild>
             <button
               type="button"
-              className="text-xs tabular-nums font-medium px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors"
+              className="text-xs tabular-nums text-muted-foreground px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors"
             >
               {durationLabel}
             </button>
           </ResponsivePopoverTrigger>
           <ResponsivePopoverContent className="w-auto p-3" align="end" title="Duration">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <NumberStepper
-                  value={localValue}
-                  onChange={(v) => setLocalValue(Math.max(0, v))}
-                  min={0}
-                  className="w-20"
-                />
-                <Select
-                  value={localUnit}
-                  onValueChange={(v) => setLocalUnit(v as DurationUnit)}
-                >
-                  <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="days">days</SelectItem>
-                    <SelectItem value="weeks">weeks</SelectItem>
-                    <SelectItem value="months">months</SelectItem>
-                    <SelectItem value="years">years</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="flex items-center gap-2">
+              <NumberStepper
+                value={localValue}
+                onChange={(v) => setLocalValue(Math.max(0, v))}
+                min={0}
+                className="w-20"
+              />
+              <Select
+                value={localUnit}
+                onValueChange={(v) => setLocalUnit(v as DurationUnit)}
+              >
+                <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="days">days</SelectItem>
+                  <SelectItem value="weeks">weeks</SelectItem>
+                  <SelectItem value="months">months</SelectItem>
+                  <SelectItem value="years">years</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </ResponsivePopoverContent>
         </ResponsivePopover>
@@ -1089,7 +1069,6 @@ function TeamTrackRow({
         )}
       </div>
 
-      {/* Delete */}
       <button
         onClick={() => onDeleteTeamDuration?.(feature.id, td.teamId)}
         className="shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
@@ -1105,7 +1084,7 @@ function TeamTrackRow({
 /*  Pending Team Tracks (create mode — local state only)                       */
 /* -------------------------------------------------------------------------- */
 
-function PendingTeamTracksSection({
+function PendingTeamTracksProperty({
   teams,
   pendingTracks,
   defaultDuration,
@@ -1124,20 +1103,7 @@ function PendingTeamTracksSection({
   const unassignedTeams = teams.filter((t) => !assignedTeamIds.has(t.id));
 
   return (
-    <div className="mt-6 pt-6 border-t border-border">
-      <div className="flex items-center justify-between mb-3 px-2 -mx-2">
-        <div className="flex items-center gap-3">
-          <Users className="size-4 text-muted-foreground shrink-0" />
-          <span className="text-sm text-muted-foreground">Team Tracks</span>
-        </div>
-      </div>
-
-      {pendingTracks.size === 0 && (
-        <p className="text-xs text-muted-foreground/60 mb-3">
-          No team tracks assigned. Add a team to set per-team durations.
-        </p>
-      )}
-
+    <PropertyRow icon={Users} label="Teams" type="custom">
       <div className="space-y-0.5">
         {Array.from(pendingTracks).map(([teamId, duration]) => {
           const team = teams.find((t) => t.id === teamId);
@@ -1152,16 +1118,16 @@ function PendingTeamTracksSection({
             />
           );
         })}
-      </div>
 
-      {unassignedTeams.length > 0 && (
-        <AddTeamPopover
-          teams={unassignedTeams}
-          placeholder="Set team tracks..."
-          onSelect={(teamId) => onAdd(teamId, defaultDuration)}
-        />
-      )}
-    </div>
+        {unassignedTeams.length > 0 && (
+          <AddTeamPopover
+            teams={unassignedTeams}
+            placeholder="Search teams..."
+            onSelect={(teamId) => onAdd(teamId, defaultDuration)}
+          />
+        )}
+      </div>
+    </PropertyRow>
   );
 }
 
@@ -1205,52 +1171,47 @@ function PendingTeamTrackRow({
   const durationLabel = formatDuration(duration);
 
   return (
-    <div className="flex items-center gap-3 min-h-8 py-1 rounded-md px-2 -mx-2 hover:bg-accent/30 group">
-      <div className="size-4 shrink-0 flex items-center justify-center">
-        <div
-          className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: team.color }}
-        />
-      </div>
+    <div className="flex items-center gap-2 min-h-7 py-0.5 rounded-md hover:bg-accent/30 group">
+      <div
+        className="h-2 w-2 rounded-full shrink-0"
+        style={{ backgroundColor: team.color }}
+      />
+      <span className="text-sm truncate min-w-0 flex-1">{team.name}</span>
 
-      <span className="text-sm font-medium truncate min-w-0 flex-1">{team.name}</span>
-
-      <div className="flex items-center gap-1.5 shrink-0">
-        <ResponsivePopover open={open} onOpenChange={handleClose}>
-          <ResponsivePopoverTrigger asChild>
-            <button
-              type="button"
-              className="text-xs tabular-nums font-medium px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors"
+      <ResponsivePopover open={open} onOpenChange={handleClose}>
+        <ResponsivePopoverTrigger asChild>
+          <button
+            type="button"
+            className="text-xs tabular-nums text-muted-foreground px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors shrink-0"
+          >
+            {durationLabel}
+          </button>
+        </ResponsivePopoverTrigger>
+        <ResponsivePopoverContent className="w-auto p-3" align="end" title="Duration">
+          <div className="flex items-center gap-2">
+            <NumberStepper
+              value={localValue}
+              onChange={(v) => setLocalValue(Math.max(0, v))}
+              min={0}
+              className="w-20"
+            />
+            <Select
+              value={localUnit}
+              onValueChange={(v) => setLocalUnit(v as DurationUnit)}
             >
-              {durationLabel}
-            </button>
-          </ResponsivePopoverTrigger>
-          <ResponsivePopoverContent className="w-auto p-3" align="end" title="Duration">
-            <div className="flex items-center gap-2">
-              <NumberStepper
-                value={localValue}
-                onChange={(v) => setLocalValue(Math.max(0, v))}
-                min={0}
-                className="w-20"
-              />
-              <Select
-                value={localUnit}
-                onValueChange={(v) => setLocalUnit(v as DurationUnit)}
-              >
-                <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="days">days</SelectItem>
-                  <SelectItem value="weeks">weeks</SelectItem>
-                  <SelectItem value="months">months</SelectItem>
-                  <SelectItem value="years">years</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </ResponsivePopoverContent>
-        </ResponsivePopover>
-      </div>
+              <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="days">days</SelectItem>
+                <SelectItem value="weeks">weeks</SelectItem>
+                <SelectItem value="months">months</SelectItem>
+                <SelectItem value="years">years</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </ResponsivePopoverContent>
+      </ResponsivePopover>
 
       <button
         onClick={onRemove}
