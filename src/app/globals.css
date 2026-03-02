@@ -512,6 +512,14 @@ pre {
   border-color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
 }
 
+.timeline-bar-focused:not(.timeline-bar-team-track) {
+  border-color: var(--primary) !important;
+}
+
+.timeline-bar-focused.timeline-bar-chain-end:not(.timeline-bar-team-track) > .timeline-bar-fill {
+  border-color: var(--primary) !important;
+}
+
 .timeline-bar:active {
   cursor: grabbing;
 }
@@ -598,12 +606,15 @@ pre {
   background-size: auto;
 }
 
-.timeline-bar:hover > .timeline-bar-status-pip {
+.timeline-bar:hover > .timeline-bar-status-pip,
+.timeline-bar-focused > .timeline-bar-status-pip {
   animation: stripe-scroll 1s linear infinite;
 }
 
 .timeline-bar-on-hold:hover > .timeline-bar-status-pip,
-.timeline-bar-cancelled:hover > .timeline-bar-status-pip {
+.timeline-bar-cancelled:hover > .timeline-bar-status-pip,
+.timeline-bar-on-hold.timeline-bar-focused > .timeline-bar-status-pip,
+.timeline-bar-cancelled.timeline-bar-focused > .timeline-bar-status-pip {
   animation: status-pulse 1.5s ease-in-out infinite;
 }
 
@@ -693,7 +704,8 @@ pre {
   pointer-events: none;
 }
 
-.timeline-bar:hover .timeline-drag-indicator {
+.timeline-bar:hover .timeline-drag-indicator,
+.timeline-bar-focused .timeline-drag-indicator {
   background-color: color-mix(in srgb, var(--foreground) 30%, var(--background));
 }
 

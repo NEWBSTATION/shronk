@@ -947,6 +947,7 @@ export function TimelineTab({ selectedMilestoneId, onMilestoneChange: setSelecte
               onAddMilestone={handleAddMilestone}
               onFeatureContextMenu={handleFeatureContextMenu}
               onTightenGaps={handleTightenGaps}
+              focusedFeatureId={panelContent?.mode === "edit" ? panelContent.feature.id : null}
               isTighteningGaps={tightenGapsMutation.isPending}
             />
           </div>

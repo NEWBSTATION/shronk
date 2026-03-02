@@ -176,6 +176,7 @@ interface TimelineChartProps {
   hideTeamTracks?: boolean;
   searchMatchIds?: Set<string> | null;
   selectedIds?: Set<string>;
+  focusedFeatureId?: string | null;
 }
 
 export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>(
@@ -197,6 +198,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
       hideTeamTracks,
       searchMatchIds,
       selectedIds,
+      focusedFeatureId,
     },
     ref
   ) {
@@ -335,6 +337,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
                 pixelsPerDay={pixelsPerDay}
                 timelineStart={windowStart}
                 hideTeamTracks={hideTeamTracks}
+                focusedFeatureId={focusedFeatureId}
               />
 
               {/* Task bars (on top of links) */}
@@ -346,6 +349,7 @@ export const TimelineChart = forwardRef<TimelineChartHandle, TimelineChartProps>
                 onTaskContextMenu={onTaskContextMenu}
                 hideTeamTracks={hideTeamTracks}
                 searchMatchIds={searchMatchIds}
+                focusedFeatureId={focusedFeatureId}
               />
 
               {/* Quick-create overlay on the add-feature row */}

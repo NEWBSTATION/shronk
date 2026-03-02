@@ -10,7 +10,8 @@ export function useMagnetic(strength = 0.3, radius = 100) {
       if (!ref.current) return;
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
-        const rect = ref.current!.getBoundingClientRect();
+        if (!ref.current) return;
+        const rect = ref.current.getBoundingClientRect();
         const cx = rect.left + rect.width / 2;
         const cy = rect.top + rect.height / 2;
         const dx = e.clientX - cx;

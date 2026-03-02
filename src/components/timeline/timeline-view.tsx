@@ -128,6 +128,7 @@ interface TimelineViewProps {
   onFeatureContextMenu?: (featureId: string, status: string, priority: string, e: MouseEvent) => void;
   onTightenGaps?: () => Promise<void>;
   isTighteningGaps?: boolean;
+  focusedFeatureId?: string | null;
 }
 
 export function TimelineView({
@@ -153,6 +154,7 @@ export function TimelineView({
   onFeatureContextMenu,
   onTightenGaps,
   isTighteningGaps,
+  focusedFeatureId,
 }: TimelineViewProps) {
   const timePeriod = useTimelineStore((s) => s.getMilestoneTimePeriod(project.id)) as TimePeriod;
   const setMilestoneTimePeriod = useTimelineStore((s) => s.setMilestoneTimePeriod);
@@ -185,7 +187,8 @@ export function TimelineView({
     },
     [project.id, setMilestoneZoomLevel]
   );
-  const [showDependencies, setShowDependencies] = useState(true);
+  const showDependencies = useTimelineStore((s) => s.showDependencies);
+  const setShowDependencies = useTimelineStore((s) => s.setShowDependencies);
   const [isGridDragging, setIsGridDragging] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -1160,6 +1163,7 @@ export function TimelineView({
             hideTeamTracks={isGridDragging}
             searchMatchIds={searchMatchIds}
             selectedIds={selectedIds}
+            focusedFeatureId={focusedFeatureId}
           />
 
           <TodayMarker

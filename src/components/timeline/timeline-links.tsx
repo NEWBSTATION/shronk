@@ -11,6 +11,7 @@ interface TimelineLinksProps {
   pixelsPerDay: number;
   timelineStart: Date;
   hideTeamTracks?: boolean;
+  focusedFeatureId?: string | null;
 }
 
 const DELTA = 20;    // stub length from bar edge
@@ -58,7 +59,7 @@ export function roundedPath(pts: [number, number][], r: number): string {
   return parts.join(' ');
 }
 
-export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart, hideTeamTracks }: TimelineLinksProps) {
+export function TimelineLinks({ tasks, links, pixelsPerDay, timelineStart, hideTeamTracks, focusedFeatureId }: TimelineLinksProps) {
   // Defer hideTeamTracks changes so links fade out at old positions,
   // then recompute at new positions and fade back in.
   const [deferredHide, setDeferredHide] = useState(hideTeamTracks);

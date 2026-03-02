@@ -211,7 +211,7 @@ export function FeatureDetailPanel({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [pendingTeamTracks, setPendingTeamTracks] = useState<Map<string, number>>(new Map());
   const [chainActive, setChainActive] = useState(false);
-  const [hideEmptyProps, setHideEmptyProps] = useState(false);
+  const [hideEmptyProps, setHideEmptyProps] = useState(true);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [isStuck, setIsStuck] = useState(false);
 

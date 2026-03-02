@@ -15,6 +15,8 @@ interface TimelineBarsProps {
   hideTeamTracks?: boolean;
   /** When non-null, search is active: feature IDs that match */
   searchMatchIds?: Set<string> | null;
+  /** Feature ID currently open in the editor panel */
+  focusedFeatureId?: string | null;
 }
 
 const BAR_HEIGHT = 32;
@@ -58,7 +60,7 @@ function buildTooltipHTML(task: TimelineTask): string {
   return lines.join('');
 }
 
-export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, onTaskContextMenu, hideTeamTracks, searchMatchIds }: TimelineBarsProps) {
+export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, onTaskContextMenu, hideTeamTracks, searchMatchIds, focusedFeatureId }: TimelineBarsProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const taskMapRef = useRef<Map<string, TimelineTask>>(new Map());
@@ -187,8 +189,8 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
     function highlightLinks(taskId: string | null) {
       const svg = layer?.parentElement?.querySelector('.timeline-links-overlay');
       if (!svg) return;
-      // Don't touch drag-managed highlights
-      svg.querySelectorAll('[data-link-id].link-highlight:not(.link-highlight-drag)').forEach((g) => g.classList.remove('link-highlight'));
+      // Don't touch drag-managed or focused highlights
+      svg.querySelectorAll('[data-link-id].link-highlight:not(.link-highlight-drag):not(.link-highlight-focused)').forEach((g) => g.classList.remove('link-highlight'));
       if (!taskId) return;
       svg.querySelectorAll(`[data-link-source="${taskId}"], [data-link-target="${taskId}"]`).forEach((g) => g.classList.add('link-highlight'));
     }
@@ -251,6 +253,25 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
     };
   }, [showTooltip, hideTooltip]);
 
+  // Manage focused feature link highlights imperatively (survives hover clear)
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (!layer) return;
+    const svg = layer.parentElement?.querySelector('.timeline-links-overlay');
+    if (!svg) return;
+
+    // Clear previous focused highlights
+    svg.querySelectorAll('.link-highlight-focused').forEach((g) => {
+      g.classList.remove('link-highlight', 'link-highlight-focused');
+    });
+
+    if (focusedFeatureId) {
+      svg.querySelectorAll(`[data-link-source="${focusedFeatureId}"], [data-link-target="${focusedFeatureId}"]`).forEach((g) => {
+        g.classList.add('link-highlight', 'link-highlight-focused');
+      });
+    }
+  }, [focusedFeatureId]);
+
   return (
     <div ref={layerRef} className="timeline-bars-layer" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
       {bars.map(({ task, left, width, top, adjustedTop, isTeamTrack: isTeam }) => {
@@ -271,7 +292,7 @@ export function TimelineBars({ tasks, pixelsPerDay, timelineStart, onTaskClick, 
         return (
           <div
             key={task.id}
-            className={`timeline-bar${isTeam ? ' timeline-bar-team-track' : ''}${isSummary ? ' timeline-bar-summary' : ''}${isChainEnd ? ' timeline-bar-chain-end' : ''}${custom?.status === 'completed' ? ' timeline-bar-completed' : ''}${custom?.status === 'cancelled' ? ' timeline-bar-cancelled' : ''}${custom?.status === 'on_hold' ? ' timeline-bar-on-hold' : ''}`}
+            className={`timeline-bar${isTeam ? ' timeline-bar-team-track' : ''}${isSummary ? ' timeline-bar-summary' : ''}${isChainEnd ? ' timeline-bar-chain-end' : ''}${custom?.status === 'completed' ? ' timeline-bar-completed' : ''}${custom?.status === 'cancelled' ? ' timeline-bar-cancelled' : ''}${custom?.status === 'on_hold' ? ' timeline-bar-on-hold' : ''}${!isTeam && focusedFeatureId === task.id ? ' timeline-bar-focused' : ''}`}
             data-task-id={task.id}
             style={{
               position: 'absolute',
