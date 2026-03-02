@@ -187,7 +187,8 @@ export function milestonesToTimelineTasksWithTeamTracks(
   milestones: Milestone[],
   teamDurations: TeamMilestoneDuration[],
   teams: Team[],
-  visibleTeamIds: string[]
+  visibleTeamIds: string[],
+  teamOrder?: string[] | null
 ): TimelineTask[] {
   const tasks: TimelineTask[] = [];
 
@@ -206,7 +207,14 @@ export function milestonesToTimelineTasksWithTeamTracks(
     const milestoneTDs = durationsByMilestone.get(milestone.id) || [];
     const visibleTDs = milestoneTDs
       .filter((td) => visibleTeamIds.includes(td.teamId))
-      .sort((a, b) => a.teamId.localeCompare(b.teamId));
+      .sort((a, b) => {
+        if (teamOrder && teamOrder.length > 0) {
+          const ai = teamOrder.indexOf(a.teamId);
+          const bi = teamOrder.indexOf(b.teamId);
+          return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
+        }
+        return a.teamId.localeCompare(b.teamId);
+      });
 
     if (visibleTDs.length === 0) {
       tasks.push(milestoneToTimelineTask(milestone));

@@ -73,6 +73,9 @@ interface TimelineStore {
   // Team visibility (null = uninitialized, [] = user explicitly hid all)
   visibleTeamIds: string[] | null;
 
+  // Team display order (null = default alphabetical)
+  teamOrder: string[] | null;
+
   // Actions
   setViewType: (viewType: ViewType) => void;
   setTimePeriod: (period: TimePeriod) => void;
@@ -117,6 +120,7 @@ interface TimelineStore {
 
   setVisibleTeamIds: (ids: string[] | null) => void;
   toggleTeamVisibility: (teamId: string) => void;
+  setTeamOrder: (ids: string[]) => void;
 }
 
 const defaultFilters: Filters = {
@@ -153,6 +157,7 @@ export const useTimelineStore = create<TimelineStore>()(
       timelineScrollLeft: 0,
       gridColumnWidth: 200,
       visibleTeamIds: null,
+      teamOrder: null,
 
       // Actions
       setViewType: (viewType) => set({ viewType }),
@@ -304,6 +309,8 @@ export const useTimelineStore = create<TimelineStore>()(
               : [...current, teamId],
           };
         }),
+
+      setTeamOrder: (teamOrder) => set({ teamOrder }),
     }),
     {
       name: "shronk-timeline-storage",
@@ -320,6 +327,7 @@ export const useTimelineStore = create<TimelineStore>()(
         milestoneTimePeriods: state.milestoneTimePeriods,
         milestoneZoomLevels: state.milestoneZoomLevels,
         visibleTeamIds: state.visibleTeamIds,
+        teamOrder: state.teamOrder,
         gridColumnWidth: state.gridColumnWidth,
       }),
     }

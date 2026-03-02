@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from 'react';
 import { startOfDay, addDays, addMonths, subMonths, differenceInDays } from 'date-fns';
-import { Plus, Minus, GitBranch, Search, X, Calendar1, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, MoreHorizontal, Link2Off, Loader2 } from 'lucide-react';
+import { Plus, Minus, GitBranch, Search, X, Calendar1, PanelLeftClose, PanelLeftOpen, SlidersHorizontal, MoreHorizontal, Link2Off, Loader2, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -29,6 +29,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
+import { CSS } from '@dnd-kit/utilities';
 import { TodayMarker } from './today-marker';
 import { TimelineNavIndicators } from './timeline-nav-indicators';
 import { CursorMarker } from './cursor-marker';
@@ -129,6 +145,71 @@ interface TimelineViewProps {
   onTightenGaps?: () => Promise<void>;
   isTighteningGaps?: boolean;
   focusedFeatureId?: string | null;
+}
+
+function SortableTeamRow({
+  team,
+  isVisible,
+  canReorder,
+  onToggle,
+}: {
+  team: Team;
+  isVisible: boolean;
+  canReorder: boolean;
+  onToggle: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: team.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    position: 'relative',
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-1 w-full px-1.5 py-1.5 text-xs hover:bg-muted transition-colors"
+    >
+      {canReorder && (
+        <button
+          className="shrink-0 flex items-center justify-center h-5 w-5 rounded text-muted-foreground/50 hover:text-muted-foreground cursor-grab active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
+      )}
+      <div
+        role="button"
+        onClick={onToggle}
+        className="flex items-center gap-2.5 flex-1 min-w-0 px-1.5 cursor-pointer"
+      >
+        <div
+          className="h-2.5 w-2.5 rounded-full shrink-0 ring-1 ring-black/10"
+          style={{ backgroundColor: team.color }}
+        />
+        <span className="flex-1 text-left truncate">{team.name}</span>
+        <Switch
+          size="sm"
+          checked={isVisible}
+          tabIndex={-1}
+          onClick={(e) => e.stopPropagation()}
+          onCheckedChange={onToggle}
+        />
+      </div>
+    </div>
+  );
 }
 
 export function TimelineView({
@@ -250,6 +331,8 @@ export function TimelineView({
   const visibleTeamIds = useTimelineStore((s) => s.visibleTeamIds);
   const setVisibleTeamIds = useTimelineStore((s) => s.setVisibleTeamIds);
   const toggleTeamVisibility = useTimelineStore((s) => s.toggleTeamVisibility);
+  const teamOrder = useTimelineStore((s) => s.teamOrder);
+  const setTeamOrder = useTimelineStore((s) => s.setTeamOrder);
   const displayOptionsActive = useMemo(() => {
     const visibleCount = (visibleTeamIds ?? []).length;
     return !showDependencies || visibleCount > 0;
@@ -273,6 +356,33 @@ export function TimelineView({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teams]);
+
+  // Ordered teams for display options and transformer
+  const orderedTeams = useMemo(() => {
+    if (!teamOrder || teamOrder.length === 0) return teams;
+    const orderMap = new Map(teamOrder.map((id, i) => [id, i]));
+    return [...teams].sort((a, b) => {
+      const ai = orderMap.get(a.id) ?? Infinity;
+      const bi = orderMap.get(b.id) ?? Infinity;
+      if (ai === Infinity && bi === Infinity) return 0;
+      return ai - bi;
+    });
+  }, [teams, teamOrder]);
+
+  // dnd-kit sensors for team reorder
+  const teamDndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } })
+  );
+
+  const handleTeamDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = orderedTeams.map((t) => t.id);
+    const oldIndex = ids.indexOf(active.id as string);
+    const newIndex = ids.indexOf(over.id as string);
+    if (oldIndex === -1 || newIndex === -1) return;
+    setTeamOrder(arrayMove(ids, oldIndex, newIndex));
+  }, [orderedTeams, setTeamOrder]);
 
   // --- Timeline windowing ---
   const [windowStart, setWindowStart] = useState<Date>(() => computeInitialWindow(features, timePeriod).start);
@@ -447,7 +557,8 @@ export function TimelineView({
         sortedFeatures,
         teamDurations,
         teams,
-        resolvedTeamIds
+        resolvedTeamIds,
+        teamOrder
       );
     } else {
       featureTasks = sortedFeatures.map(milestoneToTimelineTask);
@@ -470,7 +581,7 @@ export function TimelineView({
       type: 'task',
     });
     return featureTasks;
-  }, [sortedFeatures, hasTeamTracks, teamDurations, teams, visibleTeamIds, chainEndIds]);
+  }, [sortedFeatures, hasTeamTracks, teamDurations, teams, visibleTeamIds, teamOrder, chainEndIds]);
 
   const links: TimelineLink[] = useMemo(() => {
     if (!showDependencies) return [];
@@ -1001,30 +1112,24 @@ export function TimelineView({
                     </button>
                   </div>
                   <div className="py-1 max-h-64 overflow-y-auto">
-                    {teams.map((team) => {
-                      const isVisible = (visibleTeamIds ?? []).includes(team.id);
-                      return (
-                        <div
-                          key={team.id}
-                          role="button"
-                          onClick={() => toggleTeamVisibility(team.id)}
-                          className="flex items-center gap-2.5 w-full px-3 py-1.5 text-xs hover:bg-muted transition-colors cursor-pointer"
-                        >
-                          <div
-                            className="h-2.5 w-2.5 rounded-full shrink-0 ring-1 ring-black/10"
-                            style={{ backgroundColor: team.color }}
+                    <DndContext
+                      sensors={teamDndSensors}
+                      collisionDetection={closestCenter}
+                      modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                      onDragEnd={handleTeamDragEnd}
+                    >
+                      <SortableContext items={orderedTeams.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                        {orderedTeams.map((team) => (
+                          <SortableTeamRow
+                            key={team.id}
+                            team={team}
+                            isVisible={(visibleTeamIds ?? []).includes(team.id)}
+                            canReorder={teams.length >= 2}
+                            onToggle={() => toggleTeamVisibility(team.id)}
                           />
-                          <span className="flex-1 text-left truncate">{team.name}</span>
-                          <Switch
-                            size="sm"
-                            checked={isVisible}
-                            tabIndex={-1}
-                            onClick={(e) => e.stopPropagation()}
-                            onCheckedChange={() => toggleTeamVisibility(team.id)}
-                          />
-                        </div>
-                      );
-                    })}
+                        ))}
+                      </SortableContext>
+                    </DndContext>
                   </div>
                 </>
               )}
