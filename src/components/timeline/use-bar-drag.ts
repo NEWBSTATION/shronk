@@ -402,6 +402,9 @@ export function useBarDrag({
         }
       }
 
+      // Build child lookup once for shifting team tracks of successor milestones
+      const currentTasks = tasksRef.current;
+
       for (const succId of successors) {
         const el = container!.querySelector(`[data-task-id="${succId}"]`) as HTMLElement;
         if (!el) continue;
@@ -417,6 +420,23 @@ export function useBarDrag({
         const orig = cascadeOriginalsRef.current.get(succId)!;
         // Shift left by delta, keep width unchanged (gaps preserved)
         el.style.left = `${orig.left + deltaPx}px`;
+
+        // Also shift team track children of this successor
+        for (const child of currentTasks) {
+          if (child.parent !== succId) continue;
+          const childEl = container!.querySelector(`[data-task-id="${child.id}"]`) as HTMLElement;
+          if (!childEl) continue;
+
+          if (!cascadeOriginalsRef.current.has(child.id)) {
+            cascadeOriginalsRef.current.set(child.id, {
+              left: parseFloat(childEl.style.left) || 0,
+              width: parseFloat(childEl.style.width) || 0,
+            });
+          }
+
+          const childOrig = cascadeOriginalsRef.current.get(child.id)!;
+          childEl.style.left = `${childOrig.left + deltaPx}px`;
+        }
       }
     }
 
