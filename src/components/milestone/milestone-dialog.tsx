@@ -181,7 +181,7 @@ export function MilestoneDialog({ open, onOpenChange, onCreated, onOpenMilestone
         </div>
 
         {/* Description */}
-        <div className="mt-4 pt-4 border-t border-border">
+        <div className="mt-4 pt-4 border-t border-border max-h-[240px] overflow-y-auto">
           <RichTextEditor
             content={description}
             onChange={setDescription}
