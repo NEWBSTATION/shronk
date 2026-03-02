@@ -222,7 +222,7 @@ function buildMenu(
 export function RichTextEditor({
   content,
   onChange,
-  placeholder = "Write or type / for commands",
+  placeholder = "Add description, write or type / for commands",
   className,
   saveStatus = "idle",
 }: RichTextEditorProps) {
@@ -230,6 +230,7 @@ export function RichTextEditor({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const selectedIndexRef = useRef(0);
   const itemRefsRef = useRef<MenuItemEl[]>([]);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const dragHandleRef = useRef<HTMLDivElement>(null);
   const addButtonRef = useRef<HTMLDivElement>(null);
   const hoveredBlockRef = useRef<{ pos: number; dom: HTMLElement; empty: boolean } | null>(null);
@@ -393,7 +394,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "tiptap prose prose-sm dark:prose-invert max-w-none outline-none min-h-[120px] pl-8 pr-8 pt-6 pb-8 text-sm [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_blockquote]:my-1 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-1 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_h4]:text-sm [&_h4]:font-medium [&_h4]:mt-2 [&_h4]:mb-1 [&_h4]:text-muted-foreground [&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_hr]:border-border [&_hr]:my-3",
+          "tiptap prose prose-sm dark:prose-invert max-w-none outline-none min-h-[60px] pl-0 pr-0 pt-0 pb-4 text-base [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_blockquote]:my-1 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-1 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_h4]:text-sm [&_h4]:font-medium [&_h4]:mt-2 [&_h4]:mb-1 [&_h4]:text-muted-foreground [&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_pre]:bg-muted [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-xs [&_blockquote]:border-l-2 [&_blockquote]:border-muted-foreground/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_hr]:border-border [&_hr]:my-3",
       },
       handleKeyDown: (view, event) => {
         if (event.key !== "/") return false;
@@ -422,20 +423,21 @@ export function RichTextEditor({
     }
   }, [content, editor]);
 
-  // Drag handle + add button — position in the left padding on block hover
+  // Drag handle + add button — position in the left gutter on block hover.
+  // We track mouse events on the wrapper (which includes the gutter) so the
+  // cursor can travel from the editor content to the handles without the
+  // handles disappearing.
   useEffect(() => {
     if (!editor) return;
-    const editorEl = editor.view.dom;
+    const wrapper = wrapperRef.current;
     const handle = dragHandleRef.current;
     const addBtn = addButtonRef.current;
-    if (!handle || !addBtn) return;
+    if (!wrapper || !handle || !addBtn) return;
 
     let currentBlockDom: HTMLElement | null = null;
 
     const showElement = (el: HTMLElement, blockDom: HTMLElement) => {
-      const wrapperEl = el.parentElement;
-      if (!wrapperEl) return;
-      const wrapperRect = wrapperEl.getBoundingClientRect();
+      const wrapperRect = wrapper.getBoundingClientRect();
       const blockRect = blockDom.getBoundingClientRect();
       const elHeight = el.offsetHeight || 18;
       el.style.display = "flex";
@@ -483,15 +485,7 @@ export function RichTextEditor({
       if (!found) hideAll();
     };
 
-    const handleMouseLeave = (e: MouseEvent) => {
-      const related = e.relatedTarget as HTMLElement | null;
-      if (related && (handle.contains(related) || addBtn.contains(related))) return;
-      hideAll();
-    };
-
-    const handleElMouseLeave = (e: MouseEvent) => {
-      const related = e.relatedTarget as HTMLElement | null;
-      if (related && editorEl.contains(related)) return;
+    const handleMouseLeave = () => {
       hideAll();
     };
 
@@ -499,18 +493,16 @@ export function RichTextEditor({
       (e.currentTarget as HTMLElement).style.opacity = "1";
     };
 
-    editorEl.addEventListener("mousemove", handleMouseMove);
-    editorEl.addEventListener("mouseleave", handleMouseLeave);
+    wrapper.addEventListener("mousemove", handleMouseMove);
+    wrapper.addEventListener("mouseleave", handleMouseLeave);
     for (const el of [handle, addBtn]) {
-      el.addEventListener("mouseleave", handleElMouseLeave);
       el.addEventListener("mouseenter", handleElMouseEnter);
     }
 
     return () => {
-      editorEl.removeEventListener("mousemove", handleMouseMove);
-      editorEl.removeEventListener("mouseleave", handleMouseLeave);
+      wrapper.removeEventListener("mousemove", handleMouseMove);
+      wrapper.removeEventListener("mouseleave", handleMouseLeave);
       for (const el of [handle, addBtn]) {
-        el.removeEventListener("mouseleave", handleElMouseLeave);
         el.removeEventListener("mouseenter", handleElMouseEnter);
       }
     };
@@ -557,13 +549,13 @@ export function RichTextEditor({
   if (!editor) return null;
 
   return (
-    <div className={cn("relative rounded-lg border border-border bg-background overflow-hidden", className)}>
+    <div ref={wrapperRef} className={cn("relative -ml-3 pl-3 md:-ml-6 md:pl-6", className)}>
       {/* Drag handle — grip dots for content blocks */}
       <div
         ref={dragHandleRef}
         draggable
         onDragStart={handleDragStart}
-        className="absolute left-[10px] z-10 w-[18px] h-[18px] items-center justify-center rounded-[4px] cursor-grab hover:bg-accent"
+        className="absolute left-[2px] md:left-[4px] z-10 w-[18px] h-[18px] items-center justify-center rounded-[4px] cursor-grab hover:bg-accent"
         style={{ display: "none", opacity: 0, transition: "top 0.15s ease, opacity 0.15s ease" }}
       >
         <svg width="10" height="14" viewBox="0 0 10 14" className="text-foreground/70" fill="currentColor">
@@ -579,7 +571,7 @@ export function RichTextEditor({
       <div
         ref={addButtonRef}
         onClick={handleAddClick}
-        className="absolute left-[10px] z-10 w-[18px] h-[18px] items-center justify-center rounded-[4px] cursor-pointer hover:bg-accent"
+        className="absolute left-[2px] md:left-[4px] z-10 w-[18px] h-[18px] items-center justify-center rounded-[4px] cursor-pointer hover:bg-accent"
         style={{ display: "none", opacity: 0, transition: "top 0.15s ease, opacity 0.15s ease" }}
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-foreground/70">
@@ -589,7 +581,7 @@ export function RichTextEditor({
       </div>
       {/* Save status indicator */}
       {saveStatus === "saved" && (
-        <div className="absolute top-2 right-3 z-10 flex items-center gap-1 text-[11px] text-muted-foreground/60 animate-in fade-in duration-200 pointer-events-none">
+        <div className="absolute top-0 right-0 z-10 flex items-center gap-1 text-[11px] text-muted-foreground/60 animate-in fade-in duration-200 pointer-events-none">
           <Check className="h-3 w-3" />
           <span>Saved</span>
         </div>

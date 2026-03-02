@@ -1093,8 +1093,8 @@ pre {
 [data-placeholder].is-empty::before,
 [data-placeholder].is-editor-empty::before {
   content: attr(data-placeholder) !important;
-  color: var(--muted-foreground) !important;
-  opacity: 0.5 !important;
+  color: var(--ring) !important;
+  opacity: 1 !important;
   float: left !important;
   height: 0 !important;
   pointer-events: none !important;

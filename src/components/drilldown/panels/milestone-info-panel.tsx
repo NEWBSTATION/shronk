@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { toLocalMidnight } from "@/components/timeline/transformers";
-import { ArrowLeft, Ellipsis, Trash2, CalendarIcon, Clock, ChevronUp, ChevronDown, AlignLeft } from "lucide-react";
+import { ArrowLeft, Ellipsis, Trash2, CalendarIcon, Clock, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -191,7 +191,7 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
             onKeyDown={(e) => {
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
-            className="w-full min-w-0 bg-transparent text-3xl font-bold placeholder:text-muted-foreground/40 outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors text-foreground overflow-hidden text-ellipsis"
+            className="w-full min-w-0 bg-transparent text-3xl font-bold placeholder:text-ring outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors text-foreground overflow-hidden text-ellipsis"
             placeholder="Milestone name..."
           />
         </div>
@@ -244,10 +244,6 @@ export function MilestoneInfoPanel({ milestone, onBack }: MilestoneInfoPanelProp
 
       {/* Description */}
       <div className="mt-6 pt-6 border-t border-border">
-        <div className="flex items-center gap-3 mb-3 px-2 -mx-2">
-          <AlignLeft className="size-4 text-muted-foreground shrink-0" />
-          <span className="text-sm text-muted-foreground">Description</span>
-        </div>
         <RichTextEditor
           content={milestone.description || ""}
           onChange={handleDescriptionSave}

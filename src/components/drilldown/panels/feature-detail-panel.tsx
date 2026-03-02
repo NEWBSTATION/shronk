@@ -15,7 +15,6 @@ import {
   CircleDot,
   ChevronUp,
   ChevronDown,
-  AlignLeft,
   Plus,
   X,
   Ban,
@@ -548,7 +547,7 @@ export function FeatureDetailPanel({
               }}
               placeholder="Feature title"
               className={cn(
-                "flex-1 min-w-0 bg-transparent text-3xl font-bold placeholder:text-muted-foreground/40 outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors overflow-hidden text-ellipsis",
+                "flex-1 min-w-0 bg-transparent text-3xl font-bold placeholder:text-ring outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors overflow-hidden text-ellipsis",
                 completed
                   ? "text-muted-foreground line-through decoration-muted-foreground/50"
                   : "text-foreground"
@@ -565,7 +564,7 @@ export function FeatureDetailPanel({
               }}
               placeholder="Feature title"
               autoFocus
-              className="flex-1 min-w-0 bg-transparent text-3xl font-bold placeholder:text-muted-foreground/40 outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors text-foreground overflow-hidden text-ellipsis"
+              className="flex-1 min-w-0 bg-transparent text-3xl font-bold placeholder:text-ring outline-none rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors text-foreground overflow-hidden text-ellipsis"
             />
           )}
         </div>
@@ -778,10 +777,6 @@ export function FeatureDetailPanel({
 
       {/* Description */}
       <div className="mt-6 pt-6 border-t border-border">
-        <div className="flex items-center gap-3 mb-3 px-2 -mx-2">
-          <AlignLeft className="size-4 text-muted-foreground shrink-0" />
-          <span className="text-sm text-muted-foreground">Description</span>
-        </div>
         <RichTextEditor
           content={description}
           onChange={handleDescriptionChange}
@@ -997,7 +992,7 @@ function AddTeamPopover({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={placeholder}
-            className="w-full h-7 px-2 text-xs rounded-md bg-muted/50 border border-border/40 outline-none placeholder:text-muted-foreground/50 focus:border-ring"
+            className="w-full h-7 px-2 text-xs rounded-md bg-muted/50 border border-border/40 outline-none placeholder:text-ring/50 focus:border-ring"
           />
         </div>
         <div className="flex flex-col p-1 pt-0 max-h-48 overflow-y-auto">
@@ -1626,7 +1621,7 @@ function FeaturePickerPopover({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search features..."
             autoFocus
-            className="w-full h-8 px-2.5 text-sm rounded-md bg-muted/50 border border-border/40 outline-none placeholder:text-muted-foreground/50 focus:border-ring"
+            className="w-full h-8 px-2.5 text-sm rounded-md bg-muted/50 border border-border/40 outline-none placeholder:text-ring/50 focus:border-ring"
           />
         </div>
         <div className="flex flex-col px-1.5 pb-2 max-h-56 overflow-y-auto">

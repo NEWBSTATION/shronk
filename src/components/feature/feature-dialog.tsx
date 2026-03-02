@@ -3,13 +3,12 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
-import { CalendarIcon, Timer, Layers3, Users, Trash2 } from "lucide-react";
+import { CalendarIcon, Timer, Layers3, Users, Trash2, CircleDot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PropertyRow } from "@/components/ui/property-row";
@@ -27,14 +26,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { priorityConfig, PriorityHighIcon } from "@/components/shared/status-badge";
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
 import {
   computeEndDateFromDuration,
   DURATION_UNIT_MULTIPLIERS,
   type DurationUnit,
 } from "@/components/timeline/transformers";
+import type { MilestoneStatus, MilestonePriority } from "@/db/schema";
 
 interface MilestoneOption {
   id: string;
@@ -72,6 +76,43 @@ interface FeatureDialogProps {
   onOpenFeature?: (id: string) => void;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Status / Priority display helpers (match drilldown panel)                  */
+/* -------------------------------------------------------------------------- */
+
+const STATUS_CONFIG: Record<MilestoneStatus, { label: string; dotClass: string }> = {
+  not_started: { label: "Not Started", dotClass: "bg-zinc-400" },
+  in_progress: { label: "In Progress", dotClass: "bg-blue-500" },
+  on_hold: { label: "On Hold", dotClass: "bg-amber-500" },
+  completed: { label: "Completed", dotClass: "bg-emerald-500" },
+  cancelled: { label: "Cancelled", dotClass: "bg-red-500" },
+};
+
+function StatusDisplay({ status }: { status: MilestoneStatus }) {
+  const { label, dotClass } = STATUS_CONFIG[status];
+  return (
+    <div className="flex items-center gap-2">
+      <div className={cn("h-2 w-2 rounded-full shrink-0", dotClass)} />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function PriorityDisplay({ priority }: { priority: MilestonePriority }) {
+  const cfg = priorityConfig[priority];
+  const Icon = cfg.icon;
+  return (
+    <div className="flex items-center gap-2">
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span>{cfg.label}</span>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Feature Dialog                                                              */
+/* -------------------------------------------------------------------------- */
+
 export function FeatureDialog({
   open,
   onOpenChange,
@@ -95,6 +136,9 @@ export function FeatureDialog({
   const [localDurationUnit, setLocalDurationUnit] = useState<DurationUnit>("weeks");
   const [pendingTeamTracks, setPendingTeamTracks] = useState<Map<string, number>>(new Map());
   const [chainActive, setChainActive] = useState(false);
+  const [status, setStatus] = useState<MilestoneStatus>("not_started");
+  const [priority, setPriority] = useState<MilestonePriority>("none");
+  const [description, setDescription] = useState("");
 
   // Derive chainTo: use explicit prop if provided, otherwise compute from selected milestone
   const chainTo = useMemo(() => {
@@ -145,6 +189,9 @@ export function FeatureDialog({
     setDurationUnit("weeks");
     setPendingTeamTracks(new Map());
     setChainActive(false);
+    setStatus("not_started");
+    setPriority("none");
+    setDescription("");
     setError(null);
   };
 
@@ -166,7 +213,9 @@ export function FeatureDialog({
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
           duration: totalDays,
-          status: "not_started",
+          status,
+          priority,
+          ...(description.trim() ? { description: description.trim() } : {}),
         }),
       });
 
@@ -233,6 +282,7 @@ export function FeatureDialog({
     >
       <DialogContent
         className="sm:max-w-[500px] gap-0"
+        showCloseButton={false}
         onPointerDownOutside={(e) => {
           if ((e.target as HTMLElement).closest("[data-radix-popper-content-wrapper]")) {
             e.preventDefault();
@@ -260,7 +310,7 @@ export function FeatureDialog({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Feature name..."
-            className="w-full text-2xl sm:text-3xl font-bold leading-normal bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
+            className="w-full text-2xl sm:text-3xl font-bold leading-normal bg-transparent border-none outline-none placeholder:text-ring rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors"
             autoFocus
             autoComplete="off"
             onKeyDown={(e) => {
@@ -272,16 +322,72 @@ export function FeatureDialog({
         </div>
 
         <div className="space-y-0.5">
+          {/* Status */}
+          <PropertyRow icon={CircleDot} label="Status" type="custom">
+            <Select
+              value={status}
+              onValueChange={(v) => setStatus(v as MilestoneStatus)}
+            >
+              <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0 w-auto gap-2 bg-transparent dark:bg-transparent [&>svg:last-child]:hidden">
+                <SelectValue>
+                  <StatusDisplay status={status} />
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="not_started">
+                  <StatusDisplay status="not_started" />
+                </SelectItem>
+                <SelectItem value="in_progress">
+                  <StatusDisplay status="in_progress" />
+                </SelectItem>
+                <SelectItem value="on_hold">
+                  <StatusDisplay status="on_hold" />
+                </SelectItem>
+                <SelectItem value="completed">
+                  <StatusDisplay status="completed" />
+                </SelectItem>
+                <SelectItem value="cancelled">
+                  <StatusDisplay status="cancelled" />
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </PropertyRow>
+
           {/* Milestone */}
           <PropertyRow icon={Layers3} label="Milestone" type="custom">
             <Select value={milestoneId} onValueChange={setMilestoneId}>
-              <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0">
+              <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent/50 focus:ring-0 bg-transparent dark:bg-transparent dark:hover:bg-accent/50 [&>svg:last-child]:hidden">
                 <SelectValue placeholder="Select milestone" />
               </SelectTrigger>
               <SelectContent>
                 {milestones.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </PropertyRow>
+
+          {/* Priority */}
+          <PropertyRow icon={PriorityHighIcon} label="Priority" type="custom">
+            <Select
+              value={priority}
+              onValueChange={(v) => setPriority(v as MilestonePriority)}
+            >
+              <SelectTrigger className={cn("border-0 shadow-none h-8 px-2 text-sm hover:bg-accent/50 focus:ring-0 w-auto gap-2 bg-transparent dark:bg-transparent dark:hover:bg-accent/50 [&>svg:last-child]:hidden", priority === "none" && "text-muted-foreground/60")}>
+                <SelectValue>
+                  {priority === "none" ? (
+                    <span>No Priority</span>
+                  ) : (
+                    <PriorityDisplay priority={priority} />
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {Object.keys(priorityConfig).map((key) => (
+                  <SelectItem key={key} value={key}>
+                    <PriorityDisplay priority={key as MilestonePriority} />
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -365,29 +471,37 @@ export function FeatureDialog({
             </Popover>
           </PropertyRow>
 
+          {/* Team Tracks — PropertyRow + Popover (matches drilldown) */}
+          {teams.length > 0 && (
+            <DialogTeamTracksRow
+              teams={teams}
+              pendingTracks={pendingTeamTracks}
+              defaultDuration={totalDays}
+              onAdd={(teamId, duration) => {
+                setPendingTeamTracks((prev) => new Map(prev).set(teamId, duration));
+              }}
+              onUpdateDuration={(teamId, duration) => {
+                setPendingTeamTracks((prev) => new Map(prev).set(teamId, duration));
+              }}
+              onRemove={(teamId) => {
+                setPendingTeamTracks((prev) => {
+                  const next = new Map(prev);
+                  next.delete(teamId);
+                  return next;
+                });
+              }}
+            />
+          )}
         </div>
 
-        {/* Team Tracks */}
-        {teams.length > 0 && (
-          <DialogTeamTracksSection
-            teams={teams}
-            pendingTracks={pendingTeamTracks}
-            defaultDuration={totalDays}
-            onAdd={(teamId, duration) => {
-              setPendingTeamTracks((prev) => new Map(prev).set(teamId, duration));
-            }}
-            onUpdateDuration={(teamId, duration) => {
-              setPendingTeamTracks((prev) => new Map(prev).set(teamId, duration));
-            }}
-            onRemove={(teamId) => {
-              setPendingTeamTracks((prev) => {
-                const next = new Map(prev);
-                next.delete(teamId);
-                return next;
-              });
-            }}
+        {/* Description */}
+        <div className="mt-4 pt-4 border-t border-border">
+          <RichTextEditor
+            content={description}
+            onChange={setDescription}
+            saveStatus="idle"
           />
-        )}
+        </div>
 
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           {chainTo && (
@@ -424,10 +538,10 @@ export function FeatureDialog({
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Dialog Team Tracks (local state for create mode)                           */
+/*  Dialog Team Tracks — PropertyRow + Popover (matches drilldown pattern)     */
 /* -------------------------------------------------------------------------- */
 
-function DialogTeamTracksSection({
+function DialogTeamTracksRow({
   teams,
   pendingTracks,
   defaultDuration,
@@ -444,65 +558,101 @@ function DialogTeamTracksSection({
 }) {
   const assignedTeamIds = new Set(pendingTracks.keys());
   const unassignedTeams = teams.filter((t) => !assignedTeamIds.has(t.id));
+  const assignedTeams = Array.from(pendingTracks.keys())
+    .map((id) => teams.find((t) => t.id === id))
+    .filter(Boolean) as TeamOption[];
 
   return (
-    <div className="mt-4 pt-4 border-t border-border">
-      <div className="flex items-center gap-3 mb-2 px-2 -mx-2">
-        <Users className="size-4 text-muted-foreground shrink-0" />
-        <span className="text-sm text-muted-foreground">Team Tracks</span>
-      </div>
-
-      {pendingTracks.size === 0 && (
-        <p className="text-xs text-muted-foreground/60 mb-2 px-2">
-          No team tracks assigned.
-        </p>
-      )}
-
-      <div className="space-y-0.5">
-        {Array.from(pendingTracks).map(([teamId, duration]) => {
-          const team = teams.find((t) => t.id === teamId);
-          if (!team) return null;
-          return (
-            <DialogTeamTrackRow
-              key={teamId}
-              team={team}
-              duration={duration}
-              onUpdateDuration={(d) => onUpdateDuration(teamId, d)}
-              onRemove={() => onRemove(teamId)}
-            />
-          );
-        })}
-      </div>
-
-      {unassignedTeams.length > 0 && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              + Add team track
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-48 p-1" align="start">
-            {unassignedTeams.map((team) => (
+    <PropertyRow icon={Users} label="Teams" type="custom">
+      <Popover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
               <button
-                key={team.id}
-                onClick={() => onAdd(team.id, defaultDuration)}
-                className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
+                type="button"
+                className="flex items-center h-8 px-2 text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer gap-1.5 min-w-0"
               >
-                <div
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: team.color }}
-                />
-                {team.name}
+                {assignedTeams.length > 0 ? (
+                  <span className="truncate">
+                    {assignedTeams.length === 1
+                      ? assignedTeams[0].name
+                      : `${assignedTeams.length} teams`}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground/60">Add teams...</span>
+                )}
               </button>
-            ))}
-          </PopoverContent>
-        </Popover>
-      )}
-    </div>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          {assignedTeams.length > 1 && (
+            <TooltipContent side="bottom" align="start" className="p-0 bg-foreground">
+              <div className="flex flex-col gap-0.5 py-1.5 px-2">
+                {Array.from(pendingTracks).map(([teamId, duration]) => {
+                  const team = assignedTeams.find((t) => t.id === teamId);
+                  if (!team) return null;
+                  return (
+                    <div key={teamId} className="flex items-center gap-2">
+                      <span
+                        className="h-1.5 w-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: team.color }}
+                      />
+                      <span className="text-xs">{team.name}</span>
+                      <span className="text-xs text-background/50 ml-auto pl-3">
+                        {duration}d
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </TooltipContent>
+          )}
+        </Tooltip>
+        <PopoverContent className="w-72 p-0" align="start">
+          <div className="p-2 space-y-0.5">
+            {Array.from(pendingTracks).map(([teamId, duration]) => {
+              const team = teams.find((t) => t.id === teamId);
+              if (!team) return null;
+              return (
+                <DialogTeamTrackRow
+                  key={teamId}
+                  team={team}
+                  duration={duration}
+                  onUpdateDuration={(d) => onUpdateDuration(teamId, d)}
+                  onRemove={() => onRemove(teamId)}
+                />
+              );
+            })}
+            {unassignedTeams.length > 0 && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 min-h-7 py-0.5 text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                  >
+                    + Add team
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-1" align="start">
+                  {unassignedTeams.map((team) => (
+                    <button
+                      key={team.id}
+                      onClick={() => onAdd(team.id, defaultDuration)}
+                      className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
+                    >
+                      <div
+                        className="h-2.5 w-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: team.color }}
+                      />
+                      {team.name}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </PropertyRow>
   );
 }
 
@@ -535,41 +685,37 @@ function DialogTeamTrackRow({
   );
 
   return (
-    <div className="flex items-center gap-3 min-h-8 py-1 rounded-md px-2 -mx-2 hover:bg-accent/30 group">
-      <div className="size-4 shrink-0 flex items-center justify-center">
-        <div
-          className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: team.color }}
-        />
-      </div>
-
+    <div className="flex items-center gap-2 px-1.5 py-1.5 -mx-0.5 rounded-lg hover:bg-accent/30 group">
+      <div
+        className="h-2.5 w-2.5 rounded-full shrink-0"
+        style={{ backgroundColor: team.color }}
+      />
       <span className="text-sm font-medium truncate min-w-0 flex-1">{team.name}</span>
 
-      <div className="flex items-center gap-1.5 shrink-0">
-        <Popover open={open} onOpenChange={handleClose}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="text-xs tabular-nums font-medium px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors"
-            >
-              {duration}d
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-3" align="end">
-            <div className="flex items-center gap-2">
-              <NumberStepper
-                value={localDuration}
-                onChange={(v) => setLocalDuration(Math.max(0, v))}
-                min={0}
-                className="w-20"
-              />
-              <span className="text-sm text-muted-foreground">
-                {localDuration === 1 ? "day" : "days"}
-              </span>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
+      <Popover open={open} onOpenChange={handleClose}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="text-xs font-medium tabular-nums text-muted-foreground bg-accent/60 px-2 py-1 rounded-md hover:bg-accent transition-colors shrink-0 cursor-pointer"
+          >
+            {duration}d
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-3" align="end">
+          <p className="text-xs text-muted-foreground mb-2">Duration</p>
+          <div className="flex items-center gap-2">
+            <NumberStepper
+              value={localDuration}
+              onChange={(v) => setLocalDuration(Math.max(0, v))}
+              min={0}
+              className="w-20"
+            />
+            <span className="text-sm text-muted-foreground">
+              {localDuration === 1 ? "day" : "days"}
+            </span>
+          </div>
+        </PopoverContent>
+      </Popover>
 
       <button
         onClick={onRemove}

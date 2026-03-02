@@ -9,7 +9,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PropertyRow } from "@/components/ui/property-row";
@@ -19,10 +18,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { toast } from "sonner";
 import { TIMELINE_START_DATE, TIMELINE_END_DATE } from "@/components/timeline/constants";
-import { getMilestoneIcon } from "@/lib/milestone-icon";
-import { getColorStyles } from "@/lib/milestone-theme";
 
 interface MilestoneDialogProps {
   open: boolean;
@@ -39,11 +37,13 @@ export function MilestoneDialog({ open, onOpenChange, onCreated, onOpenMilestone
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [endDate, setEndDate] = useState<Date>(addMonths(new Date(), 3));
+  const [description, setDescription] = useState("");
 
   const resetForm = () => {
     setName("");
     setStartDate(new Date());
     setEndDate(addMonths(new Date(), 3));
+    setDescription("");
     setError(null);
   };
 
@@ -62,6 +62,7 @@ export function MilestoneDialog({ open, onOpenChange, onCreated, onOpenMilestone
           color: "blue",
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
+          ...(description.trim() ? { description: description.trim() } : {}),
         }),
       });
 
@@ -89,9 +90,6 @@ export function MilestoneDialog({ open, onOpenChange, onCreated, onOpenMilestone
     }
   };
 
-  const IconComponent = getMilestoneIcon("rocket");
-  const colorStyles = getColorStyles("blue");
-
   return (
     <Dialog
       open={open}
@@ -100,7 +98,7 @@ export function MilestoneDialog({ open, onOpenChange, onCreated, onOpenMilestone
         if (!isOpen) resetForm();
       }}
     >
-      <DialogContent className="sm:max-w-[500px] gap-0">
+      <DialogContent className="sm:max-w-[500px] gap-0" showCloseButton={false}>
         <DialogTitle className="sr-only">New Milestone</DialogTitle>
         <DialogDescription className="sr-only">
           Create a new milestone to organize your features.
@@ -113,20 +111,11 @@ export function MilestoneDialog({ open, onOpenChange, onCreated, onOpenMilestone
         )}
 
         <div className="mb-4">
-          <div
-            className="size-12 flex items-center justify-center rounded-xl"
-            style={{ backgroundColor: colorStyles.iconBg }}
-          >
-            <IconComponent className="size-7" style={{ color: colorStyles.hex }} />
-          </div>
-        </div>
-
-        <div className="mb-4">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Milestone name..."
-            className="w-full text-2xl sm:text-3xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
+            className="w-full text-2xl sm:text-3xl font-bold bg-transparent border-none outline-none placeholder:text-ring rounded-md px-2 pt-0.5 pb-1 -ml-2 hover:bg-accent/40 focus:bg-accent/50 transition-colors"
             autoFocus
             autoComplete="off"
             onKeyDown={(e) => {
@@ -191,7 +180,16 @@ export function MilestoneDialog({ open, onOpenChange, onCreated, onOpenMilestone
           </PropertyRow>
         </div>
 
-        <DialogFooter className="mt-4">
+        {/* Description */}
+        <div className="mt-4 pt-4 border-t border-border">
+          <RichTextEditor
+            content={description}
+            onChange={setDescription}
+            saveStatus="idle"
+          />
+        </div>
+
+        <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={() => {
@@ -207,7 +205,7 @@ export function MilestoneDialog({ open, onOpenChange, onCreated, onOpenMilestone
           >
             {isLoading ? "Creating..." : "Create Milestone"}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
