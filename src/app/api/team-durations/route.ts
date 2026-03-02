@@ -14,13 +14,8 @@ import { addDays, differenceInDays } from "date-fns";
 import { getTransitiveSuccessors } from "@/lib/graph-utils";
 
 function toLocalMidnight(date: Date | string): Date {
-  if (typeof date === "string") {
-    // ISO string from client — date component is in UTC
-    const d = new Date(date);
-    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  }
-  // Date object from DB (timestamp without tz) — pg returns local time
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const d = typeof date === "string" ? new Date(date) : date;
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
 const upsertSchema = z.object({

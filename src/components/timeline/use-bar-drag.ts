@@ -228,11 +228,31 @@ export function useBarDrag({
             newWidth = ppd;
             newLeft = origLeftRef.current + origWidthRef.current - ppd;
           }
+          // Clamp: don't shrink past leftmost child on summary bars
+          if (summaryChildOriginalsRef.current.size > 0) {
+            let minChildLeft = Infinity;
+            for (const [, orig] of summaryChildOriginalsRef.current) {
+              minChildLeft = Math.min(minChildLeft, orig.left);
+            }
+            if (newLeft > minChildLeft) {
+              newLeft = minChildLeft;
+              newWidth = origLeftRef.current + origWidthRef.current - newLeft;
+            }
+          }
           break;
         }
         case 'resize-end': {
           newWidth = snapPx(origWidthRef.current + dx);
           if (newWidth < ppd) newWidth = ppd;
+          // Clamp: don't shrink past rightmost child on summary bars
+          if (summaryChildOriginalsRef.current.size > 0) {
+            let maxChildRight = 0;
+            for (const [, orig] of summaryChildOriginalsRef.current) {
+              maxChildRight = Math.max(maxChildRight, orig.left + orig.width);
+            }
+            const minWidth = maxChildRight - origLeftRef.current;
+            if (newWidth < minWidth) newWidth = minWidth;
+          }
           break;
         }
       }

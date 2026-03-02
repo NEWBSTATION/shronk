@@ -78,11 +78,8 @@ export async function PATCH(
       const now = new Date();
 
       function toLocalMidnight(d: Date | string): Date {
-        if (typeof d === "string") {
-          const dt = new Date(d);
-          return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
-        }
-        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const dt = typeof d === "string" ? new Date(d) : d;
+        return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
       }
 
       if (data.dragType === "resize-start") {
@@ -149,9 +146,19 @@ export async function PATCH(
       }
 
       // move or resize-end: save dates + BFS shift successors
-      const newStart = new Date(data.startDate!);
-      const newEnd = data.endDate ? new Date(data.endDate!) : existingMilestone.endDate;
-      const duration = data.duration ?? Math.max(0, differenceInDays(newEnd, newStart) + 1);
+      let newStart = new Date(data.startDate!);
+      let newEnd = data.endDate ? new Date(data.endDate!) : existingMilestone.endDate;
+      let duration = data.duration ?? Math.max(0, differenceInDays(newEnd, newStart) + 1);
+
+      // Enforce parent contains all team tracks on resize-end
+      if (data.dragType === "resize-end") {
+        const bounds = await getTeamTrackBounds(id);
+        if (bounds) {
+          if (bounds.maxEnd > newEnd) newEnd = bounds.maxEnd;
+          if (bounds.minStart < newStart) newStart = bounds.minStart;
+          duration = Math.max(0, differenceInDays(newEnd, newStart) + 1);
+        }
+      }
 
       // Use client-provided original dates when available (prevents race conditions
       // when overlapping PATCH requests read stale DB state)

@@ -86,7 +86,7 @@ const STATUS_ICONS: Record<MilestoneStatus, typeof Circle> = {
 // Helper to get local midnight
 function toLocalMidnight(date: Date | string): Date {
   const d = typeof date === "string" ? new Date(date) : date;
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
 // Get today at local midnight
