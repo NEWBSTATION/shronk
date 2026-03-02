@@ -10,7 +10,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, Plus, Target } from "lucide-react";
+import { ArrowUpDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -262,8 +262,7 @@ export function MilestoneOverview({
   if (milestones.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <Target className="h-16 w-16 text-muted-foreground/50" />
-        <h3 className="mt-4 text-lg font-semibold">No milestones yet</h3>
+        <h3 className="text-lg font-semibold">No milestones yet</h3>
         <p className="mt-2 text-sm text-muted-foreground max-w-sm">
           Create your first milestone to start organizing features and tracking
           progress.

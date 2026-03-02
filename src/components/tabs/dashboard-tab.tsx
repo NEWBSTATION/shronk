@@ -3,9 +3,7 @@
 import { useMemo, useState, useCallback } from "react";
 import {
   ChevronDown,
-  Gem,
   Users,
-  TrendingUp,
   Check,
   Plus,
   Calendar,
@@ -1002,8 +1000,7 @@ export function DashboardTab({
     return (
       <>
         <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
-          <TrendingUp className="h-16 w-16 text-muted-foreground/50" />
-          <h3 className="mt-4 text-lg font-semibold">No data yet</h3>
+          <h3 className="text-lg font-semibold">No data yet</h3>
           <p className="mt-2 text-sm text-muted-foreground max-w-sm">
             Create a milestone to see your dashboard come alive.
           </p>
@@ -1121,8 +1118,7 @@ export function DashboardTab({
           </div>
         ) : total === 0 ? (
           <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
-            <Gem className="h-16 w-16 text-muted-foreground/50" />
-            <h3 className="mt-4 text-lg font-semibold">No features yet</h3>
+            <h3 className="text-lg font-semibold">No features yet</h3>
             <p className="mt-2 text-sm text-muted-foreground max-w-sm">
               Add features to this milestone to see dashboard analytics.
             </p>

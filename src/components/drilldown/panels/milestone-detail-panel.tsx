@@ -3,7 +3,7 @@
 import { useMemo, useCallback } from "react";
 import { format } from "date-fns";
 import { toLocalMidnight } from "@/components/timeline/transformers";
-import { Plus, Calendar, Box, ArrowLeft, Ellipsis } from "lucide-react";
+import { Plus, Calendar, ArrowLeft, Ellipsis } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -279,8 +279,7 @@ export function MilestoneDetailPanel({
 
         {features.length === 0 ? (
           <div className="flex flex-col items-center py-8 text-center">
-            <Box className="h-10 w-10 text-muted-foreground/40" />
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               No features yet
             </p>
             <Button

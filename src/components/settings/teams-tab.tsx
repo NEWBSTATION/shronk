@@ -332,8 +332,7 @@ export function TeamsTab() {
     return (
       <div className="space-y-4">
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Users className="h-16 w-16 text-muted-foreground/50" />
-          <h3 className="mt-4 text-lg font-semibold">No teams yet</h3>
+          <h3 className="text-lg font-semibold">No teams yet</h3>
           <p className="mt-2 text-sm text-muted-foreground max-w-sm">
             Create teams to organize work across your milestones.
           </p>

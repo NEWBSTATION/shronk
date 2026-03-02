@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Layers, Search, SlidersHorizontal, X, Plus } from "lucide-react";
+import { Search, SlidersHorizontal, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -733,8 +733,7 @@ export function FeaturesTab() {
     return (
       <>
         <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
-          <Layers className="h-16 w-16 text-muted-foreground/50" />
-          <h3 className="mt-4 text-lg font-semibold">No features yet</h3>
+          <h3 className="text-lg font-semibold">No features yet</h3>
           <p className="mt-2 text-sm text-muted-foreground max-w-sm">
             Create a milestone first, then add features to it to see them here.
           </p>
@@ -818,8 +817,7 @@ export function FeaturesTab() {
 
         {searchMatchIds && searchMatchIds.size === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Search className="h-10 w-10 text-muted-foreground/40" />
-            <p className="mt-3 text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               No features matching &quot;{searchQuery.trim()}&quot;
             </p>
           </div>

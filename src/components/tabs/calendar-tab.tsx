@@ -497,8 +497,7 @@ export function CalendarTab({ isActive = true }: CalendarTabProps) {
     return (
       <>
         <div className="flex flex-col items-center justify-center h-[60vh] text-center px-6 py-8">
-          <CalendarDays className="h-16 w-16 text-muted-foreground/50" />
-          <h3 className="mt-4 text-lg font-semibold">
+          <h3 className="text-lg font-semibold">
             {hasMilestones ? "No features yet" : "No milestones yet"}
           </h3>
           <p className="mt-2 text-sm text-muted-foreground max-w-sm">
