@@ -63,6 +63,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { priorityConfig, PriorityHighIcon } from "@/components/shared/status-badge";
 import { formatDuration } from "@/lib/format-duration";
@@ -581,7 +582,7 @@ export function FeatureDetailPanel({
             value={status}
             onValueChange={(v) => handleStatusChange(v as MilestoneStatus)}
           >
-            <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0 w-auto gap-2">
+            <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0 w-auto gap-2 [&>svg:last-child]:hidden">
               <SelectValue>
                 <StatusDisplay status={status} />
               </SelectValue>
@@ -613,7 +614,7 @@ export function FeatureDetailPanel({
               value={selectedMilestoneId || ""}
               onValueChange={(v) => onMilestoneChange?.(v || null)}
             >
-              <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0">
+              <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent/50 focus:ring-0 bg-transparent dark:bg-transparent dark:hover:bg-accent/50 [&>svg:last-child]:hidden">
                 <SelectValue placeholder="Select milestone" />
               </SelectTrigger>
               <SelectContent>
@@ -634,9 +635,13 @@ export function FeatureDetailPanel({
               value={priority}
               onValueChange={(v) => handlePriorityChange(v as MilestonePriority)}
             >
-              <SelectTrigger className="border-0 shadow-none h-8 px-2 text-sm hover:bg-accent focus:ring-0 w-auto gap-2">
+              <SelectTrigger className={cn("border-0 shadow-none h-8 px-2 text-sm hover:bg-accent/50 focus:ring-0 w-auto gap-2 bg-transparent dark:bg-transparent dark:hover:bg-accent/50 [&>svg:last-child]:hidden", priority === "none" && "text-muted-foreground/60")}>
                 <SelectValue>
-                  <PriorityDisplay priority={priority} />
+                  {priority === "none" ? (
+                    <span>No Priority</span>
+                  ) : (
+                    <PriorityDisplay priority={priority} />
+                  )}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -712,7 +717,7 @@ export function FeatureDetailPanel({
         </PropertyRow>
 
         {/* Team Tracks — edit mode (API-backed) */}
-        {isEditMode && teams.length > 0 && feature && (
+        {isEditMode && teams.length > 0 && feature && !(hideEmptyProps && teamDurations.filter((td) => td.milestoneId === feature.id).length === 0) && (
           <TeamTracksProperty
             feature={feature}
             teams={teams}
@@ -723,7 +728,7 @@ export function FeatureDetailPanel({
         )}
 
         {/* Team Tracks — create mode (local state) */}
-        {!isEditMode && teams.length > 0 && (
+        {!isEditMode && teams.length > 0 && !(hideEmptyProps && pendingTeamTracks.size === 0) && (
           <PendingTeamTracksProperty
             teams={teams}
             pendingTracks={pendingTeamTracks}
@@ -874,34 +879,81 @@ function TeamTracksProperty({
 
   const assignedTeamIds = new Set(teamDurations.map((td) => td.teamId));
   const unassignedTeams = teams.filter((t) => !assignedTeamIds.has(t.id));
+  const assignedTeams = teamDurations
+    .map((td) => teams.find((t) => t.id === td.teamId))
+    .filter(Boolean) as Team[];
 
   return (
     <PropertyRow icon={Users} label="Teams" type="custom">
-      <div className="space-y-0.5">
-        {teamDurations.map((td) => {
-          const team = teams.find((t) => t.id === td.teamId);
-          if (!team) return null;
-
-          return (
-            <TeamTrackRow
-              key={td.id}
-              td={td}
-              team={team}
-              feature={feature}
-              onUpsertTeamDuration={onUpsertTeamDuration}
-              onDeleteTeamDuration={onDeleteTeamDuration}
-            />
-          );
-        })}
-
-        {unassignedTeams.length > 0 && onUpsertTeamDuration && (
-          <AddTeamPopover
-            teams={unassignedTeams}
-            placeholder="Search teams..."
-            onSelect={(teamId) => onUpsertTeamDuration(feature.id, teamId, feature.duration)}
-          />
-        )}
-      </div>
+      <ResponsivePopover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <ResponsivePopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center h-8 px-2 text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer gap-1.5 min-w-0"
+              >
+                {assignedTeams.length > 0 ? (
+                  <span className="truncate">
+                    {assignedTeams.length === 1
+                      ? assignedTeams[0].name
+                      : `${assignedTeams.length} teams`}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground/60">Add teams...</span>
+                )}
+              </button>
+            </ResponsivePopoverTrigger>
+          </TooltipTrigger>
+          {assignedTeams.length > 1 && (
+            <TooltipContent side="bottom" align="start" className="p-0 bg-foreground">
+              <div className="flex flex-col gap-0.5 py-1.5 px-2">
+                {teamDurations.map((td) => {
+                  const team = assignedTeams.find((t) => t.id === td.teamId);
+                  if (!team) return null;
+                  return (
+                    <div key={td.id} className="flex items-center gap-2">
+                      <span
+                        className="h-1.5 w-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: team.color }}
+                      />
+                      <span className="text-xs">{team.name}</span>
+                      <span className="text-xs text-background/50 ml-auto pl-3">
+                        {formatDuration(td.duration)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </TooltipContent>
+          )}
+        </Tooltip>
+        <ResponsivePopoverContent className="w-72 p-0" align="start" title="Team Tracks">
+          <div className="p-2 space-y-0.5">
+            {teamDurations.map((td) => {
+              const team = teams.find((t) => t.id === td.teamId);
+              if (!team) return null;
+              return (
+                <TeamTrackRow
+                  key={td.id}
+                  td={td}
+                  team={team}
+                  feature={feature}
+                  onUpsertTeamDuration={onUpsertTeamDuration}
+                  onDeleteTeamDuration={onDeleteTeamDuration}
+                />
+              );
+            })}
+            {unassignedTeams.length > 0 && onUpsertTeamDuration && (
+              <AddTeamPopover
+                teams={unassignedTeams}
+                placeholder="Search teams..."
+                onSelect={(teamId) => onUpsertTeamDuration(feature.id, teamId, feature.duration)}
+              />
+            )}
+          </div>
+        </ResponsivePopoverContent>
+      </ResponsivePopover>
     </PropertyRow>
   );
 }
@@ -1037,6 +1089,7 @@ function TeamTrackRow({
             </button>
           </ResponsivePopoverTrigger>
           <ResponsivePopoverContent className="w-auto p-3" align="end" title="Duration">
+            <p className="text-xs text-muted-foreground mb-2">Duration</p>
             <div className="flex items-center gap-2">
               <NumberStepper
                 value={localValue}
@@ -1101,32 +1154,80 @@ function PendingTeamTracksProperty({
 }) {
   const assignedTeamIds = new Set(pendingTracks.keys());
   const unassignedTeams = teams.filter((t) => !assignedTeamIds.has(t.id));
+  const assignedTeams = Array.from(pendingTracks.keys())
+    .map((id) => teams.find((t) => t.id === id))
+    .filter(Boolean) as Team[];
 
   return (
     <PropertyRow icon={Users} label="Teams" type="custom">
-      <div className="space-y-0.5">
-        {Array.from(pendingTracks).map(([teamId, duration]) => {
-          const team = teams.find((t) => t.id === teamId);
-          if (!team) return null;
-          return (
-            <PendingTeamTrackRow
-              key={teamId}
-              team={team}
-              duration={duration}
-              onUpdateDuration={(d) => onUpdateDuration(teamId, d)}
-              onRemove={() => onRemove(teamId)}
-            />
-          );
-        })}
-
-        {unassignedTeams.length > 0 && (
-          <AddTeamPopover
-            teams={unassignedTeams}
-            placeholder="Search teams..."
-            onSelect={(teamId) => onAdd(teamId, defaultDuration)}
-          />
-        )}
-      </div>
+      <ResponsivePopover>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <ResponsivePopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center h-8 px-2 text-sm rounded-md hover:bg-accent/50 transition-colors cursor-pointer gap-1.5 min-w-0"
+              >
+                {assignedTeams.length > 0 ? (
+                  <span className="truncate">
+                    {assignedTeams.length === 1
+                      ? assignedTeams[0].name
+                      : `${assignedTeams.length} teams`}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground/60">Add teams...</span>
+                )}
+              </button>
+            </ResponsivePopoverTrigger>
+          </TooltipTrigger>
+          {assignedTeams.length > 1 && (
+            <TooltipContent side="bottom" align="start" className="p-0 bg-foreground">
+              <div className="flex flex-col gap-0.5 py-1.5 px-2">
+                {Array.from(pendingTracks).map(([teamId, duration]) => {
+                  const team = assignedTeams.find((t) => t.id === teamId);
+                  if (!team) return null;
+                  return (
+                    <div key={teamId} className="flex items-center gap-2">
+                      <span
+                        className="h-1.5 w-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: team.color }}
+                      />
+                      <span className="text-xs">{team.name}</span>
+                      <span className="text-xs text-background/50 ml-auto pl-3">
+                        {formatDuration(duration)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </TooltipContent>
+          )}
+        </Tooltip>
+        <ResponsivePopoverContent className="w-72 p-0" align="start" title="Team Tracks">
+          <div className="p-2 space-y-0.5">
+            {Array.from(pendingTracks).map(([teamId, duration]) => {
+              const team = teams.find((t) => t.id === teamId);
+              if (!team) return null;
+              return (
+                <PendingTeamTrackRow
+                  key={teamId}
+                  team={team}
+                  duration={duration}
+                  onUpdateDuration={(d) => onUpdateDuration(teamId, d)}
+                  onRemove={() => onRemove(teamId)}
+                />
+              );
+            })}
+            {unassignedTeams.length > 0 && (
+              <AddTeamPopover
+                teams={unassignedTeams}
+                placeholder="Search teams..."
+                onSelect={(teamId) => onAdd(teamId, defaultDuration)}
+              />
+            )}
+          </div>
+        </ResponsivePopoverContent>
+      </ResponsivePopover>
     </PropertyRow>
   );
 }
@@ -1188,6 +1289,7 @@ function PendingTeamTrackRow({
           </button>
         </ResponsivePopoverTrigger>
         <ResponsivePopoverContent className="w-auto p-3" align="end" title="Duration">
+          <p className="text-xs text-muted-foreground mb-2">Duration</p>
           <div className="flex items-center gap-2">
             <NumberStepper
               value={localValue}
@@ -1330,9 +1432,9 @@ function DependenciesSection({
         >
           <button
             type="button"
-            className="flex items-center gap-2 text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors py-1"
+            className="flex items-center gap-3 min-h-8 py-1.5 rounded-md px-2 -mx-2 text-sm text-muted-foreground/60 hover:text-muted-foreground hover:bg-accent/30 transition-colors"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="size-4 shrink-0" />
             <span>Add dependency</span>
           </button>
         </DepAddDropdown>

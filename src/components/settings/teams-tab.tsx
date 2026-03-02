@@ -219,8 +219,12 @@ export function TeamsTab() {
 
   // New team form
   const [newName, setNewName] = useState("");
-  const [newColor, setNewColor] = useState(() => COLOR_ENTRIES[Math.floor(Math.random() * COLOR_ENTRIES.length)][1]);
+  const [newColor, setNewColor] = useState(COLOR_ENTRIES[0][1]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const openAddForm = () => {
+    setNewColor(COLOR_ENTRIES[Math.floor(Math.random() * COLOR_ENTRIES.length)][1]);
+    setShowAddForm(true);
+  };
 
   // Inline editing
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -336,7 +340,7 @@ export function TeamsTab() {
         </div>
 
         <button
-          onClick={() => setShowAddForm(true)}
+          onClick={() => openAddForm()}
           className="w-full rounded-2xl border border-dashed border-border px-4 py-3 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-accent/20 transition-colors"
         >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -411,7 +415,7 @@ export function TeamsTab() {
             </div>
 
             <button
-              onClick={() => setShowAddForm(true)}
+              onClick={() => openAddForm()}
               className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent/50 transition-all"
               title="Add team"
             >
@@ -480,7 +484,7 @@ export function TeamsTab() {
           </div>
         ) : (
           <button
-            onClick={() => setShowAddForm(true)}
+            onClick={() => openAddForm()}
             className="w-full px-4 py-3.5 flex items-center gap-3 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors cursor-pointer border-t"
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center">
