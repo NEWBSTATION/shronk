@@ -1071,56 +1071,55 @@ function TeamTrackRow({
       : null;
 
   return (
-    <div className="flex items-center gap-2 min-h-7 py-0.5 rounded-md hover:bg-accent/30 group">
+    <div className="flex items-center gap-2 px-1.5 py-1.5 -mx-0.5 rounded-lg hover:bg-accent/30 group">
       <div
-        className="h-2 w-2 rounded-full shrink-0"
+        className="h-2.5 w-2.5 rounded-full shrink-0"
         style={{ backgroundColor: team.color }}
       />
-      <span className="text-sm truncate min-w-0 flex-1">{team.name}</span>
-
-      <div className="flex items-center gap-1.5 shrink-0">
-        <ResponsivePopover open={open} onOpenChange={handleClose}>
-          <ResponsivePopoverTrigger asChild>
-            <button
-              type="button"
-              className="text-xs tabular-nums text-muted-foreground px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors"
-            >
-              {durationLabel}
-            </button>
-          </ResponsivePopoverTrigger>
-          <ResponsivePopoverContent className="w-auto p-3" align="end" title="Duration">
-            <p className="text-xs text-muted-foreground mb-2">Duration</p>
-            <div className="flex items-center gap-2">
-              <NumberStepper
-                value={localValue}
-                onChange={(v) => setLocalValue(Math.max(0, v))}
-                min={0}
-                className="w-20"
-              />
-              <Select
-                value={localUnit}
-                onValueChange={(v) => setLocalUnit(v as DurationUnit)}
-              >
-                <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="days">days</SelectItem>
-                  <SelectItem value="weeks">weeks</SelectItem>
-                  <SelectItem value="months">months</SelectItem>
-                  <SelectItem value="years">years</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </ResponsivePopoverContent>
-        </ResponsivePopover>
-
+      <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+        <span className="text-sm font-medium truncate">{team.name}</span>
         {dateRange && (
-          <span className="text-[11px] text-muted-foreground/50 tabular-nums hidden sm:inline">
+          <span className="text-[11px] text-muted-foreground tabular-nums">
             {dateRange}
           </span>
         )}
       </div>
+
+      <ResponsivePopover open={open} onOpenChange={handleClose}>
+        <ResponsivePopoverTrigger asChild>
+          <button
+            type="button"
+            className="text-xs font-medium tabular-nums text-muted-foreground bg-accent/60 px-2 py-1 rounded-md hover:bg-accent transition-colors shrink-0 cursor-pointer"
+          >
+            {durationLabel}
+          </button>
+        </ResponsivePopoverTrigger>
+        <ResponsivePopoverContent className="w-auto p-3" align="end" title="Duration">
+          <p className="text-xs text-muted-foreground mb-2">Duration</p>
+          <div className="flex items-center gap-2">
+            <NumberStepper
+              value={localValue}
+              onChange={(v) => setLocalValue(Math.max(0, v))}
+              min={0}
+              className="w-20"
+            />
+            <Select
+              value={localUnit}
+              onValueChange={(v) => setLocalUnit(v as DurationUnit)}
+            >
+              <SelectTrigger className="h-9 w-[100px] dark:bg-input/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="days">days</SelectItem>
+                <SelectItem value="weeks">weeks</SelectItem>
+                <SelectItem value="months">months</SelectItem>
+                <SelectItem value="years">years</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </ResponsivePopoverContent>
+      </ResponsivePopover>
 
       <button
         onClick={() => onDeleteTeamDuration?.(feature.id, td.teamId)}
@@ -1272,18 +1271,18 @@ function PendingTeamTrackRow({
   const durationLabel = formatDuration(duration);
 
   return (
-    <div className="flex items-center gap-2 min-h-7 py-0.5 rounded-md hover:bg-accent/30 group">
+    <div className="flex items-center gap-2 px-1.5 py-1.5 -mx-0.5 rounded-lg hover:bg-accent/30 group">
       <div
-        className="h-2 w-2 rounded-full shrink-0"
+        className="h-2.5 w-2.5 rounded-full shrink-0"
         style={{ backgroundColor: team.color }}
       />
-      <span className="text-sm truncate min-w-0 flex-1">{team.name}</span>
+      <span className="text-sm font-medium truncate min-w-0 flex-1">{team.name}</span>
 
       <ResponsivePopover open={open} onOpenChange={handleClose}>
         <ResponsivePopoverTrigger asChild>
           <button
             type="button"
-            className="text-xs tabular-nums text-muted-foreground px-1.5 py-0.5 rounded-md hover:bg-accent transition-colors shrink-0"
+            className="text-xs font-medium tabular-nums text-muted-foreground bg-accent/60 px-2 py-1 rounded-md hover:bg-accent transition-colors shrink-0 cursor-pointer"
           >
             {durationLabel}
           </button>
