@@ -349,25 +349,10 @@ export async function DELETE(request: NextRequest) {
       .delete(milestoneDependencies)
       .where(eq(milestoneDependencies.id, data.id));
 
-    // Run unified reflow
-    const { milestoneUpdates, teamDateUpdates } =
-      await unifiedReflow(projectId);
-
     return NextResponse.json({
       success: true,
-      cascadedUpdates: milestoneUpdates.map((u) => ({
-        id: u.id,
-        startDate: u.startDate.toISOString(),
-        endDate: u.endDate.toISOString(),
-        duration: u.duration,
-      })),
-      teamCascadedUpdates: teamDateUpdates.map((td) => ({
-        teamId: td.teamId,
-        id: td.milestoneId,
-        startDate: td.startDate.toISOString(),
-        endDate: td.endDate.toISOString(),
-        duration: td.duration,
-      })),
+      cascadedUpdates: [],
+      teamCascadedUpdates: [],
     });
   } catch (error) {
     if (error instanceof AuthError) {
