@@ -10,7 +10,6 @@ const createDependencySchema = z.object({
   predecessorId: z.string().uuid(),
   successorId: z.string().uuid(),
   lag: z.number().int().min(0).optional(),
-  skipReflow: z.boolean().optional(),
 });
 
 const deleteDependencySchema = z.object({
@@ -216,40 +215,11 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    // Skip reflow when creating a "link only" dependency (no Shift held)
-    if (data.skipReflow) {
-      return NextResponse.json(
-        {
-          dependency,
-          cascadedUpdates: [],
-          teamCascadedUpdates: [],
-        },
-        { status: 201 }
-      );
-    }
-
-    // Run unified reflow
-    const { milestoneUpdates, teamDateUpdates } = await unifiedReflow(
-      predecessor.projectId
-    );
-
     return NextResponse.json(
       {
         dependency,
-        cascadedUpdates: milestoneUpdates.map((u) => ({
-          id: u.id,
-          startDate: u.startDate.toISOString(),
-          endDate: u.endDate.toISOString(),
-          duration: u.duration,
-        })),
-        teamCascadedUpdates: teamDateUpdates.map((td) => ({
-          teamId: td.teamId,
-          id: td.milestoneId,
-          startDate: td.startDate.toISOString(),
-          endDate: td.endDate.toISOString(),
-          duration: td.duration,
-          offset: td.offset,
-        })),
+        cascadedUpdates: [],
+        teamCascadedUpdates: [],
       },
       { status: 201 }
     );
