@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { streamText, stepCountIs } from "ai";
+import { streamText, stepCountIs, convertToModelMessages } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
@@ -54,10 +54,13 @@ export async function POST(request: NextRequest) {
 
     const aiTools = getAITools(ctx.workspaceId, ctx.userId);
 
+    // Convert UIMessages from the client to ModelMessages for streamText
+    const modelMessages = await convertToModelMessages(messages);
+
     const result = streamText({
       model,
       system: systemPrompt,
-      messages,
+      messages: modelMessages,
       tools: aiTools,
       stopWhen: stepCountIs(10),
     });
@@ -70,9 +73,10 @@ export async function POST(request: NextRequest) {
         { status: error.status, headers: { "Content-Type": "application/json" } }
       );
     }
-    console.error("AI chat error:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("AI chat error:", errorMessage, error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: errorMessage || "Internal server error" }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
