@@ -55,7 +55,17 @@ export async function POST(request: NextRequest) {
     const aiTools = getAITools(ctx.workspaceId, ctx.userId);
 
     // Convert UIMessages from the client to ModelMessages for streamText
-    const modelMessages = await convertToModelMessages(messages);
+    let modelMessages;
+    try {
+      modelMessages = await convertToModelMessages(messages);
+    } catch (conversionError) {
+      console.error("Message conversion error:", conversionError);
+      console.error("Raw messages:", JSON.stringify(messages, null, 2));
+      return new Response(
+        JSON.stringify({ error: "Failed to process messages" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     const result = streamText({
       model,
@@ -63,6 +73,9 @@ export async function POST(request: NextRequest) {
       messages: modelMessages,
       tools: aiTools,
       stopWhen: stepCountIs(10),
+      onError: (event) => {
+        console.error("streamText error:", event.error);
+      },
     });
 
     return result.toUIMessageStreamResponse();

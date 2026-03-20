@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useChat } from "@ai-sdk/react";
-import type { UIMessage } from "ai";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAIStore, type AIProvider } from "@/store/ai-store";
 import { cn } from "@/lib/utils";
@@ -252,10 +252,17 @@ export function AIChatPanel() {
   const apiKey = provider === "anthropic" ? anthropicKey : openaiKey;
   const needsKey = !apiKey;
 
-  const chatOptions = useMemo(
-    () => ({
+  const transport = useMemo(
+    () => new DefaultChatTransport({
       api: "/api/ai/chat",
       body: { provider, apiKey },
+    }),
+    [provider, apiKey]
+  );
+
+  const chatOptions = useMemo(
+    () => ({
+      transport,
       onError: (err: Error) => {
         console.error("Chat error:", err);
       },
@@ -268,7 +275,7 @@ export function AIChatPanel() {
         queryClient.invalidateQueries({ queryKey: ["projectStats"] });
       },
     }),
-    [provider, apiKey, queryClient]
+    [transport, queryClient]
   );
 
   const { messages, sendMessage, status, error, setMessages, stop, clearError, regenerate } =
@@ -435,7 +442,7 @@ export function AIChatPanel() {
               <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 rounded-xl px-3 py-2">
                 <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p>Something went wrong.</p>
+                  <p>{error.message || "Something went wrong."}</p>
                   <button
                     onClick={() => {
                       clearError();
