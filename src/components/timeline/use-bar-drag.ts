@@ -5,7 +5,6 @@ import type { TimePeriod } from './types';
 import { parseTeamTrackId } from './transformers';
 import { roundedPath } from './timeline-links';
 import { ROW_HEIGHT } from './scales-config';
-import { getTransitiveSuccessors } from '@/lib/graph-utils';
 import type { Milestone } from '@/db/schema';
 import type { TimelineTask } from './types';
 
@@ -285,36 +284,10 @@ export function useBarDrag({
         if (needsGrowth) {
           parentEl.style.left = `${newParentLeft}px`;
           parentEl.style.width = `${newParentRight - newParentLeft}px`;
-
-          // Delta-shift parent's transitive successors by right-edge growth
-          const rightGrowthPx = newParentRight - origParentRight;
-          if (rightGrowthPx > 0) {
-            const successors = getTransitiveSuccessors(parentId, successorMapRef.current);
-            for (const succId of successors) {
-              const el = container!.querySelector(`[data-task-id="${succId}"]`) as HTMLElement;
-              if (!el) continue;
-              if (!cascadeOriginalsRef.current.has(succId)) {
-                cascadeOriginalsRef.current.set(succId, {
-                  left: parseFloat(el.style.left) || 0,
-                  width: parseFloat(el.style.width) || 0,
-                });
-              }
-              const orig = cascadeOriginalsRef.current.get(succId)!;
-              el.style.left = `${orig.left + rightGrowthPx}px`;
-            }
-          }
         } else {
-          // Parent back to original — revert growth + successor shifts
+          // Parent back to original
           parentEl.style.left = `${parentLeft}px`;
           parentEl.style.width = `${parentWidth}px`;
-          for (const [succId, orig] of cascadeOriginalsRef.current) {
-            const el = container!.querySelector(`[data-task-id="${succId}"]`) as HTMLElement;
-            if (el) {
-              el.style.left = `${orig.left}px`;
-              el.style.width = `${orig.width}px`;
-            }
-          }
-          cascadeOriginalsRef.current.clear();
         }
       }
 
@@ -341,104 +314,12 @@ export function useBarDrag({
         highlightEl.style.width = `${newWidth}px`;
       }
 
-      // Live delta-shift cascade preview for non-team-track tasks
-      if (!teamTrack) {
-        runCascadePreview(taskId, newLeft, newWidth);
-      }
+      // No cascade preview — features stay where they are
 
       // Update dependency lines to follow bar positions
       updateLinksPreview();
     }
 
-    /**
-     * Delta-shift cascade preview (ClickUp-style):
-     * - resize-start: no cascade (return early)
-     * - move: shift all transitive successors by the same px delta
-     * - resize-end: shift all transitive successors by end-date delta
-     */
-    function runCascadePreview(taskId: string, newLeft: number, newWidth: number) {
-      const dragType = dragTypeRef.current;
-
-      // resize-start: no cascade at all
-      if (dragType === 'resize-start') {
-        // Revert any previously cascaded bars
-        for (const [id, orig] of cascadeOriginalsRef.current) {
-          const el = container!.querySelector(`[data-task-id="${id}"]`) as HTMLElement;
-          if (el) {
-            el.style.left = `${orig.left}px`;
-            el.style.width = `${orig.width}px`;
-          }
-        }
-        cascadeOriginalsRef.current.clear();
-        lastCascadeKeyRef.current = '';
-        return;
-      }
-
-      // Compute delta in pixels
-      let deltaPx: number;
-      if (dragType === 'move') {
-        deltaPx = newLeft - origLeftRef.current;
-      } else {
-        // resize-end: delta of end position
-        deltaPx = (newLeft + newWidth) - (origLeftRef.current + origWidthRef.current);
-      }
-
-      // BFS all transitive successors
-      const successors = getTransitiveSuccessors(taskId, successorMapRef.current);
-
-      const cascadeKey = `${deltaPx}:${[...successors].join(',')}`;
-      if (cascadeKey === lastCascadeKeyRef.current) return;
-      lastCascadeKeyRef.current = cascadeKey;
-
-      // Revert bars that are no longer successors
-      for (const [prevId, orig] of cascadeOriginalsRef.current) {
-        if (!successors.has(prevId)) {
-          const el = container!.querySelector(`[data-task-id="${prevId}"]`) as HTMLElement;
-          if (el) {
-            el.style.left = `${orig.left}px`;
-            el.style.width = `${orig.width}px`;
-          }
-          cascadeOriginalsRef.current.delete(prevId);
-        }
-      }
-
-      // Build child lookup once for shifting team tracks of successor milestones
-      const currentTasks = tasksRef.current;
-
-      for (const succId of successors) {
-        const el = container!.querySelector(`[data-task-id="${succId}"]`) as HTMLElement;
-        if (!el) continue;
-
-        // Save originals on first touch
-        if (!cascadeOriginalsRef.current.has(succId)) {
-          cascadeOriginalsRef.current.set(succId, {
-            left: parseFloat(el.style.left) || 0,
-            width: parseFloat(el.style.width) || 0,
-          });
-        }
-
-        const orig = cascadeOriginalsRef.current.get(succId)!;
-        // Shift left by delta, keep width unchanged (gaps preserved)
-        el.style.left = `${orig.left + deltaPx}px`;
-
-        // Also shift team track children of this successor
-        for (const child of currentTasks) {
-          if (child.parent !== succId) continue;
-          const childEl = container!.querySelector(`[data-task-id="${child.id}"]`) as HTMLElement;
-          if (!childEl) continue;
-
-          if (!cascadeOriginalsRef.current.has(child.id)) {
-            cascadeOriginalsRef.current.set(child.id, {
-              left: parseFloat(childEl.style.left) || 0,
-              width: parseFloat(childEl.style.width) || 0,
-            });
-          }
-
-          const childOrig = cascadeOriginalsRef.current.get(child.id)!;
-          childEl.style.left = `${childOrig.left + deltaPx}px`;
-        }
-      }
-    }
 
     const LINK_DELTA = 20;
     const LINK_R = 6;
