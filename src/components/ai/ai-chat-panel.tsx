@@ -23,21 +23,18 @@ import {
 } from "lucide-react";
 
 function ProviderSelector() {
-  const { provider, setProvider, anthropicKey, openaiKey, setAnthropicKey, setOpenaiKey, showSettings, setShowSettings } = useAIStore();
-  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "valid" | "invalid">("idle");
+  const store = useAIStore();
+  const { provider, setProvider, anthropicKey, openaiKey, setAnthropicKey, setOpenaiKey, showSettings, setShowSettings } = store;
+  const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
 
   const currentKey = provider === "anthropic" ? anthropicKey : openaiKey;
-
-  // Reset test status when key or provider changes
-  useEffect(() => {
-    setTestStatus("idle");
-    setTestError(null);
-  }, [currentKey, provider]);
+  const keyStatus = provider === "anthropic" ? store.anthropicKeyStatus : store.openaiKeyStatus;
+  const setKeyStatus = provider === "anthropic" ? store.setAnthropicKeyStatus : store.setOpenaiKeyStatus;
 
   const testKey = async () => {
     if (!currentKey) return;
-    setTestStatus("testing");
+    setTesting(true);
     setTestError(null);
     try {
       const res = await fetch("/api/ai/test-key", {
@@ -47,14 +44,16 @@ function ProviderSelector() {
       });
       const data = await res.json();
       if (data.valid) {
-        setTestStatus("valid");
+        setKeyStatus("valid");
       } else {
-        setTestStatus("invalid");
+        setKeyStatus("invalid");
         setTestError(data.error || "Invalid key");
       }
     } catch {
-      setTestStatus("invalid");
+      setKeyStatus("invalid");
       setTestError("Connection failed");
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -66,11 +65,11 @@ function ProviderSelector() {
       >
         <Settings className="h-3 w-3" />
         <span>AI Settings</span>
-        {/* Show a dot indicator when settings are collapsed */}
+        {/* Show a status indicator when settings are collapsed */}
         {!showSettings && currentKey && (
           <span className={cn(
             "ml-1 h-1.5 w-1.5 rounded-full",
-            testStatus === "valid" ? "bg-green-500" : testStatus === "invalid" ? "bg-destructive" : "bg-muted-foreground/40"
+            keyStatus === "valid" ? "bg-green-500" : keyStatus === "invalid" ? "bg-destructive" : "bg-muted-foreground/40"
           )} />
         )}
         <ChevronDown className={cn("h-3 w-3 ml-auto transition-transform", showSettings && "rotate-180")} />
@@ -80,20 +79,27 @@ function ProviderSelector() {
           <div>
             <label className="text-xs font-medium text-muted-foreground">Provider</label>
             <div className="flex gap-1 mt-1">
-              {(["anthropic", "openai"] as AIProvider[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setProvider(p)}
-                  className={cn(
-                    "flex-1 text-xs py-1.5 px-2 rounded-lg border transition-colors capitalize",
-                    provider === p
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {p === "anthropic" ? "Claude" : "OpenAI"}
-                </button>
-              ))}
+              {(["anthropic", "openai"] as AIProvider[]).map((p) => {
+                const pKey = p === "anthropic" ? anthropicKey : openaiKey;
+                const pStatus = p === "anthropic" ? store.anthropicKeyStatus : store.openaiKeyStatus;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setProvider(p)}
+                    className={cn(
+                      "flex-1 text-xs py-1.5 px-2 rounded-lg border transition-colors capitalize flex items-center justify-center gap-1.5",
+                      provider === p
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {p === "anthropic" ? "Claude" : "OpenAI"}
+                    {pKey && pStatus === "valid" && (
+                      <Check className="h-3 w-3 text-green-500" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div>
@@ -112,30 +118,30 @@ function ProviderSelector() {
                 placeholder="sk-..."
                 className={cn(
                   "flex-1 text-xs px-2 py-1.5 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary",
-                  testStatus === "valid" && "border-green-500/50",
-                  testStatus === "invalid" && "border-destructive/50"
+                  keyStatus === "valid" && "border-green-500/50",
+                  keyStatus === "invalid" && "border-destructive/50"
                 )}
               />
               <button
                 onClick={testKey}
-                disabled={!currentKey || testStatus === "testing"}
+                disabled={!currentKey || testing}
                 className="text-xs px-2.5 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-card transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
               >
-                {testStatus === "testing" ? (
+                {testing ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
                   "Test"
                 )}
               </button>
             </div>
-            {testStatus === "valid" && (
+            {keyStatus === "valid" && !testing && (
               <p className="text-xs text-green-500 mt-1 flex items-center gap-1">
                 <Check className="h-3 w-3" /> Key is valid
               </p>
             )}
-            {testStatus === "invalid" && (
+            {keyStatus === "invalid" && !testing && (
               <p className="text-xs text-destructive mt-1 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> {testError}
+                <AlertCircle className="h-3 w-3" /> {testError || "Invalid key"}
               </p>
             )}
           </div>

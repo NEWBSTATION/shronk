@@ -5,6 +5,8 @@ import { persist } from "zustand/middleware";
 
 export type AIProvider = "anthropic" | "openai";
 
+export type KeyStatus = "unknown" | "valid" | "invalid";
+
 interface AIStore {
   // Panel state
   isOpen: boolean;
@@ -18,6 +20,12 @@ interface AIStore {
   setAnthropicKey: (key: string) => void;
   openaiKey: string;
   setOpenaiKey: (key: string) => void;
+
+  // Key validation status (persisted)
+  anthropicKeyStatus: KeyStatus;
+  setAnthropicKeyStatus: (status: KeyStatus) => void;
+  openaiKeyStatus: KeyStatus;
+  setOpenaiKeyStatus: (status: KeyStatus) => void;
 
   // Settings panel
   showSettings: boolean;
@@ -34,9 +42,14 @@ export const useAIStore = create<AIStore>()(
       provider: "anthropic",
       setProvider: (provider) => set({ provider }),
       anthropicKey: "",
-      setAnthropicKey: (anthropicKey) => set({ anthropicKey }),
+      setAnthropicKey: (anthropicKey) => set({ anthropicKey, anthropicKeyStatus: "unknown" as KeyStatus }),
       openaiKey: "",
-      setOpenaiKey: (openaiKey) => set({ openaiKey }),
+      setOpenaiKey: (openaiKey) => set({ openaiKey, openaiKeyStatus: "unknown" as KeyStatus }),
+
+      anthropicKeyStatus: "unknown" as KeyStatus,
+      setAnthropicKeyStatus: (anthropicKeyStatus) => set({ anthropicKeyStatus }),
+      openaiKeyStatus: "unknown" as KeyStatus,
+      setOpenaiKeyStatus: (openaiKeyStatus) => set({ openaiKeyStatus }),
 
       showSettings: false,
       setShowSettings: (showSettings) => set({ showSettings }),
@@ -47,6 +60,8 @@ export const useAIStore = create<AIStore>()(
         provider: state.provider,
         anthropicKey: state.anthropicKey,
         openaiKey: state.openaiKey,
+        anthropicKeyStatus: state.anthropicKeyStatus,
+        openaiKeyStatus: state.openaiKeyStatus,
       }),
     }
   )
