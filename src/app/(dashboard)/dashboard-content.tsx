@@ -23,6 +23,7 @@ import { useProjects, useTeams } from "@/hooks/use-milestones";
 import { cn } from "@/lib/utils";
 import { WorkspaceDeletionBanner } from "@/components/workspace-deletion-banner";
 import { useUndoKeyboard } from "@/hooks/use-undo-keyboard";
+import { AIChatPanel } from "@/components/ai/ai-chat-panel";
 
 const VALID_TABS: TabId[] = ["dashboard", "features", "timeline", "calendar"];
 const VALID_SETTINGS_SECTIONS: SettingsSection[] = [
@@ -371,6 +372,9 @@ function DashboardContentInner() {
         activeSection={settingsSection}
         onSectionChange={handleSettingsSectionChange}
       />
+
+      {/* AI Chat */}
+      <AIChatPanel />
     </DrilldownProvider>
   );
 }
