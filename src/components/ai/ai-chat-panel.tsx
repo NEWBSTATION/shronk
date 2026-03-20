@@ -252,12 +252,23 @@ export function AIChatPanel() {
   const apiKey = provider === "anthropic" ? anthropicKey : openaiKey;
   const needsKey = !apiKey;
 
+  // Use refs so the transport body function always reads fresh values
+  const providerRef = useRef(provider);
+  const apiKeyRef = useRef(apiKey);
+  providerRef.current = provider;
+  apiKeyRef.current = apiKey;
+
   const transport = useMemo(
     () => new DefaultChatTransport({
       api: "/api/ai/chat",
-      body: { provider, apiKey },
+      body: () => ({
+        provider: providerRef.current,
+        apiKey: apiKeyRef.current,
+      }),
     }),
-    [provider, apiKey]
+    // Transport only needs to be created once — body is a function that reads refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   const chatOptions = useMemo(
