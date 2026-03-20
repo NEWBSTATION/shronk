@@ -130,36 +130,28 @@ export function InlineCreateRow({
   return (
     <div
       ref={containerRef}
-      className="flex items-center gap-1.5 px-3 h-11 border-t border-border/40 bg-muted/20"
+      className="flex items-center gap-1.5 mx-2 mb-2 mt-1 px-3 h-11 rounded-lg border border-border/60 bg-card shadow-sm"
     >
-      {/* Chain toggle */}
-      {(lastFeature || lastCreatedId) && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={() => setChainActive(!chainActive)}
-              className={cn(
-                "shrink-0 h-6 w-6 flex items-center justify-center rounded-md transition-colors",
-                chainActive
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted-foreground/40 hover:text-muted-foreground"
-              )}
-            >
-              <Link className="h-3.5 w-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" sideOffset={4}>
-            {chainActive ? "Auto-chain on" : "Auto-chain off"}
-          </TooltipContent>
-        </Tooltip>
-      )}
-
-      {!lastFeature && !lastCreatedId && (
-        <div className="shrink-0 h-6 w-6 flex items-center justify-center">
-          <Plus className="h-3.5 w-3.5 text-muted-foreground/40" />
-        </div>
-      )}
+      {/* Chain toggle — always visible */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={() => setChainActive(!chainActive)}
+            className={cn(
+              "shrink-0 h-6 w-6 flex items-center justify-center rounded-md transition-colors",
+              chainActive
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground/40 hover:text-muted-foreground"
+            )}
+          >
+            <Link className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={4}>
+          {chainActive ? "Auto-chain on" : "Auto-chain off"}
+        </TooltipContent>
+      </Tooltip>
 
       <input
         ref={inputRef}
