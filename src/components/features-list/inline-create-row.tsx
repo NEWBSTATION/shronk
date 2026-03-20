@@ -132,7 +132,24 @@ export function InlineCreateRow({
       ref={containerRef}
       className="flex items-center gap-1.5 mx-2 mb-2 mt-1 px-3 h-11 rounded-lg border border-border/60 bg-card shadow-sm"
     >
-      {/* Chain toggle — always visible */}
+      {/* Plus icon — aligned with feature row checkbox (h-6 w-6) */}
+      <div className="shrink-0 h-6 w-6 flex items-center justify-center text-muted-foreground/40">
+        <Plus className="h-3.5 w-3.5" />
+      </div>
+
+      {/* Title input — aligned with feature row title */}
+      <input
+        ref={inputRef}
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="Feature name..."
+        disabled={isCreating}
+        className="flex-1 text-sm bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground/50 disabled:opacity-50"
+      />
+
+      {/* Chain toggle */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
@@ -153,17 +170,7 @@ export function InlineCreateRow({
         </TooltipContent>
       </Tooltip>
 
-      <input
-        ref={inputRef}
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder="Feature name..."
-        disabled={isCreating}
-        className="flex-1 text-sm bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground/50 disabled:opacity-50"
-      />
-
+      {/* Create button */}
       <button
         type="button"
         onClick={handleCreate}
