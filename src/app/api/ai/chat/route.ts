@@ -14,6 +14,9 @@ export async function POST(request: NextRequest) {
     const ctx = await requireWorkspaceMember();
 
     const body = await request.json();
+    console.log("AI chat request body keys:", Object.keys(body));
+    console.log("AI chat body.provider:", body.provider);
+    console.log("AI chat body.apiKey present:", !!body.apiKey);
     const { messages, provider, apiKey } = body;
 
     if (!apiKey) {
