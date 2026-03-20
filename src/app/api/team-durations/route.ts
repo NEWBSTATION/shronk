@@ -11,7 +11,6 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { addDays, differenceInDays } from "date-fns";
-import { getTransitiveSuccessors } from "@/lib/graph-utils";
 
 function toLocalMidnight(date: Date | string): Date {
   const d = typeof date === "string" ? new Date(date) : date;
@@ -210,85 +209,7 @@ export async function PUT(request: NextRequest) {
         duration: newParentDuration,
       });
 
-      // If right edge grew, delta-shift transitive successors
-      const rightDelta = differenceInDays(newParentEnd, parentEnd);
-      if (rightDelta > 0) {
-        // Build successor map for this project
-        const projectMilestoneIds = (
-          await db.select({ id: milestones.id }).from(milestones).where(eq(milestones.projectId, milestone.projectId))
-        ).map((m) => m.id);
-
-        const projectDeps = projectMilestoneIds.length > 0
-          ? await db
-              .select()
-              .from(milestoneDependencies)
-              .where(inArray(milestoneDependencies.predecessorId, projectMilestoneIds))
-          : [];
-
-        const successorMap = new Map<string, string[]>();
-        for (const dep of projectDeps) {
-          const list = successorMap.get(dep.predecessorId) || [];
-          list.push(dep.successorId);
-          successorMap.set(dep.predecessorId, list);
-        }
-
-        const successorIds = getTransitiveSuccessors(data.milestoneId, successorMap);
-
-        if (successorIds.size > 0) {
-          const successorMilestones = await db
-            .select()
-            .from(milestones)
-            .where(inArray(milestones.id, [...successorIds]));
-
-          for (const succ of successorMilestones) {
-            const succStart = addDays(toLocalMidnight(succ.startDate), rightDelta);
-            const succEnd = addDays(toLocalMidnight(succ.endDate), rightDelta);
-
-            await db
-              .update(milestones)
-              .set({ startDate: succStart, endDate: succEnd, updatedAt: now })
-              .where(eq(milestones.id, succ.id));
-
-            cascadedUpdates.push({
-              id: succ.id,
-              startDate: succStart.toISOString(),
-              endDate: succEnd.toISOString(),
-              duration: succ.duration,
-            });
-          }
-
-          // Shift team tracks of affected successors
-          const affectedIds = [...successorIds];
-          const succTeamDurs = affectedIds.length > 0
-            ? await db
-                .select()
-                .from(teamMilestoneDurations)
-                .where(inArray(teamMilestoneDurations.milestoneId, affectedIds))
-            : [];
-
-          for (const td of succTeamDurs) {
-            const newTdStart = addDays(toLocalMidnight(td.startDate), rightDelta);
-            const newTdEnd = addDays(toLocalMidnight(td.endDate), rightDelta);
-            await db
-              .update(teamMilestoneDurations)
-              .set({ startDate: newTdStart, endDate: newTdEnd, offset: 0 })
-              .where(
-                and(
-                  eq(teamMilestoneDurations.milestoneId, td.milestoneId),
-                  eq(teamMilestoneDurations.teamId, td.teamId)
-                )
-              );
-            teamCascadedUpdates.push({
-              teamId: td.teamId,
-              id: td.milestoneId,
-              startDate: newTdStart.toISOString(),
-              endDate: newTdEnd.toISOString(),
-              duration: td.duration,
-              offset: 0,
-            });
-          }
-        }
-      }
+      // Parent expansion only — no successor shifting
     }
 
     return NextResponse.json({

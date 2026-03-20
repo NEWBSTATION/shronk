@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
-import { milestones, milestoneDependencies } from "@/db/schema";
-import { eq, inArray, and } from "drizzle-orm";
+import { milestones, teamMilestoneDurations } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { addDays, differenceInDays } from "date-fns";
 import { capitalizeWords } from "@/lib/capitalize";
-import { unifiedReflow, getTeamTrackBounds } from "@/lib/unified-reflow";
-import { teamMilestoneDurations } from "@/db/schema";
-import { getTransitiveSuccessors } from "@/lib/graph-utils";
+import { getTeamTrackBounds } from "@/lib/unified-reflow";
 
 const updateMilestoneSchema = z.object({
   title: z.string().min(1).max(255).optional(),
@@ -145,7 +143,7 @@ export async function PATCH(
         });
       }
 
-      // move or resize-end: save dates + BFS shift successors
+      // move or resize-end: save dates on the dragged node only (no successor shifting)
       let newStart = toLocalMidnight(data.startDate!);
       let newEnd = data.endDate ? toLocalMidnight(data.endDate!) : existingMilestone.endDate;
       let duration = data.duration ?? Math.max(0, differenceInDays(newEnd, newStart) + 1);
@@ -160,120 +158,51 @@ export async function PATCH(
         }
       }
 
-      // Use client-provided original dates when available (prevents race conditions
-      // when overlapping PATCH requests read stale DB state)
-      const oldStart = data.originalStartDate
-        ? toLocalMidnight(new Date(data.originalStartDate))
-        : toLocalMidnight(existingMilestone.startDate);
-      const oldEnd = data.originalEndDate
-        ? toLocalMidnight(new Date(data.originalEndDate))
-        : toLocalMidnight(existingMilestone.endDate);
-
-      const delta =
-        data.dragType === "move"
-          ? differenceInDays(newStart, oldStart)
-          : differenceInDays(newEnd, oldEnd); // resize-end
-
       // Save dragged node
       await db
         .update(milestones)
         .set({ startDate: newStart, endDate: newEnd, duration, updatedAt: now })
         .where(eq(milestones.id, id));
 
-      // BFS transitive successors
-      const allDeps = await db
-        .select()
-        .from(milestoneDependencies)
-        .where(eq(milestoneDependencies.predecessorId, id));
+      // Shift only the dragged node's own team tracks on move
+      const teamCascadedUpdates: Array<{ teamId: string; id: string; startDate: string; endDate: string; duration: number; offset: number }> = [];
+      if (data.dragType === "move") {
+        const oldStart = data.originalStartDate
+          ? toLocalMidnight(new Date(data.originalStartDate))
+          : toLocalMidnight(existingMilestone.startDate);
+        const delta = differenceInDays(newStart, oldStart);
 
-      // Need all deps in the project for BFS
-      const projectDeps = await db
-        .select()
-        .from(milestoneDependencies)
-        .where(
-          inArray(
-            milestoneDependencies.predecessorId,
-            (await db.select({ id: milestones.id }).from(milestones).where(eq(milestones.projectId, existingMilestone.projectId))).map((m) => m.id)
-          )
-        );
-
-      const successorMap = new Map<string, string[]>();
-      for (const dep of projectDeps) {
-        const list = successorMap.get(dep.predecessorId) || [];
-        list.push(dep.successorId);
-        successorMap.set(dep.predecessorId, list);
-      }
-
-      const successorIds = getTransitiveSuccessors(id, successorMap);
-
-      const cascadedUpdates: Array<{ id: string; startDate: string; endDate: string; duration: number }> = [];
-
-      if (delta !== 0 && successorIds.size > 0) {
-        const successorMilestones = await db
-          .select()
-          .from(milestones)
-          .where(inArray(milestones.id, [...successorIds]));
-
-        for (const succ of successorMilestones) {
-          const succStart = toLocalMidnight(succ.startDate);
-          const succEnd = toLocalMidnight(succ.endDate);
-          const shiftedStart = addDays(succStart, delta);
-          const shiftedEnd = addDays(succEnd, delta);
-
-          await db
-            .update(milestones)
-            .set({ startDate: shiftedStart, endDate: shiftedEnd, updatedAt: now })
-            .where(eq(milestones.id, succ.id));
-
-          cascadedUpdates.push({
-            id: succ.id,
-            startDate: shiftedStart.toISOString(),
-            endDate: shiftedEnd.toISOString(),
-            duration: succ.duration,
-          });
-        }
-      }
-
-      // Shift team track dates for successors + dragged node on move
-      const teamShiftIds = data.dragType === "move"
-        ? [id, ...successorIds]
-        : [...successorIds];
-      const teamDurs = teamShiftIds.length > 0
-        ? await db
+        if (delta !== 0) {
+          const nodeTDs = await db
             .select()
             .from(teamMilestoneDurations)
-            .where(inArray(teamMilestoneDurations.milestoneId, teamShiftIds))
-        : [];
+            .where(eq(teamMilestoneDurations.milestoneId, id));
 
-      const teamDateUpdates: Array<{ milestoneId: string; teamId: string; startDate: Date; endDate: Date; duration: number; offset: number }> = [];
-      if (delta !== 0) {
-        for (const td of teamDurs) {
-          const newTdStart = addDays(toLocalMidnight(td.startDate), delta);
-          const newTdEnd = addDays(toLocalMidnight(td.endDate), delta);
-          teamDateUpdates.push({
-            milestoneId: td.milestoneId,
-            teamId: td.teamId,
-            startDate: newTdStart,
-            endDate: newTdEnd,
-            duration: td.duration,
-            offset: 0,
-          });
+          for (const td of nodeTDs) {
+            const newTdStart = addDays(toLocalMidnight(td.startDate), delta);
+            const newTdEnd = addDays(toLocalMidnight(td.endDate), delta);
+
+            await db
+              .update(teamMilestoneDurations)
+              .set({ startDate: newTdStart, endDate: newTdEnd, offset: 0 })
+              .where(
+                and(
+                  eq(teamMilestoneDurations.milestoneId, td.milestoneId),
+                  eq(teamMilestoneDurations.teamId, td.teamId)
+                )
+              );
+
+            teamCascadedUpdates.push({
+              teamId: td.teamId,
+              id: td.milestoneId,
+              startDate: newTdStart.toISOString(),
+              endDate: newTdEnd.toISOString(),
+              duration: td.duration,
+              offset: 0,
+            });
+          }
         }
       }
-
-      await Promise.all(
-        teamDateUpdates.map((td) =>
-          db
-            .update(teamMilestoneDurations)
-            .set({ startDate: td.startDate, endDate: td.endDate, offset: 0 })
-            .where(
-              and(
-                eq(teamMilestoneDurations.milestoneId, td.milestoneId),
-                eq(teamMilestoneDurations.teamId, td.teamId)
-              )
-            )
-        )
-      );
 
       const [updatedMilestone] = await db
         .select()
@@ -282,15 +211,8 @@ export async function PATCH(
 
       return NextResponse.json({
         milestone: updatedMilestone,
-        cascadedUpdates,
-        teamCascadedUpdates: teamDateUpdates.map((td) => ({
-          teamId: td.teamId,
-          id: td.milestoneId,
-          startDate: td.startDate.toISOString(),
-          endDate: td.endDate.toISOString(),
-          duration: td.duration,
-          offset: td.offset,
-        })),
+        cascadedUpdates: [],
+        teamCascadedUpdates,
       });
     }
 
@@ -351,28 +273,10 @@ export async function PATCH(
       .where(eq(milestones.id, id))
       .returning();
 
-    // Run unified reflow (authoritative — no skipIds)
-    const { milestoneUpdates, teamDateUpdates } =
-      await unifiedReflow(existingMilestone.projectId);
-
     return NextResponse.json({
       milestone: updatedMilestone,
-      cascadedUpdates: milestoneUpdates
-        .filter((u) => u.id !== id)
-        .map((u) => ({
-          id: u.id,
-          startDate: u.startDate.toISOString(),
-          endDate: u.endDate.toISOString(),
-          duration: u.duration,
-        })),
-      teamCascadedUpdates: teamDateUpdates.map((td) => ({
-        teamId: td.teamId,
-        id: td.milestoneId,
-        startDate: td.startDate.toISOString(),
-        endDate: td.endDate.toISOString(),
-        duration: td.duration,
-        offset: td.offset,
-      })),
+      cascadedUpdates: [],
+      teamCascadedUpdates: [],
     });
   } catch (error) {
     if (error instanceof AuthError) {

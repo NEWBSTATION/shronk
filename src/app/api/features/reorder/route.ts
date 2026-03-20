@@ -5,7 +5,6 @@ import { milestones, milestoneDependencies, projects } from "@/db/schema";
 import { eq, and, or, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { addDays } from "date-fns";
-import { unifiedReflow } from "@/lib/unified-reflow";
 
 const reorderSchema = z.object({
   projectId: z.string().uuid(),
@@ -173,27 +172,10 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(milestones.id, newRootId));
 
-    // Run reflow to cascade all dates (authoritative — no skipIds)
-    const { milestoneUpdates, teamDateUpdates } = await unifiedReflow(
-      data.projectId
-    );
-
     return NextResponse.json({
       success: true,
-      cascadedUpdates: milestoneUpdates.map((u) => ({
-        id: u.id,
-        startDate: u.startDate.toISOString(),
-        endDate: u.endDate.toISOString(),
-        duration: u.duration,
-      })),
-      teamCascadedUpdates: teamDateUpdates.map((td) => ({
-        teamId: td.teamId,
-        id: td.milestoneId,
-        startDate: td.startDate.toISOString(),
-        endDate: td.endDate.toISOString(),
-        duration: td.duration,
-        offset: td.offset,
-      })),
+      cascadedUpdates: [],
+      teamCascadedUpdates: [],
       // Return the new root's dates for cache update
       newRootUpdate: {
         id: newRootId,

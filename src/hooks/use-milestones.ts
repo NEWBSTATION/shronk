@@ -2,8 +2,6 @@
 
 import { useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { addDays, differenceInDays } from "date-fns";
-import { getTransitiveSuccessors } from "@/lib/graph-utils";
 import type {
   Milestone,
   NewMilestone,
@@ -199,69 +197,11 @@ export function useUpdateMilestone() {
         (old: MilestonesResponse | undefined) => {
           if (!old) return old;
 
-          let newMilestones = old.milestones.map((m) =>
+          const newMilestones = old.milestones.map((m) =>
             m.id === id ? { ...m, ...data } : m
           );
-          let newTeamDurations = old.teamDurations || [];
 
-          // For move/resize-end drags, optimistically shift transitive successors
-          // so there's no visual flash between cleanup and server response
-          if ((dragType === "move" || dragType === "resize-end") && data.startDate && data.endDate) {
-            const existing = old.milestones.find((m) => m.id === id);
-            if (existing) {
-              // Always use cache position for optimistic delta — not originalStartDate
-              // (which is for the server). Cache position reflects prior optimistic
-              // shifts, so the delta is incremental and accumulates correctly.
-              const oldStart = new Date(existing.startDate);
-              const oldEnd = new Date(existing.endDate);
-              const newStart = new Date(data.startDate as string | Date);
-              const newEnd = new Date(data.endDate as string | Date);
-
-              const delta =
-                dragType === "move"
-                  ? differenceInDays(newStart, oldStart)
-                  : differenceInDays(newEnd, oldEnd);
-
-              if (delta !== 0) {
-                const successorMap = new Map<string, string[]>();
-                for (const dep of old.dependencies) {
-                  const list = successorMap.get(dep.predecessorId) || [];
-                  list.push(dep.successorId);
-                  successorMap.set(dep.predecessorId, list);
-                }
-
-                const successorIds = getTransitiveSuccessors(id, successorMap);
-
-                if (successorIds.size > 0) {
-                  newMilestones = newMilestones.map((m) => {
-                    if (!successorIds.has(m.id)) return m;
-                    return {
-                      ...m,
-                      startDate: addDays(new Date(m.startDate), delta),
-                      endDate: addDays(new Date(m.endDate), delta),
-                    };
-                  });
-
-                  // Shift team durations for successors + dragged node on move
-                  const teamShiftIds = new Set(successorIds);
-                  if (dragType === "move") teamShiftIds.add(id);
-
-                  if (newTeamDurations.length > 0) {
-                    newTeamDurations = newTeamDurations.map((td) => {
-                      if (!teamShiftIds.has(td.milestoneId)) return td;
-                      return {
-                        ...td,
-                        startDate: addDays(new Date(td.startDate), delta),
-                        endDate: addDays(new Date(td.endDate), delta),
-                      };
-                    });
-                  }
-                }
-              }
-            }
-          }
-
-          return { ...old, milestones: newMilestones, teamDurations: newTeamDurations };
+          return { ...old, milestones: newMilestones };
         }
       );
 

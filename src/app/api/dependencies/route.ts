@@ -4,7 +4,6 @@ import { db } from "@/db";
 import { milestoneDependencies, milestones, projects } from "@/db/schema";
 import { eq, and, or, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { unifiedReflow } from "@/lib/unified-reflow";
 
 const createDependencySchema = z.object({
   predecessorId: z.string().uuid(),
@@ -276,26 +275,10 @@ export async function PATCH(request: NextRequest) {
       .where(eq(milestoneDependencies.id, data.id))
       .returning();
 
-    // Run reflow
-    const { milestoneUpdates, teamDateUpdates } =
-      await unifiedReflow(existingDependency.predecessor.projectId);
-
     return NextResponse.json({
       dependency: updated,
-      cascadedUpdates: milestoneUpdates.map((u) => ({
-        id: u.id,
-        startDate: u.startDate.toISOString(),
-        endDate: u.endDate.toISOString(),
-        duration: u.duration,
-      })),
-      teamCascadedUpdates: teamDateUpdates.map((td) => ({
-        teamId: td.teamId,
-        id: td.milestoneId,
-        startDate: td.startDate.toISOString(),
-        endDate: td.endDate.toISOString(),
-        duration: td.duration,
-        offset: td.offset,
-      })),
+      cascadedUpdates: [],
+      teamCascadedUpdates: [],
     });
   } catch (error) {
     if (error instanceof AuthError) {

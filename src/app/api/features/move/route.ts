@@ -4,7 +4,6 @@ import { db } from "@/db";
 import { milestones, milestoneDependencies, projects } from "@/db/schema";
 import { eq, and, or, inArray, asc } from "drizzle-orm";
 import { z } from "zod";
-import { unifiedReflow } from "@/lib/unified-reflow";
 
 const moveFeatureSchema = z.object({
   featureId: z.string().uuid(),
@@ -211,12 +210,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Reflow both projects
-    const [oldReflow, newReflow] = await Promise.all([
-      unifiedReflow(oldProjectId),
-      unifiedReflow(data.targetProjectId),
-    ]);
-
     // Get the updated feature
     const updatedFeature = await db.query.milestones.findFirst({
       where: eq(milestones.id, data.featureId),
@@ -226,18 +219,8 @@ export async function POST(request: NextRequest) {
       feature: updatedFeature,
       brokenDeps,
       bridgedDeps,
-      oldProjectUpdates: oldReflow.milestoneUpdates.map((u) => ({
-        id: u.id,
-        startDate: u.startDate.toISOString(),
-        endDate: u.endDate.toISOString(),
-        duration: u.duration,
-      })),
-      newProjectUpdates: newReflow.milestoneUpdates.map((u) => ({
-        id: u.id,
-        startDate: u.startDate.toISOString(),
-        endDate: u.endDate.toISOString(),
-        duration: u.duration,
-      })),
+      oldProjectUpdates: [],
+      newProjectUpdates: [],
     });
   } catch (error) {
     if (error instanceof AuthError) {
