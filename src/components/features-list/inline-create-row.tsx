@@ -130,7 +130,7 @@ export function InlineCreateRow({
   return (
     <div
       ref={containerRef}
-      className="flex items-center gap-1.5 mx-2 mb-2 mt-1 px-3 h-11 rounded-lg border border-border/60 bg-card shadow-sm"
+      className="flex items-center gap-1.5 mx-2 mb-2 mt-1 pl-1 pr-2 h-11 rounded-lg border border-border/60 bg-card shadow-sm"
     >
       {/* Plus icon — aligned with feature row checkbox (h-6 w-6) */}
       <div className="shrink-0 h-6 w-6 flex items-center justify-center text-muted-foreground/40">

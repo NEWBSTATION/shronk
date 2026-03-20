@@ -231,6 +231,50 @@ export function FeaturesSectionList({
     });
   }, [features, milestones]);
 
+  // Hotkey: F then 1-9 opens inline create for that milestone
+  const fPressedRef = useRef(false);
+  const fTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (e.key === "f" && !e.shiftKey) {
+        fPressedRef.current = true;
+        if (fTimerRef.current) clearTimeout(fTimerRef.current);
+        fTimerRef.current = setTimeout(() => { fPressedRef.current = false; }, 800);
+        return;
+      }
+
+      if (fPressedRef.current && e.key >= "1" && e.key <= "9") {
+        e.preventDefault();
+        fPressedRef.current = false;
+        if (fTimerRef.current) clearTimeout(fTimerRef.current);
+
+        const index = parseInt(e.key, 10) - 1;
+        if (index < sections.length) {
+          const milestoneId = sections[index].milestone.id;
+          setInlineCreateMilestoneId(milestoneId);
+          if (collapsedSections.has(milestoneId)) {
+            toggleSection(milestoneId);
+          }
+        }
+        return;
+      }
+
+      if (fPressedRef.current && e.key !== "f") {
+        fPressedRef.current = false;
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => {
+      document.removeEventListener("keydown", handler);
+      if (fTimerRef.current) clearTimeout(fTimerRef.current);
+    };
+  }, [sections, collapsedSections, toggleSection]);
+
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
 
