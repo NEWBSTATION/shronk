@@ -5,6 +5,7 @@ import type { TimePeriod } from './types';
 import { parseTeamTrackId } from './transformers';
 import { roundedPath } from './timeline-links';
 import { ROW_HEIGHT } from './scales-config';
+import { getTransitiveSuccessors } from '@/lib/graph-utils';
 import type { Milestone } from '@/db/schema';
 import type { TimelineTask } from './types';
 
@@ -61,7 +62,7 @@ export function useBarDrag({
   const lastCascadeKeyRef = useRef('');
   // Summary bar child tracking
   const summaryChildOriginalsRef = useRef<Map<string, { left: number; width: number }>>(new Map());
-  // Parent bar tracking for team track drags (to detect growth → cascade)
+  // Parent bar tracking for team track drags (to detect growth)
   const parentOriginalRef = useRef<{ el: HTMLElement; left: number; width: number; milestoneId: string } | null>(null);
 
   useEffect(() => {
@@ -260,9 +261,9 @@ export function useBarDrag({
       const taskId = dragTaskIdRef.current;
       const teamTrack = parseTeamTrackId(taskId);
 
-      // Team track: grow parent bidirectionally if child exceeds bounds → cascade chain
+      // Team track: grow parent bidirectionally if child exceeds bounds
       if (teamTrack && parentOriginalRef.current) {
-        const { el: parentEl, left: parentLeft, width: parentWidth, milestoneId: parentId } = parentOriginalRef.current;
+        const { el: parentEl, left: parentLeft, width: parentWidth } = parentOriginalRef.current;
         const origParentRight = parentLeft + parentWidth;
         const teamRight = newLeft + newWidth;
 
@@ -314,12 +315,102 @@ export function useBarDrag({
         highlightEl.style.width = `${newWidth}px`;
       }
 
-      // No cascade preview — features stay where they are
+      // Live cascade preview for chain dragging (non-team-track tasks)
+      if (!teamTrack) {
+        runCascadePreview(taskId, newLeft, newWidth);
+      }
 
       // Update dependency lines to follow bar positions
       updateLinksPreview();
     }
 
+    /**
+     * Rigid delta-shift cascade preview:
+     * - move: shift all transitive successors by the same px delta
+     * - resize-end: shift all transitive successors by end-date delta
+     * - resize-start: no cascade
+     *
+     * This is purely visual — preserves relative positions and overlaps.
+     */
+    function runCascadePreview(taskId: string, newLeft: number, newWidth: number) {
+      const dragType = dragTypeRef.current;
+
+      // resize-start: no cascade at all
+      if (dragType === 'resize-start') {
+        for (const [id, orig] of cascadeOriginalsRef.current) {
+          const el = container!.querySelector(`[data-task-id="${id}"]`) as HTMLElement;
+          if (el) {
+            el.style.left = `${orig.left}px`;
+            el.style.width = `${orig.width}px`;
+          }
+        }
+        cascadeOriginalsRef.current.clear();
+        lastCascadeKeyRef.current = '';
+        return;
+      }
+
+      // Compute delta in pixels
+      let deltaPx: number;
+      if (dragType === 'move') {
+        deltaPx = newLeft - origLeftRef.current;
+      } else {
+        // resize-end: delta of end position
+        deltaPx = (newLeft + newWidth) - (origLeftRef.current + origWidthRef.current);
+      }
+
+      // BFS all transitive successors
+      const successors = getTransitiveSuccessors(taskId, successorMapRef.current);
+
+      const cascadeKey = `${deltaPx}:${[...successors].join(',')}`;
+      if (cascadeKey === lastCascadeKeyRef.current) return;
+      lastCascadeKeyRef.current = cascadeKey;
+
+      // Revert bars that are no longer successors
+      for (const [prevId, orig] of cascadeOriginalsRef.current) {
+        if (!successors.has(prevId)) {
+          const el = container!.querySelector(`[data-task-id="${prevId}"]`) as HTMLElement;
+          if (el) {
+            el.style.left = `${orig.left}px`;
+            el.style.width = `${orig.width}px`;
+          }
+          cascadeOriginalsRef.current.delete(prevId);
+        }
+      }
+
+      const currentTasks = tasksRef.current;
+
+      for (const succId of successors) {
+        const el = container!.querySelector(`[data-task-id="${succId}"]`) as HTMLElement;
+        if (!el) continue;
+
+        if (!cascadeOriginalsRef.current.has(succId)) {
+          cascadeOriginalsRef.current.set(succId, {
+            left: parseFloat(el.style.left) || 0,
+            width: parseFloat(el.style.width) || 0,
+          });
+        }
+
+        const orig = cascadeOriginalsRef.current.get(succId)!;
+        el.style.left = `${orig.left + deltaPx}px`;
+
+        // Also shift team track children of this successor
+        for (const child of currentTasks) {
+          if (child.parent !== succId) continue;
+          const childEl = container!.querySelector(`[data-task-id="${child.id}"]`) as HTMLElement;
+          if (!childEl) continue;
+
+          if (!cascadeOriginalsRef.current.has(child.id)) {
+            cascadeOriginalsRef.current.set(child.id, {
+              left: parseFloat(childEl.style.left) || 0,
+              width: parseFloat(childEl.style.width) || 0,
+            });
+          }
+
+          const childOrig = cascadeOriginalsRef.current.get(child.id)!;
+          childEl.style.left = `${childOrig.left + deltaPx}px`;
+        }
+      }
+    }
 
     const LINK_DELTA = 20;
     const LINK_R = 6;
@@ -489,11 +580,6 @@ export function useBarDrag({
         onTaskClick(taskId);
       } else if (hasMovedRef.current && taskId && barEl) {
         // Commit drag — derive integer day offsets from snapped pixel positions.
-        // snapPx produces positions intended to be exact ppd multiples, but
-        // floating-point arithmetic can drift (e.g. 9*33.33=299.97 instead
-        // of 300). Converting back via Math.round(299.97/33.33) can flip to
-        // the wrong day. Fix: round with a small epsilon bias so values very
-        // close to an integer (like 8.99997) always resolve correctly.
         const ppd = pixelsPerDayRef.current;
         const timelineStart = timelineStartRef.current;
         const finalLeft = parseFloat(barEl.style.left) || 0;
@@ -514,7 +600,9 @@ export function useBarDrag({
 
         const teamTrack = parseTeamTrackId(taskId);
 
-        cleanupDrag();
+        // Preserve cascade/summary positions — React re-render from
+        // the optimistic update will take over seamlessly (no flash)
+        cleanupDrag(true);
         onDragEnd(taskId, startDate, endDate, duration, !!teamTrack, teamTrack, dragType ?? undefined, originalStartDate, originalEndDate);
       } else {
         cleanupDrag();

@@ -2,6 +2,8 @@
 
 import { useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { addDays, differenceInDays } from "date-fns";
+import { getTransitiveSuccessors } from "@/lib/graph-utils";
 import type {
   Milestone,
   NewMilestone,
@@ -197,11 +199,66 @@ export function useUpdateMilestone() {
         (old: MilestonesResponse | undefined) => {
           if (!old) return old;
 
-          const newMilestones = old.milestones.map((m) =>
+          let newMilestones = old.milestones.map((m) =>
             m.id === id ? { ...m, ...data } : m
           );
+          let newTeamDurations = old.teamDurations || [];
 
-          return { ...old, milestones: newMilestones };
+          // For move/resize-end drags, optimistically shift transitive successors
+          // using a rigid delta (same shift for all) — preserves overlaps
+          if ((dragType === "move" || dragType === "resize-end") && data.startDate && data.endDate) {
+            const existing = old.milestones.find((m) => m.id === id);
+            if (existing) {
+              const oldStart = new Date(existing.startDate);
+              const oldEnd = new Date(existing.endDate);
+              const newStart = new Date(data.startDate as string | Date);
+              const newEnd = new Date(data.endDate as string | Date);
+
+              const delta =
+                dragType === "move"
+                  ? differenceInDays(newStart, oldStart)
+                  : differenceInDays(newEnd, oldEnd);
+
+              if (delta !== 0) {
+                const successorMap = new Map<string, string[]>();
+                for (const dep of old.dependencies) {
+                  const list = successorMap.get(dep.predecessorId) || [];
+                  list.push(dep.successorId);
+                  successorMap.set(dep.predecessorId, list);
+                }
+
+                const successorIds = getTransitiveSuccessors(id, successorMap);
+
+                if (successorIds.size > 0) {
+                  newMilestones = newMilestones.map((m) => {
+                    if (!successorIds.has(m.id)) return m;
+                    return {
+                      ...m,
+                      startDate: addDays(new Date(m.startDate), delta),
+                      endDate: addDays(new Date(m.endDate), delta),
+                    };
+                  });
+
+                  // Shift team durations for successors + dragged node on move
+                  const teamShiftIds = new Set(successorIds);
+                  if (dragType === "move") teamShiftIds.add(id);
+
+                  if (newTeamDurations.length > 0) {
+                    newTeamDurations = newTeamDurations.map((td) => {
+                      if (!teamShiftIds.has(td.milestoneId)) return td;
+                      return {
+                        ...td,
+                        startDate: addDays(new Date(td.startDate), delta),
+                        endDate: addDays(new Date(td.endDate), delta),
+                      };
+                    });
+                  }
+                }
+              }
+            }
+          }
+
+          return { ...old, milestones: newMilestones, teamDurations: newTeamDurations };
         }
       );
 

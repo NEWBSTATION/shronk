@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireWorkspaceMember, AuthError } from "@/lib/api-workspace";
 import { db } from "@/db";
-import { milestones, teamMilestoneDurations } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { milestones, teamMilestoneDurations, milestoneDependencies } from "@/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
+import { getTransitiveSuccessors } from "@/lib/graph-utils";
 import { z } from "zod";
 import { addDays, differenceInDays } from "date-fns";
 import { capitalizeWords } from "@/lib/capitalize";
@@ -143,7 +144,7 @@ export async function PATCH(
         });
       }
 
-      // move or resize-end: save dates on the dragged node only (no successor shifting)
+      // move or resize-end: save dates + rigid delta-shift successors
       let newStart = toLocalMidnight(data.startDate!);
       let newEnd = data.endDate ? toLocalMidnight(data.endDate!) : existingMilestone.endDate;
       let duration = data.duration ?? Math.max(0, differenceInDays(newEnd, newStart) + 1);
@@ -158,49 +159,104 @@ export async function PATCH(
         }
       }
 
+      const oldStart = data.originalStartDate
+        ? toLocalMidnight(new Date(data.originalStartDate))
+        : toLocalMidnight(existingMilestone.startDate);
+      const oldEnd = data.originalEndDate
+        ? toLocalMidnight(new Date(data.originalEndDate))
+        : toLocalMidnight(existingMilestone.endDate);
+
+      const delta =
+        data.dragType === "move"
+          ? differenceInDays(newStart, oldStart)
+          : differenceInDays(newEnd, oldEnd); // resize-end
+
       // Save dragged node
       await db
         .update(milestones)
         .set({ startDate: newStart, endDate: newEnd, duration, updatedAt: now })
         .where(eq(milestones.id, id));
 
-      // Shift only the dragged node's own team tracks on move
+      // Rigid delta-shift: apply the same delta to all transitive successors
+      // This preserves relative positions and overlaps (no reflow/constraint enforcement)
+      const projectDeps = await db
+        .select()
+        .from(milestoneDependencies)
+        .where(
+          inArray(
+            milestoneDependencies.predecessorId,
+            (await db.select({ id: milestones.id }).from(milestones).where(eq(milestones.projectId, existingMilestone.projectId))).map((m) => m.id)
+          )
+        );
+
+      const successorMap = new Map<string, string[]>();
+      for (const dep of projectDeps) {
+        const list = successorMap.get(dep.predecessorId) || [];
+        list.push(dep.successorId);
+        successorMap.set(dep.predecessorId, list);
+      }
+
+      const successorIds = getTransitiveSuccessors(id, successorMap);
+      const cascadedUpdates: Array<{ id: string; startDate: string; endDate: string; duration: number }> = [];
+
+      if (delta !== 0 && successorIds.size > 0) {
+        const successorMilestones = await db
+          .select()
+          .from(milestones)
+          .where(inArray(milestones.id, [...successorIds]));
+
+        for (const succ of successorMilestones) {
+          const shiftedStart = addDays(toLocalMidnight(succ.startDate), delta);
+          const shiftedEnd = addDays(toLocalMidnight(succ.endDate), delta);
+
+          await db
+            .update(milestones)
+            .set({ startDate: shiftedStart, endDate: shiftedEnd, updatedAt: now })
+            .where(eq(milestones.id, succ.id));
+
+          cascadedUpdates.push({
+            id: succ.id,
+            startDate: shiftedStart.toISOString(),
+            endDate: shiftedEnd.toISOString(),
+            duration: succ.duration,
+          });
+        }
+      }
+
+      // Shift team tracks for dragged node + successors
+      const teamShiftIds = data.dragType === "move"
+        ? [id, ...successorIds]
+        : [...successorIds];
       const teamCascadedUpdates: Array<{ teamId: string; id: string; startDate: string; endDate: string; duration: number; offset: number }> = [];
-      if (data.dragType === "move") {
-        const oldStart = data.originalStartDate
-          ? toLocalMidnight(new Date(data.originalStartDate))
-          : toLocalMidnight(existingMilestone.startDate);
-        const delta = differenceInDays(newStart, oldStart);
 
-        if (delta !== 0) {
-          const nodeTDs = await db
-            .select()
-            .from(teamMilestoneDurations)
-            .where(eq(teamMilestoneDurations.milestoneId, id));
+      if (delta !== 0 && teamShiftIds.length > 0) {
+        const teamDurs = await db
+          .select()
+          .from(teamMilestoneDurations)
+          .where(inArray(teamMilestoneDurations.milestoneId, teamShiftIds));
 
-          for (const td of nodeTDs) {
-            const newTdStart = addDays(toLocalMidnight(td.startDate), delta);
-            const newTdEnd = addDays(toLocalMidnight(td.endDate), delta);
+        for (const td of teamDurs) {
+          const newTdStart = addDays(toLocalMidnight(td.startDate), delta);
+          const newTdEnd = addDays(toLocalMidnight(td.endDate), delta);
 
-            await db
-              .update(teamMilestoneDurations)
-              .set({ startDate: newTdStart, endDate: newTdEnd, offset: 0 })
-              .where(
-                and(
-                  eq(teamMilestoneDurations.milestoneId, td.milestoneId),
-                  eq(teamMilestoneDurations.teamId, td.teamId)
-                )
-              );
+          await db
+            .update(teamMilestoneDurations)
+            .set({ startDate: newTdStart, endDate: newTdEnd, offset: 0 })
+            .where(
+              and(
+                eq(teamMilestoneDurations.milestoneId, td.milestoneId),
+                eq(teamMilestoneDurations.teamId, td.teamId)
+              )
+            );
 
-            teamCascadedUpdates.push({
-              teamId: td.teamId,
-              id: td.milestoneId,
-              startDate: newTdStart.toISOString(),
-              endDate: newTdEnd.toISOString(),
-              duration: td.duration,
-              offset: 0,
-            });
-          }
+          teamCascadedUpdates.push({
+            teamId: td.teamId,
+            id: td.milestoneId,
+            startDate: newTdStart.toISOString(),
+            endDate: newTdEnd.toISOString(),
+            duration: td.duration,
+            offset: 0,
+          });
         }
       }
 
@@ -211,7 +267,7 @@ export async function PATCH(
 
       return NextResponse.json({
         milestone: updatedMilestone,
-        cascadedUpdates: [],
+        cascadedUpdates,
         teamCascadedUpdates,
       });
     }
