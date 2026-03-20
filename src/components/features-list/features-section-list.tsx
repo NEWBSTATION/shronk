@@ -16,6 +16,7 @@ import { useFeaturesListStore } from "@/store/features-list-store";
 import { topoSortFeatures } from "@/lib/topo-sort";
 import { SectionHeader } from "./section-header";
 import { FeatureRow, type TeamDurationInfo, type TeamOption } from "./feature-row";
+import { InlineCreateRow } from "./inline-create-row";
 import { useFeatureContextMenu } from "@/components/shared/feature-context-menu";
 import { formatDurationIn } from "@/lib/format-duration";
 
@@ -150,6 +151,9 @@ export function FeaturesSectionList({
 
   const lastClickedRef = useRef<string | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+
+  // Inline quick-create state: which milestone has an active inline row
+  const [inlineCreateMilestoneId, setInlineCreateMilestoneId] = useState<string | null>(null);
 
   // --- Pointer-based drag state ---
   const [dragState, setDragState] = useState<{
@@ -465,7 +469,17 @@ export function FeaturesSectionList({
                 collapsed={isCollapsed}
                 isDropTarget={isDropTarget}
                 onToggle={() => toggleSection(section.milestone.id)}
-                onAddFeature={(e) => onAddFeature?.(section.milestone.id, e)}
+                onAddFeature={(e) => {
+                  if (e?.shiftKey) {
+                    // Shift+click: open full dialog
+                    onAddFeature?.(section.milestone.id, e);
+                  } else {
+                    // Normal click: toggle inline quick-create
+                    setInlineCreateMilestoneId((prev) =>
+                      prev === section.milestone.id ? null : section.milestone.id
+                    );
+                  }
+                }}
                 onEditMilestone={() => onEditMilestone?.(section.milestone.id)}
                 onDeleteMilestone={() => onDeleteMilestone?.(section.milestone.id)}
                 onUpdateAppearance={(data) => onUpdateAppearance?.(section.milestone.id, data)}
@@ -483,9 +497,9 @@ export function FeaturesSectionList({
                 }}
               >
                 <div className="overflow-hidden">
-                  {section.features.length === 0 ? (
+                  {section.features.length === 0 && inlineCreateMilestoneId !== section.milestone.id ? (
                     <button
-                      onClick={(e) => onAddFeature?.(section.milestone.id, e)}
+                      onClick={() => setInlineCreateMilestoneId(section.milestone.id)}
                       className="w-full px-3 py-3 flex items-center gap-2 text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30 transition-colors cursor-pointer"
                     >
                       <div className="flex h-6 w-6 shrink-0 items-center justify-center">
@@ -568,6 +582,22 @@ export function FeaturesSectionList({
                         </div>
                       )}
                     </div>
+                  )}
+
+                  {/* Inline quick-create row */}
+                  {inlineCreateMilestoneId === section.milestone.id && (
+                    <InlineCreateRow
+                      milestoneId={section.milestone.id}
+                      lastFeature={
+                        section.features.length > 0
+                          ? {
+                              id: section.features[section.features.length - 1].id,
+                              endDate: section.features[section.features.length - 1].endDate,
+                            }
+                          : null
+                      }
+                      onClose={() => setInlineCreateMilestoneId(null)}
+                    />
                   )}
                 </div>
               </div>
