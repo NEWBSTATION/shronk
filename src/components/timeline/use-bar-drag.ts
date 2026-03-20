@@ -514,9 +514,7 @@ export function useBarDrag({
 
         const teamTrack = parseTeamTrackId(taskId);
 
-        // Preserve cascade/summary positions — React re-render from
-        // the optimistic update will take over seamlessly (no flash)
-        cleanupDrag(true);
+        cleanupDrag();
         onDragEnd(taskId, startDate, endDate, duration, !!teamTrack, teamTrack, dragType ?? undefined, originalStartDate, originalEndDate);
       } else {
         cleanupDrag();
