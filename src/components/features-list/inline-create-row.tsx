@@ -5,6 +5,7 @@ import { Plus, Link, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { addDays } from "date-fns";
+import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -149,21 +150,17 @@ export function InlineCreateRow({
         className="flex-1 text-sm bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground/50 disabled:opacity-50"
       />
 
-      {/* Chain toggle */}
+      {/* Auto-chain: icon + switch */}
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={() => setChainActive(!chainActive)}
-            className={cn(
-              "shrink-0 h-6 w-6 flex items-center justify-center rounded-md transition-colors",
-              chainActive
-                ? "bg-primary/15 text-primary"
-                : "text-muted-foreground/40 hover:text-muted-foreground"
-            )}
-          >
-            <Link className="h-3.5 w-3.5" />
-          </button>
+          <div className="shrink-0 flex items-center gap-1.5">
+            <Link className={cn("h-3.5 w-3.5 transition-colors", chainActive ? "text-primary" : "text-muted-foreground/40")} />
+            <Switch
+              size="sm"
+              checked={chainActive}
+              onCheckedChange={setChainActive}
+            />
+          </div>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={4}>
           {chainActive ? "Auto-chain on" : "Auto-chain off"}
